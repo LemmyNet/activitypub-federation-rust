@@ -16,7 +16,7 @@ A high-level framework for [ActivityPub](https://www.w3.org/TR/activitypub/) fed
 
 ## How to use
 
-To get started, have a look at the example. If anything is unclear, please open an issue for clarification. You can also look at [Lemmy code](https://github.com/LemmyNet/lemmy/tree/main/crates/apub) for a more advanced implementation.
+To get started, have a look at the example. You can also find some [ActivityPub resources in the Lemmy documentation](https://join-lemmy.org/docs/en/contributing/resources.html#activitypub-resources). If anything is unclear, please open an issue for clarification. For a more advanced implementation, take a look at the [Lemmy federation code](https://github.com/LemmyNet/lemmy/tree/main/crates/apub).
 
 ## Roadmap
 
