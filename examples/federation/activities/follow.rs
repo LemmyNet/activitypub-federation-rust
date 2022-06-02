@@ -51,6 +51,8 @@ impl ActivityHandler for Follow {
         Ok(())
     }
 
+    // Ignore clippy false positive: https://github.com/rust-lang/rust-clippy/issues/6446
+    #[allow(clippy::await_holding_lock)]
     async fn receive(
         self,
         data: &Data<Self::DataType>,
