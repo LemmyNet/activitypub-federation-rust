@@ -1,4 +1,4 @@
-use crate::{Error, LocalInstance, APUB_JSON_CONTENT_TYPE};
+use crate::{Error, InstanceSettings, LocalInstance, APUB_JSON_CONTENT_TYPE};
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use tracing::log::info;
@@ -11,6 +11,7 @@ pub async fn fetch_object_http<Kind: DeserializeOwned>(
 ) -> Result<Kind, Error> {
     // dont fetch local objects this way
     debug_assert!(url.domain() != Some(&instance.hostname));
+    verify_url_valid(url, &instance.settings)?;
     info!("Fetching remote object {}", url.to_string());
 
     *request_counter += 1;
@@ -47,5 +48,37 @@ pub fn verify_urls_match(a: &Url, b: &Url) -> Result<(), Error> {
     if a != b {
         return Err(Error::UrlVerificationError("Urls do not match"));
     }
+    Ok(())
+}
+
+/// Perform some security checks on URLs as mentioned in activitypub spec, and call user-supplied
+/// [`InstanceSettings.verify_url_function`].
+///
+/// https://www.w3.org/TR/activitypub/#security-considerations
+pub fn verify_url_valid(url: &Url, settings: &InstanceSettings) -> Result<(), Error> {
+    match url.scheme() {
+        "https" => {}
+        "http" => {
+            if !settings.debug {
+                return Err(Error::UrlVerificationError(
+                    "Http urls are only allowed in debug mode",
+                ));
+            }
+        }
+        _ => return Err(Error::UrlVerificationError("Invalid url scheme")),
+    };
+
+    if url.domain().is_none() {
+        return Err(Error::UrlVerificationError("Url must have a domain"));
+    }
+
+    if url.domain() == Some("localhost") && !settings.debug {
+        return Err(Error::UrlVerificationError(
+            "Localhost is only allowed in debug mode",
+        ));
+    }
+
+    (settings.verify_url_function)(url).map_err(Error::UrlVerificationError)?;
+
     Ok(())
 }

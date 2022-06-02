@@ -14,20 +14,27 @@ steps:
       - /root/.cargo/bin/cargo fmt -- --check
 
   - name: cargo check
-    image: clux/muslrust:1.59.0
+    image: rust:1.61-bullseye
     commands:
-      - cargo check
+      - cargo check --all --all-targets
 
   - name: cargo clippy
-    image: clux/muslrust:1.59.0
+    image: rust:1.61-bullseye
     commands:
       - rustup component add clippy
       - cargo clippy --workspace --tests --all-targets --all-features -- -D warnings -D deprecated -D clippy::perf -D clippy::complexity -D clippy::dbg_macro
       - cargo clippy --workspace -- -D clippy::unwrap_used
 
   - name: cargo test
-    image: clux/muslrust:1.59.0
+    image: rust:1.61-bullseye
     environment:
       RUST_BACKTRACE: 1
     commands:
       - cargo test --workspace --no-fail-fast
+
+  - name: cargo run
+    image: rust:1.61-bullseye
+    environment:
+      RUST_BACKTRACE: 1
+    commands:
+      - cargo run -p activitypub_federation --example federation

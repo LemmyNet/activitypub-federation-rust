@@ -40,7 +40,7 @@ pub struct Instance {
 impl Instance {
     pub fn new(hostname: String) -> Result<InstanceHandle, Error> {
         let settings = InstanceSettingsBuilder::default()
-            .testing_send_sync(true)
+            .debug(true)
             .worker_count(1)
             .build()?;
         let local_instance =

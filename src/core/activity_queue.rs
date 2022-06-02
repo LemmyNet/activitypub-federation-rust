@@ -1,5 +1,6 @@
 use crate::{
     core::signatures::{sign_request, PublicKey},
+    utils::verify_url_valid,
     Error,
     LocalInstance,
     APUB_JSON_CONTENT_TYPE,
@@ -44,6 +45,9 @@ impl SendActivity {
     pub async fn send(self, instance: &LocalInstance) -> Result<(), Error> {
         let activity_queue = &instance.activity_queue;
         for inbox in self.inboxes {
+            if verify_url_valid(&inbox, &instance.settings).is_err() {
+                continue;
+            }
             let message = SendActivityTask {
                 activity_id: self.activity_id.clone(),
                 inbox,
@@ -51,7 +55,7 @@ impl SendActivity {
                 public_key: self.actor_public_key.clone(),
                 private_key: self.actor_private_key.clone(),
             };
-            if instance.settings.testing_send_sync {
+            if instance.settings.debug {
                 let res =
                     do_send(message, &instance.client, instance.settings.request_timeout).await;
                 // Don't fail on error, as we intentionally do some invalid actions in tests, to verify that

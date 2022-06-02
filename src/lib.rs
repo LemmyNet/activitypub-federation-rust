@@ -32,10 +32,12 @@ pub struct InstanceSettings {
     /// Number of worker threads for sending outgoing activities
     #[builder(default = "64")]
     worker_count: u64,
-    /// Send outgoing activities synchronously, not in background thread. Helps to make tests
-    /// more consistent, but not recommended for production.
+    /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
+    /// outgoing activities synchronously, not in background thread. This helps to make tests
+    /// more consistent.
+    /// Do not use for production.
     #[builder(default = "false")]
-    testing_send_sync: bool,
+    debug: bool,
     /// Timeout for all HTTP requests. HTTP signatures are valid for 10s, so it makes sense to
     /// use the same as timeout when sending
     #[builder(default = "Duration::from_secs(10)")]

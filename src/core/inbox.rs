@@ -2,7 +2,7 @@ use crate::{
     core::{object_id::ObjectId, signatures::verify_signature},
     data::Data,
     traits::{ActivityHandler, ApubObject},
-    utils::verify_domains_match,
+    utils::{verify_domains_match, verify_url_valid},
     Error,
     LocalInstance,
 };
@@ -29,12 +29,10 @@ where
     E: From<anyhow::Error> + From<Error>,
 {
     verify_domains_match(activity.id(), activity.actor())?;
+    verify_url_valid(activity.id(), &local_instance.settings)?;
     if local_instance.is_local_url(activity.id()) {
         return Err(Error::UrlVerificationError("Activity was sent from local instance").into());
     }
-
-    (local_instance.settings.verify_url_function)(activity.id())
-        .map_err(Error::UrlVerificationError)?;
 
     let request_counter = &mut 0;
     let actor = ObjectId::<Actor>::new(activity.actor().clone())

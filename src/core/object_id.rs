@@ -159,7 +159,7 @@ where
     Kind: ApubObject + Send + 'static,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
-    #[allow(clippy::to_string_in_display)]
+    #[allow(clippy::recursive_format_impl)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // Use to_string here because Url.display is not useful for us
         write!(f, "{}", self.0)
