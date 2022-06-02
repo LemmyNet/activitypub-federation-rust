@@ -1,0 +1,18 @@
+[package]
+name = "activitypub_federation_derive"
+version = "0.1.0"
+edition = "2021"
+description = "High-level Activitypub framework"
+license = "AGPL-3.0"
+repository = "https://github.com/LemmyNet/activitypub-federation-rust"
+
+[lib]
+proc-macro = true
+
+[dev-dependencies]
+trybuild = { version = "1.0.57", features = ["diff"] }
+
+[dependencies]
+proc-macro2 = "1.0.36"
+syn = "1.0.90"
+quote = "1.0.17"
