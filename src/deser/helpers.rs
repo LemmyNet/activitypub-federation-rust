@@ -25,11 +25,11 @@ where
 }
 
 /// Deserialize either a single json value, or a json array with one element. In both cases it
-/// returns a single value.
+/// returns an array with a single element.
 ///
 /// Usage:
 /// `#[serde(deserialize_with = "deserialize_one")]`
-pub fn deserialize_one<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+pub fn deserialize_one<'de, T, D>(deserializer: D) -> Result<[T; 1], D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
@@ -43,8 +43,8 @@ where
 
     let result: MaybeArray<T> = Deserialize::deserialize(deserializer)?;
     Ok(match result {
-        MaybeArray::Simple(value) => value,
-        MaybeArray::Array([value]) => value,
+        MaybeArray::Simple(value) => [value],
+        MaybeArray::Array(value) => value,
     })
 }
 
