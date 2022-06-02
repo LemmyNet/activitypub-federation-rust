@@ -97,7 +97,7 @@ async fn http_get_user(
     let request_url = format!("http://{}{}", hostname, &request.uri().to_string());
     let url = Url::parse(&request_url)?;
     let user = ObjectId::<MyUser>::new(url)
-        .dereference_local::<Error>(&data)
+        .dereference_local(&data)
         .await?
         .into_apub(&data)
         .await?;

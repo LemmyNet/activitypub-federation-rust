@@ -36,7 +36,7 @@ where
 
     let request_counter = &mut 0;
     let actor = ObjectId::<Actor>::new(activity.actor().clone())
-        .dereference::<E>(data, local_instance, request_counter)
+        .dereference(data, local_instance, request_counter)
         .await?;
     verify_signature(&request, actor.public_key())?;
 

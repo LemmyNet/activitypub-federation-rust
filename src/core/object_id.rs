@@ -37,7 +37,7 @@ where
     }
 
     /// Fetches an activitypub object, either from local database (if possible), or over http.
-    pub async fn dereference<E>(
+    pub async fn dereference(
         &self,
         data: &<Kind as ApubObject>::DataType,
         instance: &LocalInstance,
@@ -77,7 +77,7 @@ where
 
     /// Fetch an object from the local db. Instead of falling back to http, this throws an error if
     /// the object is not found in the database.
-    pub async fn dereference_local<E>(
+    pub async fn dereference_local(
         &self,
         data: &<Kind as ApubObject>::DataType,
     ) -> Result<Kind, <Kind as ApubObject>::Error>

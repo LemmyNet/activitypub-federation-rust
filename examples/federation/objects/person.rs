@@ -102,7 +102,7 @@ impl MyUser {
         let mut inboxes = vec![];
         for f in self.followers.clone() {
             let user: MyUser = ObjectId::new(f)
-                .dereference::<Error>(instance, instance.local_instance(), &mut 0)
+                .dereference(instance, instance.local_instance(), &mut 0)
                 .await?;
             inboxes.push(user.inbox);
         }

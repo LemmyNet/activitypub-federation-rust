@@ -6,7 +6,6 @@ use crate::{
 };
 use activitypub_federation::{core::object_id::ObjectId, data::Data, traits::ActivityHandler};
 use activitystreams_kinds::activity::FollowType;
-use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -67,7 +66,7 @@ impl ActivityHandler for Follow {
         // send back an accept
         let follower = self
             .actor
-            .dereference::<Error>(data, data.local_instance(), request_counter)
+            .dereference(data, data.local_instance(), request_counter)
             .await?;
         let id = generate_object_id(data.local_instance().hostname())?;
         let accept = Accept::new(local_user.ap_id.clone(), self, id.clone());

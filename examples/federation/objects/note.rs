@@ -5,7 +5,6 @@ use activitypub_federation::{
     traits::ApubObject,
 };
 use activitystreams_kinds::{object::NoteType, public};
-use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -55,7 +54,7 @@ impl ApubObject for MyPost {
     }
 
     async fn into_apub(self, data: &Self::DataType) -> Result<Self::ApubType, Self::Error> {
-        let creator = self.creator.dereference_local::<Error>(data).await?;
+        let creator = self.creator.dereference_local(data).await?;
         Ok(Note {
             kind: Default::default(),
             id: self.ap_id,
