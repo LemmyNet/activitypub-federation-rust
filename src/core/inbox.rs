@@ -16,17 +16,19 @@ pub trait ActorPublicKey {
 }
 
 /// Receive an activity and perform some basic checks, including HTTP signature verification.
-pub async fn receive_activity<Activity, Actor, Datatype, E>(
+pub async fn receive_activity<Activity, Actor, Datatype>(
     request: HttpRequest,
     activity: Activity,
     local_instance: &LocalInstance,
     data: &Data<Datatype>,
-) -> Result<HttpResponse, E>
+) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype, Error = E> + DeserializeOwned + Send + 'static,
-    Actor: ApubObject<DataType = Datatype, Error = E> + ActorPublicKey + Send + 'static,
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    Actor: ApubObject<DataType = Datatype> + ActorPublicKey + Send + 'static,
     for<'de2> <Actor as ApubObject>::ApubType: serde::Deserialize<'de2>,
-    E: From<anyhow::Error> + From<Error>,
+    <Activity as ActivityHandler>::Error:
+        From<anyhow::Error> + From<Error> + From<<Actor as ApubObject>::Error>,
+    <Actor as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
     verify_domains_match(activity.id(), activity.actor())?;
     verify_url_valid(activity.id(), &local_instance.settings)?;

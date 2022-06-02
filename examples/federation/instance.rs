@@ -114,7 +114,7 @@ async fn http_post_user_inbox(
 ) -> Result<HttpResponse, Error> {
     let data: InstanceHandle = data.into_inner().deref().clone();
     let activity = serde_json::from_str(&payload)?;
-    receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle, Error>(
+    receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
         request,
         activity,
         &data.clone().local_instance,
