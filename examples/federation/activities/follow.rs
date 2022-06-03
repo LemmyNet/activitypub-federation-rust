@@ -73,12 +73,7 @@ impl ActivityHandler for Follow {
         let id = generate_object_id(data.local_instance().hostname())?;
         let accept = Accept::new(local_user.ap_id.clone(), self, id.clone());
         local_user
-            .send(
-                id,
-                accept,
-                vec![follower.inbox.clone()],
-                data.local_instance(),
-            )
+            .send(accept, &[follower], data.local_instance())
             .await?;
         Ok(())
     }

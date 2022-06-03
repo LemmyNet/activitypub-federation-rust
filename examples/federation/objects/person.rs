@@ -7,19 +7,17 @@ use crate::{
 };
 use activitypub_federation::{
     core::{
-        activity_queue::SendActivity,
-        inbox::ActorPublicKey,
+        activity_queue::send_activity,
         object_id::ObjectId,
         signatures::{Keypair, PublicKey},
     },
     deser::context::WithContext,
-    traits::ApubObject,
+    traits::{ActivityHandler, Actor, ApubObject},
     LocalInstance,
 };
 use activitypub_federation_derive::activity_handler;
 use activitystreams_kinds::actor::PersonType;
 use serde::{Deserialize, Serialize};
-use tracing::log::debug;
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -86,48 +84,45 @@ impl MyUser {
     pub async fn follow(&self, other: &MyUser, instance: &InstanceHandle) -> Result<(), Error> {
         let id = generate_object_id(instance.local_instance().hostname())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
-        self.send(
-            id,
-            follow,
-            vec![other.inbox.clone()],
-            instance.local_instance(),
-        )
-        .await?;
+        self.send(follow, &[other.clone()], instance.local_instance())
+            .await?;
         Ok(())
     }
 
     pub async fn post(&self, post: MyPost, instance: &InstanceHandle) -> Result<(), Error> {
         let id = generate_object_id(instance.local_instance().hostname())?;
         let create = CreateNote::new(post.into_apub(instance).await?, id.clone());
-        let mut inboxes = vec![];
+        let mut recipients = vec![];
         for f in self.followers.clone() {
             let user: MyUser = ObjectId::new(f)
                 .dereference(instance, instance.local_instance(), &mut 0)
                 .await?;
-            inboxes.push(user.inbox);
+            recipients.push(user);
         }
-        self.send(id, &create, inboxes, instance.local_instance())
+        self.send(create, &recipients, instance.local_instance())
             .await?;
         Ok(())
     }
 
-    pub(crate) async fn send<Activity: Serialize>(
+    pub(crate) async fn send<Activity, ActorT>(
         &self,
-        activity_id: Url,
         activity: Activity,
-        inboxes: Vec<Url>,
+        recipients: &[ActorT],
         local_instance: &LocalInstance,
-    ) -> Result<(), Error> {
-        let serialized = serde_json::to_string_pretty(&WithContext::new_default(activity))?;
-        debug!("Sending activity: {}", &serialized);
-        SendActivity {
-            activity_id,
-            actor_public_key: self.public_key(),
-            actor_private_key: self.private_key.clone().expect("has private key"),
-            inboxes,
-            activity: serialized,
-        }
-        .send(local_instance)
+    ) -> Result<(), <Activity as ActivityHandler>::Error>
+    where
+        Activity: ActivityHandler + Serialize,
+        ActorT: Actor,
+        <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
+    {
+        let activity = WithContext::new_default(activity);
+        send_activity(
+            activity,
+            self.public_key(),
+            self.private_key.clone().expect("has private key"),
+            recipients,
+            local_instance,
+        )
         .await?;
         Ok(())
     }
@@ -186,8 +181,12 @@ impl ApubObject for MyUser {
     }
 }
 
-impl ActorPublicKey for MyUser {
+impl Actor for MyUser {
     fn public_key(&self) -> &str {
         &self.public_key
+    }
+
+    fn inbox(&self) -> Url {
+        self.inbox.clone()
     }
 }

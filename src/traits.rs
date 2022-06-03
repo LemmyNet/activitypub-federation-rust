@@ -89,3 +89,11 @@ pub trait ApubObject {
     where
         Self: Sized;
 }
+
+pub trait Actor: ApubObject {
+    /// Returns the actor's public key for verification of HTTP signatures
+    fn public_key(&self) -> &str;
+
+    /// The inbox or shared inbox where activities for this user should be sent to
+    fn inbox(&self) -> Url;
+}
