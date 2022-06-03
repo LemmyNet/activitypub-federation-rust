@@ -51,11 +51,7 @@ pub struct InstanceSettings {
 
 impl LocalInstance {
     pub fn new(domain: String, client: ClientWithMiddleware, settings: InstanceSettings) -> Self {
-        let activity_queue = create_activity_queue(
-            client.clone(),
-            settings.worker_count,
-            settings.request_timeout,
-        );
+        let activity_queue = create_activity_queue(client.clone(), &settings);
         LocalInstance {
             hostname: domain,
             client,

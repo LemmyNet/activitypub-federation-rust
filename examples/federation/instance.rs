@@ -39,10 +39,7 @@ pub struct Instance {
 
 impl Instance {
     pub fn new(hostname: String) -> Result<InstanceHandle, Error> {
-        let settings = InstanceSettingsBuilder::default()
-            .debug(true)
-            .worker_count(1)
-            .build()?;
+        let settings = InstanceSettingsBuilder::default().debug(true).build()?;
         let local_instance =
             LocalInstance::new(hostname.clone(), Client::default().into(), settings);
         let local_user = MyUser::new(generate_object_id(&hostname)?, generate_actor_keypair()?);

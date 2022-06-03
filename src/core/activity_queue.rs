@@ -2,6 +2,7 @@ use crate::{
     core::signatures::{sign_request, PublicKey},
     utils::verify_url_valid,
     Error,
+    InstanceSettings,
     LocalInstance,
     APUB_JSON_CONTENT_TYPE,
 };
@@ -181,9 +182,16 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 
 pub(crate) fn create_activity_queue(
     client: ClientWithMiddleware,
-    worker_count: u64,
-    timeout: Duration,
+    settings: &InstanceSettings,
 ) -> Manager {
+    // queue is not used in debug mod, so dont create any workers to avoid log spam
+    let worker_count = if settings.debug {
+        0
+    } else {
+        settings.worker_count
+    };
+    let timeout = settings.request_timeout;
+
     // Configure and start our workers
     WorkerConfig::new_managed(Storage::new(), move |_| MyState {
         client: client.clone(),
