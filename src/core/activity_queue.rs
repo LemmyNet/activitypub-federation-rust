@@ -1,6 +1,6 @@
 use crate::{
     core::signatures::{sign_request, PublicKey},
-    traits::{ActivityHandler, Actor},
+    traits::ActivityHandler,
     utils::verify_url_valid,
     Error,
     InstanceSettings,
@@ -33,23 +33,21 @@ use url::Url;
 /// - `private_key`: The sending actor's private key for signing HTTP signature
 /// - `recipients`: List of actors who should receive the activity. This gets deduplicated, and
 ///                 local/invalid inbox urls removed
-pub async fn send_activity<Activity, ActorT: Actor>(
+pub async fn send_activity<Activity>(
     activity: Activity,
     public_key: PublicKey,
     private_key: String,
-    recipients: &[ActorT],
+    recipients: Vec<Url>,
     instance: &LocalInstance,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler + Serialize,
-    ActorT: Actor,
     <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
 {
     let activity_id = activity.id();
     let activity_serialized = serde_json::to_string_pretty(&activity)?;
     let inboxes: Vec<Url> = recipients
-        .iter()
-        .map(|r| r.inbox())
+        .into_iter()
         .unique()
         .filter(|i| !instance.is_local_url(i))
         .filter(|i| verify_url_valid(i, &instance.settings).is_ok())

@@ -84,35 +84,38 @@ impl MyUser {
     pub async fn follow(&self, other: &MyUser, instance: &InstanceHandle) -> Result<(), Error> {
         let id = generate_object_id(instance.local_instance().hostname())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
-        self.send(follow, &[other.clone()], instance.local_instance())
-            .await?;
+        self.send(
+            follow,
+            vec![other.shared_inbox_or_inbox()],
+            instance.local_instance(),
+        )
+        .await?;
         Ok(())
     }
 
     pub async fn post(&self, post: MyPost, instance: &InstanceHandle) -> Result<(), Error> {
         let id = generate_object_id(instance.local_instance().hostname())?;
         let create = CreateNote::new(post.into_apub(instance).await?, id.clone());
-        let mut recipients = vec![];
+        let mut inboxes = vec![];
         for f in self.followers.clone() {
             let user: MyUser = ObjectId::new(f)
                 .dereference(instance, instance.local_instance(), &mut 0)
                 .await?;
-            recipients.push(user);
+            inboxes.push(user.shared_inbox_or_inbox());
         }
-        self.send(create, &recipients, instance.local_instance())
+        self.send(create, inboxes, instance.local_instance())
             .await?;
         Ok(())
     }
 
-    pub(crate) async fn send<Activity, ActorT>(
+    pub(crate) async fn send<Activity>(
         &self,
         activity: Activity,
-        recipients: &[ActorT],
+        recipients: Vec<Url>,
         local_instance: &LocalInstance,
     ) -> Result<(), <Activity as ActivityHandler>::Error>
     where
         Activity: ActivityHandler + Serialize,
-        ActorT: Actor,
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
