@@ -5,6 +5,7 @@ edition = "2021"
 description = "High-level Activitypub framework"
 license = "AGPL-3.0"
 repository = "https://github.com/LemmyNet/activitypub-federation-rust"
+documentation = "https://docs.rs/activitypub_federation/"
 
 [workspace]
 members = ["derive"]
