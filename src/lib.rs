@@ -49,6 +49,13 @@ pub struct InstanceSettings {
     verify_url_function: fn(&Url) -> Result<(), &'static str>,
 }
 
+impl InstanceSettings {
+    /// Returns a new settings builder.
+    pub fn builder() -> InstanceSettingsBuilder {
+        <_>::default()
+    }
+}
+
 impl LocalInstance {
     pub fn new(domain: String, client: ClientWithMiddleware, settings: InstanceSettings) -> Self {
         let activity_queue = create_activity_queue(client.clone(), &settings);
