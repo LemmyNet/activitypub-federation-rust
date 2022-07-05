@@ -11,7 +11,7 @@ use activitypub_federation::{
     data::Data,
     deser::context::WithContext,
     traits::ApubObject,
-    InstanceSettingsBuilder,
+    InstanceSettings,
     LocalInstance,
     APUB_JSON_CONTENT_TYPE,
 };
@@ -39,7 +39,7 @@ pub struct Instance {
 
 impl Instance {
     pub fn new(hostname: String) -> Result<InstanceHandle, Error> {
-        let settings = InstanceSettingsBuilder::default().debug(true).build()?;
+        let settings = InstanceSettings::builder().debug(true).build()?;
         let local_instance =
             LocalInstance::new(hostname.clone(), Client::default().into(), settings);
         let local_user = MyUser::new(generate_object_id(&hostname)?, generate_actor_keypair()?);
