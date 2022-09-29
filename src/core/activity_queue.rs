@@ -64,6 +64,7 @@ where
             activity: activity_serialized.clone(),
             public_key: public_key.clone(),
             private_key: private_key.clone(),
+            http_signature_compat: instance.settings.http_signature_compat,
         };
         if instance.settings.debug {
             let res = do_send(message, &instance.client, instance.settings.request_timeout).await;
@@ -96,6 +97,7 @@ struct SendActivityTask {
     activity: String,
     public_key: PublicKey,
     private_key: String,
+    http_signature_compat: bool,
 }
 
 /// Signs the activity with the sending actor's key, and delivers to the given inbox. Also retries
@@ -139,6 +141,7 @@ async fn do_send(
         task.activity.clone(),
         task.public_key.clone(),
         task.private_key.to_owned(),
+        task.http_signature_compat,
     )
     .await?;
     let response = client.execute(request).await;

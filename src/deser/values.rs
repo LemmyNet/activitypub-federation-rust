@@ -52,7 +52,7 @@ pub enum MediaTypeHtml {
 }
 
 /// Media type which allows both markdown and HTML.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum MediaTypeMarkdownOrHtml {
     #[serde(rename = "text/markdown")]
     Markdown,

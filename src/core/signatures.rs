@@ -2,7 +2,7 @@ use actix_web::HttpRequest;
 use anyhow::anyhow;
 use http_signature_normalization_actix::Config as ConfigActix;
 use http_signature_normalization_reqwest::prelude::{Config, SignExt};
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use openssl::{
     hash::MessageDigest,
     pkey::PKey,
@@ -18,7 +18,7 @@ use tracing::debug;
 use url::Url;
 
 static CONFIG2: Lazy<ConfigActix> = Lazy::new(ConfigActix::new);
-static HTTP_SIG_CONFIG: Lazy<Config> = Lazy::new(Config::new);
+static HTTP_SIG_CONFIG: OnceCell<Config> = OnceCell::new();
 
 /// A private/public key pair used for HTTP signatures
 #[derive(Debug, Clone)]
@@ -53,10 +53,19 @@ pub(crate) async fn sign_request(
     activity: String,
     public_key: PublicKey,
     private_key: String,
+    http_signature_compat: bool,
 ) -> Result<Request, anyhow::Error> {
+    let sig_conf = HTTP_SIG_CONFIG.get_or_init(|| {
+        let c = Config::new();
+        if http_signature_compat {
+            c.mastodon_compat()
+        } else {
+            c
+        }
+    });
     request_builder
         .signature_with_digest(
-            HTTP_SIG_CONFIG.clone(),
+            sig_conf.clone(),
             public_key.id,
             Sha256::new(),
             activity,

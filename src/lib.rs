@@ -47,6 +47,11 @@ pub struct InstanceSettings {
     /// fails, it should return an error message.
     #[builder(default = "|_| { Ok(()) }")]
     verify_url_function: fn(&Url) -> Result<(), &'static str>,
+    /// Enable to sign HTTP signatures according to draft 10, which does not include (created) and
+    /// (expires) fields. This is required for compatibility with some software like Pleroma.
+    /// https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-10
+    /// https://git.pleroma.social/pleroma/pleroma/-/issues/2939
+    http_signature_compat: bool,
 }
 
 impl InstanceSettings {
