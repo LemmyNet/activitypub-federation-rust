@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use background_jobs::{
-    memory_storage::Storage,
+    memory_storage::{ActixTimer, Storage},
     ActixJob,
     Backoff,
     Manager,
@@ -203,7 +203,7 @@ pub(crate) fn create_activity_queue(
     let timeout = settings.request_timeout;
 
     // Configure and start our workers
-    WorkerConfig::new_managed(Storage::new(), move |_| MyState {
+    WorkerConfig::new_managed(Storage::new(ActixTimer), move |_| MyState {
         client: client.clone(),
         timeout,
     })
