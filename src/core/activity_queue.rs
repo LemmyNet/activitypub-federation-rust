@@ -16,6 +16,7 @@ use background_jobs::{
     MaxRetries,
     WorkerConfig,
 };
+use chrono::Utc;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use itertools::Itertools;
 use reqwest_middleware::ClientWithMiddleware;
@@ -186,6 +187,10 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     headers.insert(
         HeaderName::from_static("host"),
         HeaderValue::from_str(&host).expect("Hostname is valid"),
+    );
+    headers.insert(
+        "date",
+        HeaderValue::from_str(&Utc::now().to_rfc2822()).expect("Hostname is valid"),
     );
     headers
 }
