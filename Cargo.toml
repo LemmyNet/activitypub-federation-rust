@@ -33,6 +33,7 @@ background-jobs = "0.13.0"
 thiserror = "1.0.37"
 derive_builder = "0.11.2"
 itertools = "0.10.5"
+dyn-clone = "1.0.9"
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"

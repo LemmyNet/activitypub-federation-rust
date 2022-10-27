@@ -26,7 +26,7 @@ where
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
     verify_domains_match(activity.id(), activity.actor())?;
-    verify_url_valid(activity.id(), &local_instance.settings)?;
+    verify_url_valid(activity.id(), &local_instance.settings).await?;
     if local_instance.is_local_url(activity.id()) {
         return Err(Error::UrlVerificationError("Activity was sent from local instance").into());
     }

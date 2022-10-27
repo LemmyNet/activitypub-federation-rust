@@ -51,12 +51,11 @@ where
         .into_iter()
         .unique()
         .filter(|i| !instance.is_local_url(i))
-        .filter(|i| verify_url_valid(i, &instance.settings).is_ok())
         .collect();
 
     let activity_queue = &instance.activity_queue;
     for inbox in inboxes {
-        if verify_url_valid(&inbox, &instance.settings).is_err() {
+        if verify_url_valid(&inbox, &instance.settings).await.is_err() {
             continue;
         }
         let message = SendActivityTask {
