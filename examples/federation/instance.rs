@@ -13,9 +13,11 @@ use activitypub_federation::{
     traits::ApubObject,
     InstanceSettings,
     LocalInstance,
+    UrlVerifier,
     APUB_JSON_CONTENT_TYPE,
 };
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use async_trait::async_trait;
 use http_signature_normalization_actix::prelude::VerifyDigest;
 use reqwest::Client;
 use sha2::{Digest, Sha256};
@@ -37,9 +39,27 @@ pub struct Instance {
     pub posts: Mutex<Vec<MyPost>>,
 }
 
+/// Use this to store your federation blocklist, or a database connection needed to retrieve it.
+#[derive(Clone)]
+struct MyUrlVerifier();
+
+#[async_trait]
+impl UrlVerifier for MyUrlVerifier {
+    async fn verify(&self, url: &Url) -> Result<(), &'static str> {
+        if url.domain() == Some("malicious.com") {
+            Err("malicious domain")
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl Instance {
     pub fn new(hostname: String) -> Result<InstanceHandle, Error> {
-        let settings = InstanceSettings::builder().debug(true).build()?;
+        let settings = InstanceSettings::builder()
+            .debug(true)
+            .url_verifier(Box::new(MyUrlVerifier()))
+            .build()?;
         let local_instance =
             LocalInstance::new(hostname.clone(), Client::default().into(), settings);
         let local_user = MyUser::new(generate_object_id(&hostname)?, generate_actor_keypair()?);

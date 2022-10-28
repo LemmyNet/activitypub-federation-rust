@@ -11,7 +11,7 @@ pub async fn fetch_object_http<Kind: DeserializeOwned>(
 ) -> Result<Kind, Error> {
     // dont fetch local objects this way
     debug_assert!(url.domain() != Some(&instance.hostname));
-    verify_url_valid(url, &instance.settings)?;
+    verify_url_valid(url, &instance.settings).await?;
     info!("Fetching remote object {}", url.to_string());
 
     *request_counter += 1;
@@ -55,7 +55,7 @@ pub fn verify_urls_match(a: &Url, b: &Url) -> Result<(), Error> {
 /// [`InstanceSettings.verify_url_function`].
 ///
 /// https://www.w3.org/TR/activitypub/#security-considerations
-pub fn verify_url_valid(url: &Url, settings: &InstanceSettings) -> Result<(), Error> {
+pub async fn verify_url_valid(url: &Url, settings: &InstanceSettings) -> Result<(), Error> {
     match url.scheme() {
         "https" => {}
         "http" => {
@@ -78,7 +78,11 @@ pub fn verify_url_valid(url: &Url, settings: &InstanceSettings) -> Result<(), Er
         ));
     }
 
-    (settings.verify_url_function)(url).map_err(Error::UrlVerificationError)?;
+    settings
+        .url_verifier
+        .verify(url)
+        .await
+        .map_err(Error::UrlVerificationError)?;
 
     Ok(())
 }

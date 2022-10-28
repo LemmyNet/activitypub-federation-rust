@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "activitypub_federation"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "activitypub_federation_derive",
  "activitystreams-kinds",
@@ -16,6 +16,7 @@ dependencies = [
  "base64",
  "chrono",
  "derive_builder",
+ "dyn-clone",
  "env_logger",
  "http",
  "http-signature-normalization-actix",
@@ -529,6 +530,12 @@ name = "dissimilar"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c97b9233581d84b8e1e689cdd3a47b6f69770084fc246e86a7f78b0d9c1d4a5"
+
+[[package]]
+name = "dyn-clone"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f94fa09c2aeea5b8839e414b7b841bf429fd25b9c522116ac97ee87856d88b2"
 
 [[package]]
 name = "either"

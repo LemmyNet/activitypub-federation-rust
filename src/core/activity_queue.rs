@@ -16,6 +16,7 @@ use background_jobs::{
     MaxRetries,
     WorkerConfig,
 };
+use chrono::Utc;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use itertools::Itertools;
 use reqwest_middleware::ClientWithMiddleware;
@@ -50,12 +51,11 @@ where
         .into_iter()
         .unique()
         .filter(|i| !instance.is_local_url(i))
-        .filter(|i| verify_url_valid(i, &instance.settings).is_ok())
         .collect();
 
     let activity_queue = &instance.activity_queue;
     for inbox in inboxes {
-        if verify_url_valid(&inbox, &instance.settings).is_err() {
+        if verify_url_valid(&inbox, &instance.settings).await.is_err() {
             continue;
         }
         let message = SendActivityTask {
@@ -186,6 +186,10 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     headers.insert(
         HeaderName::from_static("host"),
         HeaderValue::from_str(&host).expect("Hostname is valid"),
+    );
+    headers.insert(
+        "date",
+        HeaderValue::from_str(&Utc::now().to_rfc2822()).expect("Hostname is valid"),
     );
     headers
 }

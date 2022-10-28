@@ -1,6 +1,8 @@
 use crate::core::activity_queue::create_activity_queue;
+use async_trait::async_trait;
 use background_jobs::Manager;
 use derive_builder::Builder;
+use dyn_clone::{clone_trait_object, DynClone};
 use reqwest_middleware::ClientWithMiddleware;
 use std::time::Duration;
 use url::Url;
@@ -22,6 +24,12 @@ pub struct LocalInstance {
     activity_queue: Manager,
     settings: InstanceSettings,
 }
+
+#[async_trait]
+pub trait UrlVerifier: DynClone + Send {
+    async fn verify(&self, url: &Url) -> Result<(), &'static str>;
+}
+clone_trait_object!(UrlVerifier);
 
 // Use InstanceSettingsBuilder to initialize this
 #[derive(Builder)]
@@ -45,12 +53,13 @@ pub struct InstanceSettings {
     /// Function used to verify that urls are valid, used when receiving activities or fetching remote
     /// objects. Use this to implement functionality like federation blocklists. In case verification
     /// fails, it should return an error message.
-    #[builder(default = "|_| { Ok(()) }")]
-    verify_url_function: fn(&Url) -> Result<(), &'static str>,
+    #[builder(default = "Box::new(DefaultUrlVerifier())")]
+    url_verifier: Box<dyn UrlVerifier + Sync>,
     /// Enable to sign HTTP signatures according to draft 10, which does not include (created) and
     /// (expires) fields. This is required for compatibility with some software like Pleroma.
     /// https://datatracker.ietf.org/doc/html/draft-cavage-http-signatures-10
     /// https://git.pleroma.social/pleroma/pleroma/-/issues/2939
+    #[builder(default = "false")]
     http_signature_compat: bool,
 }
 
@@ -58,6 +67,16 @@ impl InstanceSettings {
     /// Returns a new settings builder.
     pub fn builder() -> InstanceSettingsBuilder {
         <_>::default()
+    }
+}
+
+#[derive(Clone)]
+struct DefaultUrlVerifier();
+
+#[async_trait]
+impl UrlVerifier for DefaultUrlVerifier {
+    async fn verify(&self, _url: &Url) -> Result<(), &'static str> {
+        Ok(())
     }
 }
 
