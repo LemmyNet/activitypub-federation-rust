@@ -84,6 +84,9 @@ where
         stats.dead.this_hour(),
         stats.complete.this_hour()
       );
+            if stats.running as u64 == instance.settings.worker_count {
+                warn!("Maximum number of activitypub workers reached. Consider increasing worker count to avoid federation delays");
+            }
         }
     }
 

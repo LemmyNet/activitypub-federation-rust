@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "activitypub_federation"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "activitypub_federation_derive",
  "activitystreams-kinds",
