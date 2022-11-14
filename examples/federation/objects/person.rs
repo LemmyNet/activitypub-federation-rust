@@ -11,11 +11,11 @@ use activitypub_federation::{
         object_id::ObjectId,
         signatures::{Keypair, PublicKey},
     },
+    data::Data,
     deser::context::WithContext,
     traits::{ActivityHandler, Actor, ApubObject},
     LocalInstance,
 };
-use activitypub_federation_derive::activity_handler;
 use activitystreams_kinds::actor::PersonType;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -33,9 +33,9 @@ pub struct MyUser {
 }
 
 /// List of all activities which this actor can receive.
-#[activity_handler(InstanceHandle, Error)]
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
+#[enum_delegate::implement(ActivityHandler)]
 pub enum PersonAcceptedActivities {
     Follow(Follow),
     Accept(Accept),

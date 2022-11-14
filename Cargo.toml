@@ -7,11 +7,7 @@ license = "AGPL-3.0"
 repository = "https://github.com/LemmyNet/activitypub-federation-rust"
 documentation = "https://docs.rs/activitypub_federation/"
 
-[workspace]
-members = ["derive"]
-
 [dependencies]
-activitypub_federation_derive = { version = "0.2.0", path = "derive" }
 chrono = { version = "0.4.22", features = ["clock"], default-features = false }
 serde = { version = "1.0.145", features = ["derive"] }
 async-trait = "0.1.57"
@@ -34,6 +30,7 @@ thiserror = "1.0.37"
 derive_builder = "0.11.2"
 itertools = "0.10.5"
 dyn-clone = "1.0.9"
+enum_delegate = "0.2.0"
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"

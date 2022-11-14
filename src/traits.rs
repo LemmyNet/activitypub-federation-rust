@@ -1,10 +1,11 @@
 use crate::data::Data;
-pub use activitypub_federation_derive::*;
 use chrono::NaiveDateTime;
+use std::ops::Deref;
 use url::Url;
 
 /// Trait which allows verification and reception of incoming activities.
 #[async_trait::async_trait(?Send)]
+#[enum_delegate::register]
 pub trait ActivityHandler {
     type DataType;
     type Error;
@@ -30,6 +31,40 @@ pub trait ActivityHandler {
         data: &Data<Self::DataType>,
         request_counter: &mut i32,
     ) -> Result<(), Self::Error>;
+}
+
+/// Allow for boxing of enum variants
+#[async_trait::async_trait(?Send)]
+impl<T> ActivityHandler for Box<T>
+where
+    T: ActivityHandler,
+{
+    type DataType = T::DataType;
+    type Error = T::Error;
+
+    fn id(&self) -> &Url {
+        self.deref().id()
+    }
+
+    fn actor(&self) -> &Url {
+        self.deref().actor()
+    }
+
+    async fn verify(
+        &self,
+        data: &Data<Self::DataType>,
+        request_counter: &mut i32,
+    ) -> Result<(), Self::Error> {
+        self.verify(data, request_counter).await
+    }
+
+    async fn receive(
+        self,
+        data: &Data<Self::DataType>,
+        request_counter: &mut i32,
+    ) -> Result<(), Self::Error> {
+        self.receive(data, request_counter).await
+    }
 }
 
 #[async_trait::async_trait(?Send)]
