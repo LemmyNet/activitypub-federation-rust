@@ -6,12 +6,7 @@ use crate::{
     Error,
     LocalInstance,
 };
-use actix_web::{
-    web::{Bytes, Payload},
-    FromRequest,
-    HttpRequest,
-    HttpResponse,
-};
+use actix_web::{dev::Payload, web::Bytes, FromRequest, HttpRequest, HttpResponse};
 use anyhow::anyhow;
 use http_signature_normalization_actix::prelude::DigestVerified;
 use serde::de::DeserializeOwned;
@@ -20,7 +15,7 @@ use tracing::{log::debug, warn};
 /// Receive an activity and perform some basic checks, including HTTP signature verification.
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
-    payload: Payload,
+    mut payload: Payload,
     local_instance: &LocalInstance,
     data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
@@ -35,7 +30,6 @@ where
         + From<http_signature_normalization_actix::digest::middleware::VerifyError>,
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
-    let mut payload = payload.into_inner();
     // ensure that payload hash was checked against digest header by middleware
     DigestVerified::from_request(&request, &mut payload).await?;
 

@@ -130,7 +130,7 @@ async fn http_post_user_inbox(
     let data: InstanceHandle = data.into_inner().deref().clone();
     receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
         request,
-        payload,
+        payload.into_inner(),
         &data.clone().local_instance,
         &Data::new(data),
     )
