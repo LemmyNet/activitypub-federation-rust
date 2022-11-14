@@ -16,7 +16,7 @@ use activitypub_federation::{
     UrlVerifier,
     APUB_JSON_CONTENT_TYPE,
 };
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, web::Payload, App, HttpRequest, HttpResponse, HttpServer};
 use async_trait::async_trait;
 use http_signature_normalization_actix::prelude::VerifyDigest;
 use reqwest::Client;
@@ -90,8 +90,6 @@ impl Instance {
                     web::scope("")
                         // Important: this ensures that the activity json matches the hashsum in signed
                         // HTTP header
-                        // TODO: it would be possible to get rid of this by verifying hash in
-                        //       receive_activity()
                         .wrap(VerifyDigest::new(Sha256::new()))
                         // Just a single, global inbox for simplicity
                         .route("/inbox", web::post().to(http_post_user_inbox)),
@@ -126,14 +124,13 @@ async fn http_get_user(
 /// Handles messages received in user inbox
 async fn http_post_user_inbox(
     request: HttpRequest,
-    payload: String,
+    payload: Payload,
     data: web::Data<InstanceHandle>,
 ) -> Result<HttpResponse, Error> {
     let data: InstanceHandle = data.into_inner().deref().clone();
-    let activity = serde_json::from_str(&payload)?;
     receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
         request,
-        activity,
+        payload,
         &data.clone().local_instance,
         &Data::new(data),
     )
