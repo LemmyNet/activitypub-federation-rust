@@ -16,7 +16,7 @@ use activitypub_federation::{
     UrlVerifier,
     APUB_JSON_CONTENT_TYPE,
 };
-use actix_web::{web, web::Payload, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use async_trait::async_trait;
 use http_signature_normalization_actix::prelude::VerifyDigest;
 use reqwest::Client;
@@ -124,13 +124,14 @@ async fn http_get_user(
 /// Handles messages received in user inbox
 async fn http_post_user_inbox(
     request: HttpRequest,
-    payload: Payload,
+    payload: String,
     data: web::Data<InstanceHandle>,
 ) -> Result<HttpResponse, Error> {
     let data: InstanceHandle = data.into_inner().deref().clone();
+    let activity = serde_json::from_str(&payload)?;
     receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
         request,
-        payload.into_inner(),
+        activity,
         &data.clone().local_instance,
         &Data::new(data),
     )

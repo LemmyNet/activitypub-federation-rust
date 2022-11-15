@@ -6,16 +6,15 @@ use crate::{
     Error,
     LocalInstance,
 };
-use actix_web::{dev::Payload, web::Bytes, FromRequest, HttpRequest, HttpResponse};
-use anyhow::anyhow;
+use actix_web::{dev::Payload, FromRequest, HttpRequest, HttpResponse};
 use http_signature_normalization_actix::prelude::DigestVerified;
 use serde::de::DeserializeOwned;
-use tracing::{log::debug, warn};
+use tracing::log::debug;
 
 /// Receive an activity and perform some basic checks, including HTTP signature verification.
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
-    mut payload: Payload,
+    activity: Activity,
     local_instance: &LocalInstance,
     data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
@@ -31,15 +30,7 @@ where
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
     // ensure that payload hash was checked against digest header by middleware
-    DigestVerified::from_request(&request, &mut payload).await?;
-
-    let bytes = Bytes::from_request(&request, &mut payload)
-        .await
-        .map_err(|e| {
-            warn!("{}", e);
-            anyhow!("Failed to parse request body")
-        })?;
-    let activity: Activity = serde_json::from_slice(&bytes)?;
+    DigestVerified::from_request(&request, &mut Payload::None).await?;
 
     verify_domains_match(activity.id(), activity.actor())?;
     verify_url_valid(activity.id(), &local_instance.settings).await?;

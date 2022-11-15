@@ -55,7 +55,7 @@ where
         data: &Data<Self::DataType>,
         request_counter: &mut i32,
     ) -> Result<(), Self::Error> {
-        self.verify(data, request_counter).await
+        self.deref().verify(data, request_counter).await
     }
 
     async fn receive(
@@ -63,7 +63,7 @@ where
         data: &Data<Self::DataType>,
         request_counter: &mut i32,
     ) -> Result<(), Self::Error> {
-        self.receive(data, request_counter).await
+        (*self).receive(data, request_counter).await
     }
 }
 
