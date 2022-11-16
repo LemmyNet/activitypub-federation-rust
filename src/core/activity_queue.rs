@@ -22,7 +22,7 @@ use itertools::Itertools;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, future::Future, pin::Pin, time::Duration};
-use tracing::{info, warn};
+use tracing::{info, log::debug, warn};
 use url::Url;
 
 /// Send out the given activity to all inboxes, automatically generating the HTTP signatures. By
@@ -134,7 +134,7 @@ async fn do_send(
     client: &ClientWithMiddleware,
     timeout: Duration,
 ) -> Result<(), anyhow::Error> {
-    info!("Sending {} to {}", task.activity_id, task.inbox);
+    debug!("Sending {} to {}", task.activity_id, task.inbox);
     let request_builder = client
         .post(&task.inbox.to_string())
         .timeout(timeout)
@@ -150,28 +150,38 @@ async fn do_send(
     let response = client.execute(request).await;
 
     match response {
-        Ok(o) => {
-            if o.status().is_success() {
-                Ok(())
-            } else {
-                let status = o.status();
-                let text = o.text().await.map_err(Error::conv)?;
-
-                Err(anyhow!(
-                    "Send {} to {} failed with status {}: {}",
-                    task.activity_id,
-                    task.inbox,
-                    status,
-                    text,
-                ))
-            }
+        Ok(o) if o.status().is_success() => {
+            info!(
+                "Activity {} delivered successfully to {}",
+                task.activity_id, task.inbox
+            );
+            Ok(())
         }
-        Err(e) => Err(anyhow!(
-            "Failed to send activity {} to {}: {}",
-            &task.activity_id,
-            task.inbox,
-            e
-        )),
+        Ok(o) if o.status().is_client_error() => {
+            info!(
+                "Target server {} rejected {}, aborting",
+                task.inbox, task.activity_id,
+            );
+            Ok(())
+        }
+        Ok(o) => {
+            let status = o.status();
+            let text = o.text().await.map_err(Error::conv)?;
+            Err(anyhow!(
+                "Queueing activity {} to {} for retry after failure with status {}: {}",
+                task.activity_id,
+                task.inbox,
+                status,
+                text,
+            ))
+        }
+        Err(e) => {
+            info!(
+                "Unable to connect to {}, aborting task {}: {}",
+                task.inbox, task.activity_id, e
+            );
+            Ok(())
+        }
     }
 }
 
