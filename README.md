@@ -1,6 +1,6 @@
 Activitypub-Federation
 ===
-[![Build Status](https://cloud.drone.io/api/badges/LemmyNet/activitypub-federation-rust/status.svg)](https://cloud.drone.io/LemmyNet/activitypub-federation-rust)
+[![Build Status](https://drone.join-lemmy.org/api/badges/LemmyNet/activitypub-federation-rust/status.svg)](https://drone.join-lemmy.org/LemmyNet/activitypub-federation-rust)
 [![Crates.io](https://img.shields.io/crates/v/activitypub-federation.svg)](https://crates.io/crates/activitypub-federation)
 
 A high-level framework for [ActivityPub](https://www.w3.org/TR/activitypub/) federation in Rust, extracted from [Lemmy](https://join-lemmy.org/). The goal is that this library can take care of almost everything related to federation for different projects. For now it is still far away from that goal, and has many rough edges that need to be smoothed.
