@@ -16,7 +16,7 @@ pub async fn fetch_object_http<Kind: DeserializeOwned>(
     info!("Fetching remote object {}", url.to_string());
 
     *request_counter += 1;
-    if *request_counter > instance.settings.http_fetch_retry_limit {
+    if *request_counter > instance.settings.http_fetch_limit {
         return Err(Error::RequestLimit);
     }
 
