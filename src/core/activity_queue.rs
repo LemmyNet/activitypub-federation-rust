@@ -110,19 +110,15 @@ impl ActixJob for SendActivityTask {
     type Future = Pin<Box<dyn Future<Output = Result<(), anyhow::Error>>>>;
     const NAME: &'static str = "SendActivityTask";
 
-    /// With these params, retries are made at the following intervals:
-    ///          3s
-    ///          9s
-    ///         27s
-    ///      1m 21s
-    ///      4m  3s
-    ///     12m  9s
-    ///     36m 27s
-    ///  1h 49m 21s
-    ///  5h 28m  3s
-    /// 16h 24m  9s
-    const MAX_RETRIES: MaxRetries = MaxRetries::Count(10);
-    const BACKOFF: Backoff = Backoff::Exponential(3);
+    /// We need to retry activity sending in case the target instances is temporarily unreachable.
+    /// In this case, the task is stored and resent when the instance is hopefully back up. This
+    /// list shows the retry intervals, and which events of the target instance can be covered:
+    /// - 60s (one minute, service restart)
+    /// - 60min (one hour, instance maintenance)
+    /// - 60h (2.5 days, major incident with rebuild from backup)
+    /// TODO: make the intervals configurable
+    const MAX_RETRIES: MaxRetries = MaxRetries::Count(3);
+    const BACKOFF: Backoff = Backoff::Exponential(60);
 
     fn run(self, state: Self::State) -> Self::Future {
         Box::pin(async move { do_send(self, &state.client, state.timeout).await })
