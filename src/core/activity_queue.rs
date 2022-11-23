@@ -16,12 +16,17 @@ use background_jobs::{
     MaxRetries,
     WorkerConfig,
 };
-use chrono::Utc;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
+use httpdate::fmt_http_date;
 use itertools::Itertools;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, future::Future, pin::Pin, time::Duration};
+use std::{
+    fmt::Debug,
+    future::Future,
+    pin::Pin,
+    time::{Duration, SystemTime},
+};
 use tracing::{info, log::debug, warn};
 use url::Url;
 
@@ -198,7 +203,7 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     );
     headers.insert(
         "date",
-        HeaderValue::from_str(&Utc::now().to_rfc2822()).expect("Hostname is valid"),
+        HeaderValue::from_str(&fmt_http_date(SystemTime::now())).expect("Date is valid"),
     );
     headers
 }

@@ -15,7 +15,7 @@ url = { version = "2.3.1", features = ["serde"] }
 serde_json = { version = "1.0.87", features = ["preserve_order"] }
 anyhow = "1.0.66"
 reqwest = { version = "0.11.12", features = ["json"] }
-reqwest-middleware = "0.1.6"
+reqwest-middleware = "0.2.0"
 tracing = "0.1.37"
 base64 = "0.13.1"
 openssl = "0.10.42"
@@ -24,13 +24,14 @@ http = "0.2.8"
 sha2 = "0.10.6"
 actix-web = { version = "4.2.1", default-features = false }
 http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"] }
-http-signature-normalization-reqwest = { version = "0.6.0", default-features = false, features = ["sha-2", "middleware"] }
+http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
 background-jobs = "0.13.0"
 thiserror = "1.0.37"
 derive_builder = "0.11.2"
 itertools = "0.10.5"
 dyn-clone = "1.0.9"
 enum_delegate = "0.2.0"
+httpdate = "1.0.2"
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"
