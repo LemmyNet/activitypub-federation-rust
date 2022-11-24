@@ -144,7 +144,7 @@ async fn do_send(
         request_builder,
         task.activity.clone(),
         task.public_key.clone(),
-        task.private_key.to_owned(),
+        task.private_key.clone(),
         task.http_signature_compat,
     )
     .await?;

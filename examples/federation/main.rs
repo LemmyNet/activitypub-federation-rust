@@ -1,10 +1,10 @@
-use crate::{error::Error, instance::Instance, lib::generate_object_id, objects::note::MyPost};
+use crate::{error::Error, instance::Instance, utils::generate_object_id, objects::note::MyPost};
 use tracing::log::LevelFilter;
 
 mod activities;
 mod error;
 mod instance;
-mod lib;
+mod utils;
 mod objects;
 
 #[actix_rt::main]
