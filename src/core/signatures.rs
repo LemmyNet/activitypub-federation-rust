@@ -1,6 +1,4 @@
-use actix_web::HttpRequest;
 use anyhow::anyhow;
-use http_signature_normalization_actix::Config as ConfigActix;
 use http_signature_normalization_reqwest::prelude::{Config, SignExt};
 use once_cell::sync::{Lazy, OnceCell};
 use openssl::{
@@ -17,7 +15,19 @@ use std::io::{Error, ErrorKind};
 use tracing::debug;
 use url::Url;
 
+#[cfg(feature = "actix")]
+use actix_web::HttpRequest;
+#[cfg(feature = "actix")]
+use http_signature_normalization_actix::Config as ConfigActix;
+#[cfg(feature = "axum")]
+use http_signature_normalization_http::Config as ConfigHttp;
+#[cfg(feature = "axum")]
+use axum::http::Request as AxumRequest;
+
+#[cfg(feature = "actix")]
 static CONFIG2: Lazy<ConfigActix> = Lazy::new(ConfigActix::new);
+#[cfg(feature = "axum")]
+static CONFIG2: Lazy<ConfigHttp> = Lazy::new(ConfigHttp::default);
 static HTTP_SIG_CONFIG: OnceCell<Config> = OnceCell::new();
 
 /// A private/public key pair used for HTTP signatures
@@ -81,6 +91,7 @@ pub(crate) async fn sign_request(
 }
 
 /// Verifies the HTTP signature on an incoming inbox request.
+#[cfg(feature = "actix")]
 pub fn verify_signature(request: &HttpRequest, public_key: &str) -> Result<(), anyhow::Error> {
     let verified = CONFIG2
         .begin_verify(
@@ -106,6 +117,35 @@ pub fn verify_signature(request: &HttpRequest, public_key: &str) -> Result<(), a
         Err(anyhow!("Invalid signature on request: {}", &request.uri()))
     }
 }
+
+// Verifies the HTTP signature on an incoming inbox request.
+#[cfg(feature = "axum")]
+pub fn verify_signature<T>(request: &AxumRequest<T>, public_key: &str) -> Result<(), anyhow::Error> {
+    let verified = CONFIG2
+        .begin_verify(
+            request.method(),
+            request.uri().path_and_query(),
+            request.headers().clone(),
+        )?
+        .verify(|signature, signing_string| -> Result<bool, anyhow::Error> {
+            debug!(
+                "Verifying with key {}, message {}",
+                &public_key, &signing_string
+            );
+            let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
+            let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
+            verifier.update(signing_string.as_bytes())?;
+            Ok(verifier.verify(&base64::decode(signature)?)?)
+        })?;
+
+    if verified {
+        debug!("verified signature for {}", &request.uri());
+        Ok(())
+    } else {
+        Err(anyhow!("Invalid signature on request: {}", &request.uri()))
+    }
+}
+
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

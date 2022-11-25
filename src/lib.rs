@@ -12,6 +12,7 @@ pub mod data;
 pub mod deser;
 pub mod traits;
 pub mod utils;
+pub mod axum;
 
 /// Mime type for Activitypub, used for `Accept` and `Content-Type` HTTP headers
 pub static APUB_JSON_CONTENT_TYPE: &str = "application/activity+json";
