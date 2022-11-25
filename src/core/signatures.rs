@@ -1,23 +1,13 @@
-use actix_web::HttpRequest;
-use anyhow::anyhow;
-use http_signature_normalization_actix::Config as ConfigActix;
 use http_signature_normalization_reqwest::prelude::{Config, SignExt};
-use once_cell::sync::{Lazy, OnceCell};
-use openssl::{
-    hash::MessageDigest,
-    pkey::PKey,
-    rsa::Rsa,
-    sign::{Signer, Verifier},
-};
+use once_cell::sync::OnceCell;
+use openssl::{hash::MessageDigest, pkey::PKey, rsa::Rsa, sign::Signer};
 use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{Error, ErrorKind};
-use tracing::debug;
 use url::Url;
 
-static CONFIG2: Lazy<ConfigActix> = Lazy::new(ConfigActix::new);
 static HTTP_SIG_CONFIG: OnceCell<Config> = OnceCell::new();
 
 /// A private/public key pair used for HTTP signatures
@@ -80,33 +70,6 @@ pub(crate) async fn sign_request(
         .await
 }
 
-/// Verifies the HTTP signature on an incoming inbox request.
-pub fn verify_signature(request: &HttpRequest, public_key: &str) -> Result<(), anyhow::Error> {
-    let verified = CONFIG2
-        .begin_verify(
-            request.method(),
-            request.uri().path_and_query(),
-            request.headers().clone(),
-        )?
-        .verify(|signature, signing_string| -> Result<bool, anyhow::Error> {
-            debug!(
-                "Verifying with key {}, message {}",
-                &public_key, &signing_string
-            );
-            let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
-            let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
-            verifier.update(signing_string.as_bytes())?;
-            Ok(verifier.verify(&base64::decode(signature)?)?)
-        })?;
-
-    if verified {
-        debug!("verified signature for {}", &request.uri());
-        Ok(())
-    } else {
-        Err(anyhow!("Invalid signature on request: {}", &request.uri()))
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicKey {
@@ -129,5 +92,57 @@ impl PublicKey {
             owner,
             public_key_pem,
         }
+    }
+}
+
+#[cfg(feature = "actix")]
+pub mod actix {
+    use actix_web::HttpRequest;
+    use anyhow::anyhow;
+    use http_signature_normalization_actix::Config as ConfigActix;
+    use once_cell::sync::Lazy;
+    use openssl::{hash::MessageDigest, pkey::PKey, sign::Verifier};
+    use tracing::debug;
+
+    static CONFIG2: Lazy<ConfigActix> = Lazy::new(ConfigActix::new);
+
+    /// Verifies the HTTP signature on an incoming inbox request.
+    pub fn verify_signature(request: &HttpRequest, public_key: &str) -> Result<(), anyhow::Error> {
+        let verified = CONFIG2
+            .begin_verify(
+                request.method(),
+                request.uri().path_and_query(),
+                request.headers().clone(),
+            )?
+            .verify(|signature, signing_string| -> Result<bool, anyhow::Error> {
+                debug!(
+                    "Verifying with key {}, message {}",
+                    &public_key, &signing_string
+                );
+                let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
+                let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
+                verifier.update(signing_string.as_bytes())?;
+                Ok(verifier.verify(&base64::decode(signature)?)?)
+            })?;
+
+        if verified {
+            debug!("verified signature for {}", &request.uri());
+            Ok(())
+        } else {
+            Err(anyhow!("Invalid signature on request: {}", &request.uri()))
+        }
+    }
+}
+
+#[cfg(feature = "axum")]
+pub mod axum {
+    use axum::http::Request;
+
+    /// Verifies the HTTP signature on an incoming inbox request.
+    pub fn verify_signature<B>(
+        request: &Request<B>,
+        public_key: &str,
+    ) -> Result<(), anyhow::Error> {
+        todo!("Tower Http does not have this feature yet")
     }
 }

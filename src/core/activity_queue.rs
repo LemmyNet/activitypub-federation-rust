@@ -137,7 +137,7 @@ async fn do_send(
 ) -> Result<(), anyhow::Error> {
     debug!("Sending {} to {}", task.activity_id, task.inbox);
     let request_builder = client
-        .post(&task.inbox.to_string())
+        .post(task.inbox.to_string())
         .timeout(timeout)
         .headers(generate_request_headers(&task.inbox));
     let request = sign_request(

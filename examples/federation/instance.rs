@@ -6,6 +6,7 @@ use crate::{
         person::{MyUser, PersonAcceptedActivities},
     },
 };
+
 use activitypub_federation::{
     core::{inbox::receive_activity, object_id::ObjectId, signatures::generate_actor_keypair},
     data::Data,
@@ -16,8 +17,10 @@ use activitypub_federation::{
     UrlVerifier,
     APUB_JSON_CONTENT_TYPE,
 };
+
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use async_trait::async_trait;
+/// FIXME: actix
 use http_signature_normalization_actix::prelude::VerifyDigest;
 use reqwest::Client;
 use sha2::{Digest, Sha256};

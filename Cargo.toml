@@ -33,9 +33,11 @@ http-signature-normalization-reqwest = { version = "0.7.1", default-features = f
 
 actix-web = { version = "4.2.1", default-features = false, optional = true }
 http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"], optional = true }
+axum = { version = "0.6.0-rc.5", features = ["json", "headers", "macros"], optional = true }
 
 [features]
-actix = ["actix-web", "http-signature-normalization-actix"]
+actix = ["dep:actix-web", "dep:http-signature-normalization-actix"]
+axum = ["dep:axum"]
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"
