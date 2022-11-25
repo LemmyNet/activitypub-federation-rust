@@ -67,23 +67,25 @@ mod actix_imp {
 #[cfg(feature = "axum")]
 mod axum_imp {
     use crate::{
-        core::{object_id::ObjectId, signatures::axum::verify_signature},
+        core::{axum::DigestVerified, object_id::ObjectId, signatures::axum::verify_signature},
         data::Data,
         traits::{ActivityHandler, Actor, ApubObject},
         utils::{verify_domains_match, verify_url_valid},
         Error,
         LocalInstance,
     };
-    use axum::{http::Request, Extension, Json};
+    use axum::{http::Request, Json};
+    use hyper::Body;
     use serde::de::DeserializeOwned;
     use tracing::debug;
 
     /// Receive an activity and perform some basic checks, including HTTP signature verification.
     pub async fn receive_activity<Activity, ActorT, Datatype>(
-        request: Request<Activity>,
+        _digest_verified: DigestVerified,
+        request: Request<Body>,
         Json(activity): Json<Activity>,
-        Extension(local_instance): Extension<&LocalInstance>,
-        Extension(data): Extension<&Data<Datatype>>,
+        local_instance: &LocalInstance,
+        data: &Data<Datatype>,
     ) -> Result<(), <Activity as ActivityHandler>::Error>
     where
         Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
@@ -93,13 +95,9 @@ mod axum_imp {
             + From<Error>
             + From<<ActorT as ApubObject>::Error>
             + From<serde_json::Error>,
-        // FIXME
         // + From<http_signature_normalization_actix::digest::middleware::VerifyError>,
         <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
     {
-        // ensure that payload hash was checked against digest header by middleware
-        /// FIXME
-        // DigestVerified::from_request(&request, &mut Payload::None).await?;
         verify_domains_match(activity.id(), activity.actor())?;
         verify_url_valid(activity.id(), &local_instance.settings).await?;
         if local_instance.is_local_url(activity.id()) {
@@ -112,6 +110,7 @@ mod axum_imp {
         let actor = ObjectId::<ActorT>::new(activity.actor().clone())
             .dereference(data, local_instance, request_counter)
             .await?;
+
         verify_signature(&request, actor.public_key())?;
 
         debug!("Verifying activity {}", activity.id().to_string());

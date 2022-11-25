@@ -114,7 +114,7 @@ pub mod actix {
                 request.uri().path_and_query(),
                 request.headers().clone(),
             )?
-            .verify(|signature, signing_string| -> Result<bool, anyhow::Error> {
+            .verify(|signature, signing_string| -> anyhow::Result<bool> {
                 debug!(
                     "Verifying with key {}, message {}",
                     &public_key, &signing_string
@@ -136,13 +136,44 @@ pub mod actix {
 
 #[cfg(feature = "axum")]
 pub mod axum {
+    use anyhow::anyhow;
     use axum::http::Request;
+    use http_signature_normalization::Config;
+    use openssl::{hash::MessageDigest, pkey::PKey, sign::Verifier};
+    use std::collections::BTreeMap;
+    use tracing::debug;
 
     /// Verifies the HTTP signature on an incoming inbox request.
     pub fn verify_signature<B>(
         request: &Request<B>,
         public_key: &str,
     ) -> Result<(), anyhow::Error> {
-        todo!("Tower Http does not have this feature yet")
+        let config = Config::default();
+        let mut header_map = BTreeMap::new();
+        for (name, value) in request.headers() {
+            if let Ok(value) = value.to_str() {
+                header_map.insert(name.to_string(), value.to_string());
+            }
+        }
+
+        let verified = config
+            .begin_verify("GET", "/foo?bar=baz", header_map)?
+            .verify(|signature, signing_string| -> anyhow::Result<bool> {
+                debug!(
+                    "Verifying with key {}, message {}",
+                    &public_key, &signing_string
+                );
+                let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
+                let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
+                verifier.update(signing_string.as_bytes())?;
+                Ok(verifier.verify(&base64::decode(signature)?)?)
+            })?;
+
+        if verified {
+            debug!("verified signature for {}", &request.uri());
+            Ok(())
+        } else {
+            Err(anyhow!("Invalid signature on request: {}", &request.uri()))
+        }
     }
 }

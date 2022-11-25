@@ -30,23 +30,43 @@ dyn-clone = "1.0.9"
 enum_delegate = "0.2.0"
 httpdate = "1.0.2"
 http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
+http-signature-normalization = "0.6.0"
 
 actix-web = { version = "4.2.1", default-features = false, optional = true }
 http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"], optional = true }
 axum = { version = "0.6.0-rc.5", features = ["json", "headers", "macros"], optional = true }
 
+# Axum
+tower-http = { version = "0.3", features = ["map-request-body", "util"], optional = true }
+tower = { version = "0.4.13", optional = true }
+hyper = { version = "0.14", optional = true }
+
+## FIXME: this is for debugging purpose
+axum-macros = "0.3.0"
+
 [features]
 actix = ["dep:actix-web", "dep:http-signature-normalization-actix"]
-axum = ["dep:axum"]
+axum = [
+    "dep:axum",
+    "dep:tower-http",
+    "dep:tower",
+    "dep:hyper",
+]
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"
 rand = "0.8.5"
 actix-rt = "2.7.0"
-tokio = "1.21.2"
+tokio = { version = "1.21.2", features = ["full"] }
 env_logger = { version = "0.9.3", default-features = false }
 
 [[example]]
 name = "simple_federation_actix"
-path = "examples/federation/main.rs"
+path = "examples/federation-actix/main.rs"
 required-features = ["actix"]
+
+[[example]]
+name = "simple_federation_axum"
+path = "examples/federation-axum/main.rs"
+required-features = ["axum"]
+
