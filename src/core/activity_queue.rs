@@ -27,7 +27,7 @@ use std::{
     pin::Pin,
     time::{Duration, SystemTime},
 };
-use tracing::{info, log::debug, warn};
+use tracing::{debug, info, warn};
 use url::Url;
 
 /// Send out the given activity to all inboxes, automatically generating the HTTP signatures. By

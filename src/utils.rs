@@ -1,7 +1,7 @@
 use crate::{Error, InstanceSettings, LocalInstance, APUB_JSON_CONTENT_TYPE};
 use http::StatusCode;
 use serde::de::DeserializeOwned;
-use tracing::log::info;
+use tracing::info;
 use url::Url;
 
 pub async fn fetch_object_http<Kind: DeserializeOwned>(

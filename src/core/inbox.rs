@@ -9,7 +9,7 @@ use crate::{
 use actix_web::{dev::Payload, FromRequest, HttpRequest, HttpResponse};
 use http_signature_normalization_actix::prelude::DigestVerified;
 use serde::de::DeserializeOwned;
-use tracing::log::debug;
+use tracing::debug;
 
 /// Receive an activity and perform some basic checks, including HTTP signature verification.
 pub async fn receive_activity<Activity, ActorT, Datatype>(

@@ -22,9 +22,6 @@ openssl = "0.10.42"
 once_cell = "1.16.0"
 http = "0.2.8"
 sha2 = "0.10.6"
-actix-web = { version = "4.2.1", default-features = false }
-http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"] }
-http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
 background-jobs = "0.13.0"
 thiserror = "1.0.37"
 derive_builder = "0.11.2"
@@ -32,6 +29,13 @@ itertools = "0.10.5"
 dyn-clone = "1.0.9"
 enum_delegate = "0.2.0"
 httpdate = "1.0.2"
+http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
+
+actix-web = { version = "4.2.1", default-features = false, optional = true }
+http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"], optional = true }
+
+[features]
+actix = ["actix-web", "http-signature-normalization-actix"]
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"
@@ -39,3 +43,8 @@ rand = "0.8.5"
 actix-rt = "2.7.0"
 tokio = "1.21.2"
 env_logger = { version = "0.9.3", default-features = false }
+
+[[example]]
+name = "simple_federation_actix"
+path = "examples/federation/main.rs"
+required-features = ["actix"]
