@@ -1,11 +1,11 @@
-use crate::{error::Error, instance::Instance, utils::generate_object_id, objects::note::MyPost};
+use crate::{error::Error, instance::Instance, objects::note::MyPost, utils::generate_object_id};
 use tracing::log::LevelFilter;
 
 mod activities;
 mod error;
 mod instance;
-mod utils;
 mod objects;
+mod utils;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Error> {

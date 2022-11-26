@@ -2,8 +2,8 @@ use crate::{
     activities::{accept::Accept, create_note::CreateNote, follow::Follow},
     error::Error,
     instance::InstanceHandle,
-    utils::generate_object_id,
     objects::note::MyPost,
+    utils::generate_object_id,
 };
 use activitypub_federation::{
     core::{
