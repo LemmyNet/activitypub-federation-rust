@@ -15,11 +15,15 @@ steps:
 
   - name: cargo check
     image: rust:1.61-bullseye
+    environment:
+      CARGO_HOME: .cargo
     commands:
       - cargo check --all --all-targets
 
   - name: cargo clippy
     image: rust:1.65-bullseye
+    environment:
+      CARGO_HOME: .cargo
     commands:
       - rustup component add clippy
       - cargo clippy --workspace --tests --all-targets --all-features --
@@ -33,6 +37,7 @@ steps:
   - name: cargo test
     image: rust:1.61-bullseye
     environment:
+      CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
     commands:
       - cargo test --workspace --no-fail-fast
@@ -40,6 +45,7 @@ steps:
   - name: cargo run
     image: rust:1.61-bullseye
     environment:
+      CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
     commands:
       - cargo run -p activitypub_federation --example federation
