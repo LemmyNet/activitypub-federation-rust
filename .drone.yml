@@ -48,11 +48,11 @@ steps:
       CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
     commands:
-      - cargo run -p activitypub_federation --example simple_federation_actix
+      - cargo run --example simple_federation_actix
   - name: cargo run axum
     image: rust:1.61-bullseye
     environment:
       CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
     commands:
-      - cargo run -p activitypub_federation --example simple_federation_axum
+      - cargo run --example simple_federation_axum --features axum
