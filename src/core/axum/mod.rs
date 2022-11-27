@@ -37,22 +37,30 @@ async fn verify_payload(request: Request<BoxBody>) -> Result<Request<BoxBody>, R
         .await
         .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())?;
 
-    let Some(digest) = parts.headers.get("Digest") else {
-        return Err((StatusCode::UNAUTHORIZED, "Missing digest header".to_string()).into_response());
-    };
-
-    let Some(digests) = DigestPart::try_from_header(digest) else {
-        return Err((StatusCode::UNAUTHORIZED, "Malformed digest header".to_string()).into_response());
-    };
-
-    if !verify_sha256(&digests, bytes.as_ref()) {
-        Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Digest does not match payload".to_string(),
+    match parts.headers.get("Digest") {
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            "Missing digest header".to_string(),
         )
-            .into_response())
-    } else {
-        Ok(Request::from_parts(parts, body::boxed(Full::from(bytes))))
+            .into_response()),
+        Some(digest) => match DigestPart::try_from_header(digest) {
+            None => Err((
+                StatusCode::UNAUTHORIZED,
+                "Malformed digest header".to_string(),
+            )
+                .into_response()),
+            Some(digests) => {
+                if !verify_sha256(&digests, bytes.as_ref()) {
+                    Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Digest does not match payload".to_string(),
+                    )
+                        .into_response())
+                } else {
+                    Ok(Request::from_parts(parts, body::boxed(Full::from(bytes))))
+                }
+            }
+        },
     }
 }
 

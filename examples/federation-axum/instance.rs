@@ -132,13 +132,9 @@ async fn http_get_user(
 
     let user = ObjectId::<MyUser>::new(url)
         .dereference_local(&data)
-        .await
-        .expect("Failed to dereference user");
-
-    let user = user
+        .await?
         .into_apub(&data)
-        .await
-        .expect("Failed to convert to apub user");
+        .await?;
 
     Ok(ApubJson(WithContext::new_default(user)))
 }

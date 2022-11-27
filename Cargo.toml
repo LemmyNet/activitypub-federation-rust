@@ -35,7 +35,7 @@ actix-rt = { version = "2.7.0" }
 
 actix-web = { version = "4.2.1", default-features = false, optional = true }
 http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"], optional = true }
-axum = { version = "0.6.0-rc.5", features = ["json", "headers", "macros", "original-uri"], optional = true }
+axum = { version = "0.6.0", features = ["json", "headers", "macros", "original-uri"], optional = true }
 
 # Axum
 tower-http = { version = "0.3", features = ["map-request-body", "util", "trace"], optional = true }
