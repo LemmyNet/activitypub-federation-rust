@@ -25,8 +25,7 @@ impl<Json: Serialize> IntoResponse for ApubJson<Json> {
             header::CONTENT_TYPE,
             APUB_JSON_CONTENT_TYPE
                 .parse()
-                .ok()
-                .expect("'Parsing application/activity+json' should never fail"),
+                .expect("Parsing 'application/activity+json' should never fail"),
         );
         response
     }
