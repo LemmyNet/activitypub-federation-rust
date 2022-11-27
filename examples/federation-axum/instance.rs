@@ -8,7 +8,7 @@ use crate::{
 };
 
 use activitypub_federation::{
-    core::{object_id::ObjectId, receive_activity, signatures::generate_actor_keypair},
+    core::{object_id::ObjectId, signatures::generate_actor_keypair},
     data::Data,
     deser::context::WithContext,
     traits::ApubObject,
@@ -115,6 +115,7 @@ impl Instance {
     }
 }
 
+use activitypub_federation::core::axum::inbox::receive_activity;
 /// FIXME
 use axum_macros::debug_handler;
 
