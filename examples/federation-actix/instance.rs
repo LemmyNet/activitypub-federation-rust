@@ -122,6 +122,7 @@ async fn http_get_user(
         .await?
         .into_apub(&data)
         .await?;
+
     Ok(HttpResponse::Ok()
         .content_type(APUB_JSON_CONTENT_TYPE)
         .json(WithContext::new_default(user)))

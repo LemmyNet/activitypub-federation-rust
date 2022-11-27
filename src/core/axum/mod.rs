@@ -10,6 +10,7 @@ use digest::{verify_sha256, DigestPart};
 
 mod digest;
 pub mod inbox;
+pub mod json;
 mod signature;
 
 /// A request guard to ensure digest has been verified request has been
@@ -40,7 +41,7 @@ async fn verify_payload(request: Request<BoxBody>) -> Result<Request<BoxBody>, R
         return Err((StatusCode::UNAUTHORIZED, "Missing digest header".to_string()).into_response());
     };
 
-    let Some(digests) = DigestPart::try_from_header(&digest) else {
+    let Some(digests) = DigestPart::try_from_header(digest) else {
         return Err((StatusCode::UNAUTHORIZED, "Malformed digest header".to_string()).into_response());
     };
 
@@ -65,7 +66,7 @@ where
     async fn from_request(req: Request<BoxBody>, state: &S) -> Result<Self, Self::Rejection> {
         let body = Bytes::from_request(req, state)
             .await
-            .map_err(|err| err.into_response())?;
+            .map_err(IntoResponse::into_response)?;
 
         Ok(Self(body))
     }

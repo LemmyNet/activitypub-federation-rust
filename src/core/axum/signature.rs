@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use http::{HeaderMap, Method, Uri};
+use http::{uri::PathAndQuery, HeaderMap, Method, Uri};
 use http_signature_normalization::Config;
 use openssl::{hash::MessageDigest, pkey::PKey, sign::Verifier};
 use std::collections::BTreeMap;
@@ -20,10 +20,7 @@ pub fn verify_signature(
         }
     }
 
-    let path_and_query = uri
-        .path_and_query()
-        .ok_or(anyhow!("empty uri while veryfying signature "))?
-        .as_str();
+    let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
     let verified = config
         .begin_verify(method.as_str(), path_and_query, header_map)?

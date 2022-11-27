@@ -15,14 +15,13 @@ use activitypub_federation::{
     InstanceSettings,
     LocalInstance,
     UrlVerifier,
-    APUB_JSON_CONTENT_TYPE,
 };
 
 use activitypub_federation::core::axum::{verify_request_payload, DigestVerified};
 use async_trait::async_trait;
 use axum::{
     body,
-    body::{Body, BoxBody},
+    body::Body,
     extract::{Json, OriginalUri, State},
     middleware,
     response::IntoResponse,
@@ -30,7 +29,7 @@ use axum::{
     Extension,
     Router,
 };
-use http::{header::CONTENT_TYPE, HeaderMap, Method, Request, Response};
+use http::{HeaderMap, Method, Request};
 use reqwest::Client;
 use std::{
     net::ToSocketAddrs,
@@ -118,13 +117,14 @@ impl Instance {
     }
 }
 
-use activitypub_federation::core::axum::inbox::receive_activity;
+use crate::objects::person::Person;
+use activitypub_federation::core::axum::{inbox::receive_activity, json::ApubJson};
 use tower_http::trace::TraceLayer;
 
 async fn http_get_user(
     State(data): State<InstanceHandle>,
     request: Request<Body>,
-) -> impl IntoResponse {
+) -> Result<ApubJson<WithContext<Person>>, Error> {
     let hostname: String = data.local_instance.hostname().to_string();
     let request_url = format!("http://{}{}", hostname, &request.uri());
 
@@ -140,13 +140,7 @@ async fn http_get_user(
         .await
         .expect("Failed to convert to apub user");
 
-    let json =
-        serde_json::to_string(&WithContext::new_default(user)).expect("failed to parse json");
-
-    Response::builder()
-        .header(CONTENT_TYPE, APUB_JSON_CONTENT_TYPE)
-        .body(json)
-        .expect("failed to build response")
+    Ok(ApubJson(WithContext::new_default(user)))
 }
 
 async fn http_post_user_inbox(

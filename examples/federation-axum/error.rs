@@ -2,13 +2,6 @@
 #[derive(Debug)]
 pub struct Error(anyhow::Error);
 
-#[cfg(feature = "actix")]
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
-    }
-}
-
 impl<T> From<T> for Error
 where
     T: Into<anyhow::Error>,
@@ -18,15 +11,6 @@ where
     }
 }
 
-#[cfg(feature = "actix")]
-mod actix {
-    use crate::error::Error;
-    use actix_web::ResponseError;
-
-    impl ResponseError for Error {}
-}
-
-#[cfg(feature = "axum")]
 mod axum {
     use super::Error;
     use axum::response::{IntoResponse, Response};
