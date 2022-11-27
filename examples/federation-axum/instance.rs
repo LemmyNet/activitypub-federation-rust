@@ -30,11 +30,10 @@ use axum::{
     Extension,
     Router,
 };
-use http::{header::CONTENT_TYPE, HeaderMap, Request, Response};
+use http::{header::CONTENT_TYPE, HeaderMap, Method, Request, Response};
 use reqwest::Client;
 use std::{
-    net::SocketAddr,
-    str::FromStr,
+    net::ToSocketAddrs,
     sync::{Arc, Mutex},
 };
 use tokio::task;
@@ -104,10 +103,14 @@ impl Instance {
                     .layer(middleware::from_fn(verify_request_payload)),
             )
             .route("/objects/:user_name", get(http_get_user))
-            .with_state(instance);
+            .with_state(instance)
+            .layer(TraceLayer::new_for_http());
 
         // run it
-        let addr = SocketAddr::from_str(hostname)?;
+        let addr = hostname
+            .to_socket_addrs()?
+            .next()
+            .expect("Failed to lookup domain name");
         let server = axum::Server::bind(&addr).serve(app.into_make_service());
 
         task::spawn(server);
@@ -116,11 +119,8 @@ impl Instance {
 }
 
 use activitypub_federation::core::axum::inbox::receive_activity;
-/// FIXME
-use axum_macros::debug_handler;
+use tower_http::trace::TraceLayer;
 
-#[debug_handler(body = Body)]
-/// Handles requests to fetch user json over HTTP
 async fn http_get_user(
     State(data): State<InstanceHandle>,
     request: Request<Body>,
@@ -149,10 +149,9 @@ async fn http_get_user(
         .expect("failed to build response")
 }
 
-/// Handles messages received in user inbox
-#[debug_handler(body = BoxBody)]
 async fn http_post_user_inbox(
     headers: HeaderMap,
+    method: Method,
     OriginalUri(uri): OriginalUri,
     State(data): State<InstanceHandle>,
     Extension(digest_verified): Extension<DigestVerified>,
@@ -164,6 +163,7 @@ async fn http_post_user_inbox(
         &data.clone().local_instance,
         &Data::new(data),
         headers,
+        method,
         uri,
     )
     .await

@@ -8,7 +8,7 @@ use crate::{
     Error,
     LocalInstance,
 };
-use http::{HeaderMap, Uri};
+use http::{HeaderMap, Method, Uri};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -19,6 +19,7 @@ pub async fn receive_activity<Activity, ActorT, Datatype>(
     local_instance: &LocalInstance,
     data: &Data<Datatype>,
     headers: HeaderMap,
+    method: Method,
     uri: Uri,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
@@ -29,7 +30,6 @@ where
         + From<Error>
         + From<<ActorT as ApubObject>::Error>
         + From<serde_json::Error>,
-    // + From<http_signature_normalization_actix::digest::middleware::VerifyError>,
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
     local_instance.verify_url_and_domain(&activity).await?;
@@ -39,7 +39,7 @@ where
         .dereference(data, local_instance, request_counter)
         .await?;
 
-    verify_signature(&headers, uri, actor.public_key())?;
+    verify_signature(&headers, method, uri, actor.public_key())?;
 
     debug!("Verifying activity {}", activity.id().to_string());
     activity.verify(data, request_counter).await?;

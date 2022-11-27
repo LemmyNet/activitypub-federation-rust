@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use http::{HeaderMap, Uri};
+use http::{HeaderMap, Method, Uri};
 use http_signature_normalization::Config;
 use openssl::{hash::MessageDigest, pkey::PKey, sign::Verifier};
 use std::collections::BTreeMap;
@@ -8,6 +8,7 @@ use tracing::debug;
 /// Verifies the HTTP signature on an incoming inbox request.
 pub fn verify_signature(
     headers: &HeaderMap,
+    method: Method,
     uri: Uri,
     public_key: &str,
 ) -> Result<(), anyhow::Error> {
@@ -19,8 +20,13 @@ pub fn verify_signature(
         }
     }
 
+    let path_and_query = uri
+        .path_and_query()
+        .ok_or(anyhow!("empty uri while veryfying signature "))?
+        .as_str();
+
     let verified = config
-        .begin_verify("GET", "/foo?bar=baz", header_map)?
+        .begin_verify(method.as_str(), path_and_query, header_map)?
         .verify(|signature, signing_string| -> anyhow::Result<bool> {
             debug!(
                 "Verifying with key {}, message {}",

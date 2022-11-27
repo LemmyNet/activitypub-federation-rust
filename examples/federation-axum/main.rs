@@ -1,5 +1,5 @@
 use crate::{error::Error, instance::Instance, objects::note::MyPost, utils::generate_object_id};
-use tracing::log::LevelFilter;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod activities;
 mod error;
@@ -7,10 +7,15 @@ mod instance;
 mod objects;
 mod utils;
 
-#[tokio::main]
+#[actix_rt::main]
 async fn main() -> Result<(), Error> {
-    env_logger::builder()
-        .filter_level(LevelFilter::Debug)
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            std::env::var("RUST_LOG").unwrap_or_else(|_| {
+                "activitypub_federation=debug,federation-axum=debug,tower_http=debug".into()
+            }),
+        ))
+        .with(tracing_subscriber::fmt::layer())
         .init();
 
     let alpha = Instance::new("localhost:8001".to_string())?;
@@ -23,6 +28,7 @@ async fn main() -> Result<(), Error> {
         .local_user()
         .follow(&beta.local_user(), &alpha)
         .await?;
+
     // assert that follow worked correctly
     assert_eq!(
         beta.local_user().followers(),

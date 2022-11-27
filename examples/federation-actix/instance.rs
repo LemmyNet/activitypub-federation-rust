@@ -24,7 +24,6 @@ use activitypub_federation::{
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use async_trait::async_trait;
-/// FIXME: actix
 use http_signature_normalization_actix::prelude::VerifyDigest;
 use reqwest::Client;
 use sha2::{Digest, Sha256};

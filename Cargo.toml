@@ -31,26 +31,27 @@ enum_delegate = "0.2.0"
 httpdate = "1.0.2"
 http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
 http-signature-normalization = "0.6.0"
+actix-rt = { version = "2.7.0" }
 
 actix-web = { version = "4.2.1", default-features = false, optional = true }
 http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"], optional = true }
 axum = { version = "0.6.0-rc.5", features = ["json", "headers", "macros", "original-uri"], optional = true }
 
 # Axum
-tower-http = { version = "0.3", features = ["map-request-body", "util"], optional = true }
+tower-http = { version = "0.3", features = ["map-request-body", "util", "trace"], optional = true }
 tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
-
-## FIXME: this is for debugging purpose
-axum-macros = "0.3.0"
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 [features]
+default = ["actix"]
 actix = ["dep:actix-web", "dep:http-signature-normalization-actix"]
 axum = [
     "dep:axum",
     "dep:tower-http",
     "dep:tower",
     "dep:hyper",
+    "dep:tracing-subscriber",
 ]
 
 [dev-dependencies]
