@@ -195,7 +195,7 @@ mod tests {
     #[derive(Debug)]
     struct TestObject {}
 
-    #[async_trait::async_trait(?Send)]
+    #[async_trait::async_trait]
     impl ApubObject for TestObject {
         type DataType = TestObject;
         type ApubType = ();

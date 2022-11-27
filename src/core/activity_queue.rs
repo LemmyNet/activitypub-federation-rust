@@ -1,7 +1,6 @@
 use crate::{
     core::signatures::{sign_request, PublicKey},
     traits::ActivityHandler,
-    utils::verify_url_valid,
     Error,
     InstanceSettings,
     LocalInstance,
@@ -60,9 +59,10 @@ where
 
     let activity_queue = &instance.activity_queue;
     for inbox in inboxes {
-        if verify_url_valid(&inbox, &instance.settings).await.is_err() {
+        if instance.verify_url_valid(&inbox).await.is_err() {
             continue;
         }
+
         let message = SendActivityTask {
             activity_id: activity_id.clone(),
             inbox,

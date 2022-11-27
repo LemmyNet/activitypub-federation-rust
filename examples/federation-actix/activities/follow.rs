@@ -34,7 +34,7 @@ impl Follow {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ActivityHandler for Follow {
     type DataType = InstanceHandle;
     type Error = crate::error::Error;
@@ -63,11 +63,12 @@ impl ActivityHandler for Follow {
         request_counter: &mut i32,
     ) -> Result<(), Self::Error> {
         // add to followers
-        let mut users = data.users.lock().unwrap();
-        let local_user = users.first_mut().unwrap();
-        local_user.followers.push(self.actor.inner().clone());
-        let local_user = local_user.clone();
-        drop(users);
+        let local_user = {
+            let mut users = data.users.lock().unwrap();
+            let local_user = users.first_mut().unwrap();
+            local_user.followers.push(self.actor.inner().clone());
+            local_user.clone()
+        };
 
         // send back an accept
         let follower = self

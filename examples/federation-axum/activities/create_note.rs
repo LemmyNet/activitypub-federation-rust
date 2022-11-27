@@ -37,7 +37,7 @@ impl CreateNote {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ActivityHandler for CreateNote {
     type DataType = InstanceHandle;
     type Error = crate::error::Error;

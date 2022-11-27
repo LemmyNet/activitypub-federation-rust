@@ -8,7 +8,7 @@ use crate::{
 };
 
 use activitypub_federation::{
-    core::{inbox::receive_activity, object_id::ObjectId, signatures::generate_actor_keypair},
+    core::{object_id::ObjectId, receive_activity, signatures::generate_actor_keypair},
     data::Data,
     deser::context::WithContext,
     traits::ApubObject,
@@ -22,16 +22,15 @@ use activitypub_federation::core::axum::{verify_request_payload, DigestVerified}
 use async_trait::async_trait;
 use axum::{
     body,
-    body::Body,
-    extract::State,
+    body::{Body, BoxBody},
+    extract::{Json, OriginalUri, State},
     middleware,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Extension,
-    Json,
     Router,
 };
-use http::{header::CONTENT_TYPE, Request, Response};
+use http::{header::CONTENT_TYPE, HeaderMap, Request, Response};
 use reqwest::Client;
 use std::{
     net::SocketAddr,
@@ -98,12 +97,13 @@ impl Instance {
         let hostname = instance.local_instance.hostname();
         let instance = instance.clone();
         let app = Router::new()
-            .route("/objects/:user_name", get(http_get_user))
+            .route("/inbox", post(http_post_user_inbox))
             .layer(
                 ServiceBuilder::new()
                     .map_request_body(body::boxed)
                     .layer(middleware::from_fn(verify_request_payload)),
             )
+            .route("/objects/:user_name", get(http_get_user))
             .with_state(instance);
 
         // run it
@@ -117,6 +117,7 @@ impl Instance {
 
 /// FIXME
 use axum_macros::debug_handler;
+
 #[debug_handler(body = Body)]
 /// Handles requests to fetch user json over HTTP
 async fn http_get_user(
@@ -131,7 +132,9 @@ async fn http_get_user(
     let user = ObjectId::<MyUser>::new(url)
         .dereference_local(&data)
         .await
-        .expect("Failed to dereference user")
+        .expect("Failed to dereference user");
+
+    let user = user
         .into_apub(&data)
         .await
         .expect("Failed to convert to apub user");
@@ -146,18 +149,21 @@ async fn http_get_user(
 }
 
 /// Handles messages received in user inbox
+#[debug_handler(body = BoxBody)]
 async fn http_post_user_inbox(
-    request: Request<Body>,
-    activity: Json<WithContext<PersonAcceptedActivities>>,
-    Extension(data): Extension<InstanceHandle>,
+    headers: HeaderMap,
+    OriginalUri(uri): OriginalUri,
+    State(data): State<InstanceHandle>,
     Extension(digest_verified): Extension<DigestVerified>,
+    Json(activity): Json<WithContext<PersonAcceptedActivities>>,
 ) -> impl IntoResponse {
     receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
         digest_verified,
-        request,
         activity,
         &data.clone().local_instance,
         &Data::new(data),
+        headers,
+        uri,
     )
     .await
 }

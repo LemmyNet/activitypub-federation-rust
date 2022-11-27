@@ -25,7 +25,7 @@ impl Accept {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ActivityHandler for Accept {
     type DataType = InstanceHandle;
     type Error = crate::error::Error;

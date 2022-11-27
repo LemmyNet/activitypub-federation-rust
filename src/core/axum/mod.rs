@@ -9,10 +9,15 @@ use axum::{
 use digest::{verify_sha256, DigestPart};
 
 mod digest;
+pub mod inbox;
+mod signature;
 
 /// A request guard to ensure digest has been verified request has been
 /// see [`receive_activity`]
+#[derive(Clone)]
 pub struct DigestVerified;
+
+pub struct BufferRequestBody(pub Bytes);
 
 pub async fn verify_request_payload(
     request: Request<BoxBody>,
@@ -49,8 +54,6 @@ async fn verify_payload(request: Request<BoxBody>) -> Result<Request<BoxBody>, R
         Ok(Request::from_parts(parts, body::boxed(Full::from(bytes))))
     }
 }
-
-struct BufferRequestBody(Bytes);
 
 #[async_trait]
 impl<S> FromRequest<S, BoxBody> for BufferRequestBody
