@@ -97,7 +97,7 @@ clone_trait_object!(UrlVerifier);
 pub struct InstanceSettings {
     /// Maximum number of outgoing HTTP requests per incoming activity
     #[builder(default = "20")]
-    http_fetch_retry_limit: i32,
+    http_fetch_limit: i32,
     /// Number of worker threads for sending outgoing activities
     #[builder(default = "64")]
     worker_count: u64,
