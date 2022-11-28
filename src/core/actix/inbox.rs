@@ -6,9 +6,8 @@ use crate::{
     LocalInstance,
 };
 
-use crate::core::actix::signature::verify_signature;
-use actix_web::{dev::Payload, FromRequest, HttpRequest, HttpResponse};
-use http_signature_normalization_actix::prelude::DigestVerified;
+use crate::core::signatures::verify_signature;
+use actix_web::{HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -26,12 +25,9 @@ where
     <Activity as ActivityHandler>::Error: From<anyhow::Error>
         + From<Error>
         + From<<ActorT as ApubObject>::Error>
-        + From<serde_json::Error>
-        + From<http_signature_normalization_actix::digest::middleware::VerifyError>,
+        + From<serde_json::Error>,
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
-    // ensure that payload hash was checked against digest header by middleware
-    DigestVerified::from_request(&request, &mut Payload::None).await?;
     local_instance.verify_url_and_domain(&activity).await?;
 
     let request_counter = &mut 0;
@@ -39,7 +35,12 @@ where
         .dereference(data, local_instance, request_counter)
         .await?;
 
-    verify_signature(&request, actor.public_key())?;
+    verify_signature(
+        request.headers(),
+        request.method(),
+        request.uri(),
+        actor.public_key(),
+    )?;
 
     debug!("Verifying activity {}", activity.id().to_string());
     activity.verify(data, request_counter).await?;

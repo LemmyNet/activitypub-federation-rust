@@ -24,9 +24,7 @@ use activitypub_federation::{
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use async_trait::async_trait;
-use http_signature_normalization_actix::prelude::VerifyDigest;
 use reqwest::Client;
-use sha2::{Digest, Sha256};
 use std::{
     ops::Deref,
     sync::{Arc, Mutex},
@@ -94,9 +92,6 @@ impl Instance {
                 .route("/objects/{user_name}", web::get().to(http_get_user))
                 .service(
                     web::scope("")
-                        // Important: this ensures that the activity json matches the hashsum in signed
-                        // HTTP header
-                        .wrap(VerifyDigest::new(Sha256::new()))
                         // Just a single, global inbox for simplicity
                         .route("/inbox", web::post().to(http_post_user_inbox)),
                 )

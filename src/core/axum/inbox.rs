@@ -1,8 +1,5 @@
 use crate::{
-    core::{
-        axum::{signature::verify_signature, DigestVerified},
-        object_id::ObjectId,
-    },
+    core::{axum::DigestVerified, object_id::ObjectId, signatures::verify_signature},
     data::Data,
     traits::{ActivityHandler, Actor, ApubObject},
     Error,
@@ -39,7 +36,7 @@ where
         .dereference(data, local_instance, request_counter)
         .await?;
 
-    verify_signature(&headers, method, uri, actor.public_key())?;
+    verify_signature(&headers, &method, &uri, actor.public_key())?;
 
     debug!("Verifying activity {}", activity.id().to_string());
     activity.verify(data, request_counter).await?;

@@ -21,7 +21,6 @@ dependencies = [
  "env_logger",
  "http",
  "http-signature-normalization",
- "http-signature-normalization-actix",
  "http-signature-normalization-reqwest",
  "httpdate",
  "hyper",
@@ -898,26 +897,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8f45adbef81d7ea3bd7e9bcc6734b7245dad05a14abdcc7ddc0988791d63515"
 dependencies = [
  "httpdate",
-]
-
-[[package]]
-name = "http-signature-normalization-actix"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86dfd54a1764ad79376b8dbf29e5bf918a463eb5ec66c90cd0388508289af6f0"
-dependencies = [
- "actix-http",
- "actix-rt",
- "actix-web",
- "base64",
- "futures-util",
- "http-signature-normalization",
- "sha2",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-error",
- "tracing-futures",
 ]
 
 [[package]]
@@ -1976,16 +1955,6 @@ checksum = "24eb03ba0eab1fd845050058ce5e616558e8f8d8fca633e6b163fe25c797213a"
 dependencies = [
  "once_cell",
  "valuable",
-]
-
-[[package]]
-name = "tracing-error"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d686ec1c0f384b1277f097b2f279a2ecc11afe8c133c1aabf036a27cb4cd206e"
-dependencies = [
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

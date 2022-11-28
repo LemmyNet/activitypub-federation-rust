@@ -1,6 +1,7 @@
 use crate::{Error, LocalInstance, APUB_JSON_CONTENT_TYPE};
-use http::StatusCode;
+use http::{header::HeaderName, HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
+use std::collections::BTreeMap;
 use tracing::info;
 use url::Url;
 
@@ -49,4 +50,20 @@ pub fn verify_urls_match(a: &Url, b: &Url) -> Result<(), Error> {
         return Err(Error::UrlVerificationError("Urls do not match"));
     }
     Ok(())
+}
+
+/// Utility to converts either actix or axum headermap to a BTreeMap
+pub fn header_to_map<'a, H>(headers: H) -> BTreeMap<String, String>
+where
+    H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,
+{
+    let mut header_map = BTreeMap::new();
+
+    for (name, value) in headers {
+        if let Ok(value) = value.to_str() {
+            header_map.insert(name.to_string(), value.to_string());
+        }
+    }
+
+    header_map
 }

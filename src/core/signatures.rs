@@ -1,11 +1,20 @@
+use crate::utils::header_to_map;
+use anyhow::anyhow;
+use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
 use http_signature_normalization_reqwest::prelude::{Config, SignExt};
-use once_cell::sync::OnceCell;
-use openssl::{hash::MessageDigest, pkey::PKey, rsa::Rsa, sign::Signer};
+use once_cell::sync::{Lazy, OnceCell};
+use openssl::{
+    hash::MessageDigest,
+    pkey::PKey,
+    rsa::Rsa,
+    sign::{Signer, Verifier},
+};
 use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{Error, ErrorKind};
+use tracing::debug;
 use url::Url;
 
 static HTTP_SIG_CONFIG: OnceCell<Config> = OnceCell::new();
@@ -92,5 +101,42 @@ impl PublicKey {
             owner,
             public_key_pem,
         }
+    }
+}
+
+static CONFIG2: Lazy<http_signature_normalization::Config> =
+    Lazy::new(http_signature_normalization::Config::new);
+
+/// Verifies the HTTP signature on an incoming inbox request.
+pub fn verify_signature<'a, H>(
+    headers: H,
+    method: &Method,
+    uri: &Uri,
+    public_key: &str,
+) -> Result<(), anyhow::Error>
+where
+    H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,
+{
+    let headers = header_to_map(headers);
+    let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
+
+    let verified = CONFIG2
+        .begin_verify(method.as_str(), path_and_query, headers)?
+        .verify(|signature, signing_string| -> anyhow::Result<bool> {
+            debug!(
+                "Verifying with key {}, message {}",
+                &public_key, &signing_string
+            );
+            let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
+            let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
+            verifier.update(signing_string.as_bytes())?;
+            Ok(verifier.verify(&base64::decode(signature)?)?)
+        })?;
+
+    if verified {
+        debug!("verified signature for {}", uri);
+        Ok(())
+    } else {
+        Err(anyhow!("Invalid signature on request: {}", uri))
     }
 }

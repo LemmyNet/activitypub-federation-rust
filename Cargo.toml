@@ -34,7 +34,6 @@ http-signature-normalization = "0.6.0"
 actix-rt = { version = "2.7.0" }
 
 actix-web = { version = "4.2.1", default-features = false, optional = true }
-http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"], optional = true }
 axum = { version = "0.6.0", features = ["json", "headers", "macros", "original-uri"], optional = true }
 
 # Axum
@@ -45,7 +44,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 
 [features]
 default = ["actix"]
-actix = ["dep:actix-web", "dep:http-signature-normalization-actix"]
+actix = ["dep:actix-web"]
 axum = [
     "dep:axum",
     "dep:tower-http",
