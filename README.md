@@ -18,7 +18,25 @@ You can join the Matrix channel [#activitystreams:asonix.dog](https://matrix.to/
 
 ## How to use
 
-To get started, have a look at the [API documentation](https://docs.rs/activitypub_federation/0.2.0/activitypub_federation/) and example code. You can also find some [ActivityPub resources in the Lemmy documentation](https://join-lemmy.org/docs/en/contributing/resources.html#activitypub-resources). If anything is unclear, please open an issue for clarification. For a more advanced implementation, take a look at the [Lemmy federation code](https://github.com/LemmyNet/lemmy/tree/main/crates/apub).
+
+To get started, have a look at the [API documentation](https://docs.rs/activitypub_federation/0.2.0/activitypub_federation/)
+and [example code](https://github.com/LemmyNet/lemmy/tree/main/example/). You can also find some [ActivityPub resources in the Lemmy documentation](https://join-lemmy.org/docs/en/contributing/resources.html#activitypub-resources).
+If anything is unclear, please open an issue for clarification. For a more advanced implementation,
+take a look at the [Lemmy federation code](https://github.com/LemmyNet/lemmy/tree/main/crates/apub).
+
+Currently supported frameworks include [actix](https://actix.rs/) and [axum](https://github.com/tokio-rs/axum):
+
+**actix:**
+
+```toml
+activitypub_federation = { version = "*", features = ["actix"] }
+```
+
+**axum:**
+
+```toml
+activitypub_federation = { version = "*", features = ["axum"] }
+```
 
 ## Roadmap
 

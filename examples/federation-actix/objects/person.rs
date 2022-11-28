@@ -115,7 +115,7 @@ impl MyUser {
         local_instance: &LocalInstance,
     ) -> Result<(), <Activity as ActivityHandler>::Error>
     where
-        Activity: ActivityHandler + Serialize,
+        Activity: ActivityHandler + Serialize + Send + Sync,
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
@@ -131,7 +131,7 @@ impl MyUser {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ApubObject for MyUser {
     type DataType = InstanceHandle;
     type ApubType = Person;

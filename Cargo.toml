@@ -22,9 +22,6 @@ openssl = "0.10.42"
 once_cell = "1.16.0"
 http = "0.2.8"
 sha2 = "0.10.6"
-actix-web = { version = "4.2.1", default-features = false }
-http-signature-normalization-actix = { version = "0.6.1", default-features = false, features = ["server", "sha-2"] }
-http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
 background-jobs = "0.13.0"
 thiserror = "1.0.37"
 derive_builder = "0.11.2"
@@ -32,10 +29,44 @@ itertools = "0.10.5"
 dyn-clone = "1.0.9"
 enum_delegate = "0.2.0"
 httpdate = "1.0.2"
+http-signature-normalization-reqwest = { version = "0.7.1", default-features = false, features = ["sha-2", "middleware"] }
+http-signature-normalization = "0.6.0"
+actix-rt = { version = "2.7.0" }
+
+actix-web = { version = "4.2.1", default-features = false, optional = true }
+axum = { version = "0.6.0", features = ["json", "headers", "macros", "original-uri"], optional = true }
+
+# Axum
+tower-http = { version = "0.3", features = ["map-request-body", "util", "trace"], optional = true }
+tower = { version = "0.4.13", optional = true }
+hyper = { version = "0.14", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+
+[features]
+default = ["actix"]
+actix = ["dep:actix-web"]
+axum = [
+    "dep:axum",
+    "dep:tower-http",
+    "dep:tower",
+    "dep:hyper",
+    "dep:tracing-subscriber",
+]
 
 [dev-dependencies]
 activitystreams-kinds = "0.2.1"
 rand = "0.8.5"
 actix-rt = "2.7.0"
-tokio = "1.21.2"
+tokio = { version = "1.21.2", features = ["full"] }
 env_logger = { version = "0.9.3", default-features = false }
+
+[[example]]
+name = "simple_federation_actix"
+path = "examples/federation-actix/main.rs"
+required-features = ["actix"]
+
+[[example]]
+name = "simple_federation_axum"
+path = "examples/federation-axum/main.rs"
+required-features = ["axum"]
+

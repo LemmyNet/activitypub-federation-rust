@@ -1,9 +1,14 @@
-use crate::core::activity_queue::create_activity_queue;
+use crate::{
+    core::activity_queue::create_activity_queue,
+    traits::ActivityHandler,
+    utils::verify_domains_match,
+};
 use async_trait::async_trait;
 use background_jobs::Manager;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use reqwest_middleware::ClientWithMiddleware;
+use serde::de::DeserializeOwned;
 use std::time::Duration;
 use url::Url;
 
@@ -23,6 +28,62 @@ pub struct LocalInstance {
     client: ClientWithMiddleware,
     activity_queue: Manager,
     settings: InstanceSettings,
+}
+
+impl LocalInstance {
+    async fn verify_url_and_domain<Activity, Datatype>(
+        &self,
+        activity: &Activity,
+    ) -> Result<(), Error>
+    where
+        Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    {
+        verify_domains_match(activity.id(), activity.actor())?;
+        self.verify_url_valid(activity.id()).await?;
+        if self.is_local_url(activity.id()) {
+            return Err(Error::UrlVerificationError(
+                "Activity was sent from local instance",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Perform some security checks on URLs as mentioned in activitypub spec, and call user-supplied
+    /// [`InstanceSettings.verify_url_function`].
+    ///
+    /// https://www.w3.org/TR/activitypub/#security-considerations
+    async fn verify_url_valid(&self, url: &Url) -> Result<(), Error> {
+        match url.scheme() {
+            "https" => {}
+            "http" => {
+                if !self.settings.debug {
+                    return Err(Error::UrlVerificationError(
+                        "Http urls are only allowed in debug mode",
+                    ));
+                }
+            }
+            _ => return Err(Error::UrlVerificationError("Invalid url scheme")),
+        };
+
+        if url.domain().is_none() {
+            return Err(Error::UrlVerificationError("Url must have a domain"));
+        }
+
+        if url.domain() == Some("localhost") && !self.settings.debug {
+            return Err(Error::UrlVerificationError(
+                "Localhost is only allowed in debug mode",
+            ));
+        }
+
+        self.settings
+            .url_verifier
+            .verify(url)
+            .await
+            .map_err(Error::UrlVerificationError)?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]

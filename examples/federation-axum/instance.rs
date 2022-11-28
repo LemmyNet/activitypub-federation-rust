@@ -6,26 +6,38 @@ use crate::{
         person::{MyUser, PersonAcceptedActivities},
     },
 };
+
 use activitypub_federation::{
-    core::{inbox::receive_activity, object_id::ObjectId, signatures::generate_actor_keypair},
+    core::{object_id::ObjectId, signatures::generate_actor_keypair},
     data::Data,
     deser::context::WithContext,
     traits::ApubObject,
     InstanceSettings,
     LocalInstance,
     UrlVerifier,
-    APUB_JSON_CONTENT_TYPE,
 };
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+
+use activitypub_federation::core::axum::{verify_request_payload, DigestVerified};
 use async_trait::async_trait;
-use http_signature_normalization_actix::prelude::VerifyDigest;
+use axum::{
+    body,
+    body::Body,
+    extract::{Json, OriginalUri, State},
+    middleware,
+    response::IntoResponse,
+    routing::{get, post},
+    Extension,
+    Router,
+};
+use http::{HeaderMap, Method, Request};
 use reqwest::Client;
-use sha2::{Digest, Sha256};
 use std::{
-    ops::Deref,
+    net::ToSocketAddrs,
     sync::{Arc, Mutex},
 };
 use tokio::task;
+use tower::ServiceBuilder;
+use tower_http::ServiceBuilderExt;
 use url::Url;
 
 pub type InstanceHandle = Arc<Instance>;
@@ -82,58 +94,67 @@ impl Instance {
     pub fn listen(instance: &InstanceHandle) -> Result<(), Error> {
         let hostname = instance.local_instance.hostname();
         let instance = instance.clone();
-        let server = HttpServer::new(move || {
-            App::new()
-                .app_data(web::Data::new(instance.clone()))
-                .route("/objects/{user_name}", web::get().to(http_get_user))
-                .service(
-                    web::scope("")
-                        // Important: this ensures that the activity json matches the hashsum in signed
-                        // HTTP header
-                        .wrap(VerifyDigest::new(Sha256::new()))
-                        // Just a single, global inbox for simplicity
-                        .route("/inbox", web::post().to(http_post_user_inbox)),
-                )
-        })
-        .bind(hostname)?
-        .run();
+        let app = Router::new()
+            .route("/inbox", post(http_post_user_inbox))
+            .layer(
+                ServiceBuilder::new()
+                    .map_request_body(body::boxed)
+                    .layer(middleware::from_fn(verify_request_payload)),
+            )
+            .route("/objects/:user_name", get(http_get_user))
+            .with_state(instance)
+            .layer(TraceLayer::new_for_http());
+
+        // run it
+        let addr = hostname
+            .to_socket_addrs()?
+            .next()
+            .expect("Failed to lookup domain name");
+        let server = axum::Server::bind(&addr).serve(app.into_make_service());
+
         task::spawn(server);
         Ok(())
     }
 }
 
-/// Handles requests to fetch user json over HTTP
+use crate::objects::person::Person;
+use activitypub_federation::core::axum::{inbox::receive_activity, json::ApubJson};
+use tower_http::trace::TraceLayer;
+
 async fn http_get_user(
-    request: HttpRequest,
-    data: web::Data<InstanceHandle>,
-) -> Result<HttpResponse, Error> {
-    let data: InstanceHandle = data.into_inner().deref().clone();
+    State(data): State<InstanceHandle>,
+    request: Request<Body>,
+) -> Result<ApubJson<WithContext<Person>>, Error> {
     let hostname: String = data.local_instance.hostname().to_string();
-    let request_url = format!("http://{}{}", hostname, &request.uri().to_string());
-    let url = Url::parse(&request_url)?;
+    let request_url = format!("http://{}{}", hostname, &request.uri());
+
+    let url = Url::parse(&request_url).expect("Failed to parse url");
+
     let user = ObjectId::<MyUser>::new(url)
         .dereference_local(&data)
         .await?
         .into_apub(&data)
         .await?;
-    Ok(HttpResponse::Ok()
-        .content_type(APUB_JSON_CONTENT_TYPE)
-        .json(WithContext::new_default(user)))
+
+    Ok(ApubJson(WithContext::new_default(user)))
 }
 
-/// Handles messages received in user inbox
 async fn http_post_user_inbox(
-    request: HttpRequest,
-    payload: String,
-    data: web::Data<InstanceHandle>,
-) -> Result<HttpResponse, Error> {
-    let data: InstanceHandle = data.into_inner().deref().clone();
-    let activity = serde_json::from_str(&payload)?;
+    headers: HeaderMap,
+    method: Method,
+    OriginalUri(uri): OriginalUri,
+    State(data): State<InstanceHandle>,
+    Extension(digest_verified): Extension<DigestVerified>,
+    Json(activity): Json<WithContext<PersonAcceptedActivities>>,
+) -> impl IntoResponse {
     receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
-        request,
+        digest_verified,
         activity,
         &data.clone().local_instance,
         &Data::new(data),
+        headers,
+        method,
+        uri,
     )
     .await
 }

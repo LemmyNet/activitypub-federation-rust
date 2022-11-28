@@ -4,10 +4,10 @@ use std::ops::Deref;
 use url::Url;
 
 /// Trait which allows verification and reception of incoming activities.
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 #[enum_delegate::register]
 pub trait ActivityHandler {
-    type DataType;
+    type DataType: Send + Sync;
     type Error;
 
     /// `id` field of the activity
@@ -34,10 +34,10 @@ pub trait ActivityHandler {
 }
 
 /// Allow for boxing of enum variants
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<T> ActivityHandler for Box<T>
 where
-    T: ActivityHandler,
+    T: ActivityHandler + Send + Sync,
 {
     type DataType = T::DataType;
     type Error = T::Error;
@@ -67,9 +67,9 @@ where
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 pub trait ApubObject {
-    type DataType;
+    type DataType: Send + Sync;
     type ApubType;
     type DbType;
     type Error;

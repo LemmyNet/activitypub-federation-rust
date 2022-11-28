@@ -5,8 +5,6 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug)]
 pub struct Error(anyhow::Error);
 
-impl ResponseError for Error {}
-
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.0, f)
@@ -21,3 +19,5 @@ where
         Error(t.into())
     }
 }
+
+impl ResponseError for Error {}

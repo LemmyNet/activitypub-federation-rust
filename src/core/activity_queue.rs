@@ -1,7 +1,6 @@
 use crate::{
     core::signatures::{sign_request, PublicKey},
     traits::ActivityHandler,
-    utils::verify_url_valid,
     Error,
     InstanceSettings,
     LocalInstance,
@@ -27,7 +26,7 @@ use std::{
     pin::Pin,
     time::{Duration, SystemTime},
 };
-use tracing::{info, log::debug, warn};
+use tracing::{debug, info, warn};
 use url::Url;
 
 /// Send out the given activity to all inboxes, automatically generating the HTTP signatures. By
@@ -60,9 +59,10 @@ where
 
     let activity_queue = &instance.activity_queue;
     for inbox in inboxes {
-        if verify_url_valid(&inbox, &instance.settings).await.is_err() {
+        if instance.verify_url_valid(&inbox).await.is_err() {
             continue;
         }
+
         let message = SendActivityTask {
             activity_id: activity_id.clone(),
             inbox,
@@ -137,7 +137,7 @@ async fn do_send(
 ) -> Result<(), anyhow::Error> {
     debug!("Sending {} to {}", task.activity_id, task.inbox);
     let request_builder = client
-        .post(&task.inbox.to_string())
+        .post(task.inbox.to_string())
         .timeout(timeout)
         .headers(generate_request_headers(&task.inbox));
     let request = sign_request(

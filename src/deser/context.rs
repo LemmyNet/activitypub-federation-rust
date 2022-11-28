@@ -28,10 +28,10 @@ impl<T> WithContext<T> {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl<T> ActivityHandler for WithContext<T>
 where
-    T: ActivityHandler,
+    T: ActivityHandler + Send + Sync,
 {
     type DataType = <T as ActivityHandler>::DataType;
     type Error = <T as ActivityHandler>::Error;

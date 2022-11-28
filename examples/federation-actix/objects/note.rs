@@ -39,7 +39,7 @@ pub struct Note {
     content: String,
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl ApubObject for MyPost {
     type DataType = InstanceHandle;
     type ApubType = Note;
