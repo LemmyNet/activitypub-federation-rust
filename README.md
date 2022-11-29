@@ -5,7 +5,7 @@ Activitypub-Federation
 
 A high-level framework for [ActivityPub](https://www.w3.org/TR/activitypub/) federation in Rust, extracted from [Lemmy](https://join-lemmy.org/). The goal is that this library can take care of almost everything related to federation for different projects. For now it is still far away from that goal, and has many rough edges that need to be smoothed.
 
-You can join the Matrix channel [#activitystreams:asonix.dog](https://matrix.to/#/%23activitystreams:matrix.asonix.dog?via=matrix.asonix.dog) to discuss about Activitypub in Rust.
+You can join the Matrix channel [#activitystreams:matrix.asonix.dog](https://matrix.to/#/%23activitystreams:matrix.asonix.dog?via=matrix.asonix.dog) to discuss about Activitypub in Rust.
 
 ## Features
 
