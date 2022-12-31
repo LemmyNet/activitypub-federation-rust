@@ -3,6 +3,7 @@ name = "activitypub_federation"
 version = "0.3.4"
 edition = "2021"
 description = "High-level Activitypub framework"
+keywords = ["activitypub", "activitystreams", "federation", "fediverse"]
 license = "AGPL-3.0"
 repository = "https://github.com/LemmyNet/activitypub-federation-rust"
 documentation = "https://docs.rs/activitypub_federation/"
