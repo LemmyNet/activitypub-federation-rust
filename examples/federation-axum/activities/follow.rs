@@ -47,14 +47,6 @@ impl ActivityHandler for Follow {
         self.actor.inner()
     }
 
-    async fn verify(
-        &self,
-        _data: &Data<Self::DataType>,
-        _request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
     // Ignore clippy false positive: https://github.com/rust-lang/rust-clippy/issues/6446
     #[allow(clippy::await_holding_lock)]
     async fn receive(

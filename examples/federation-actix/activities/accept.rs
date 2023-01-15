@@ -38,14 +38,6 @@ impl ActivityHandler for Accept {
         self.actor.inner()
     }
 
-    async fn verify(
-        &self,
-        _data: &Data<Self::DataType>,
-        _request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
     async fn receive(
         self,
         _data: &Data<Self::DataType>,

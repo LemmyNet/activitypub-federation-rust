@@ -44,14 +44,6 @@ where
         self.inner.actor()
     }
 
-    async fn verify(
-        &self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        self.inner.verify(data, request_counter).await
-    }
-
     async fn receive(
         self,
         data: &Data<Self::DataType>,

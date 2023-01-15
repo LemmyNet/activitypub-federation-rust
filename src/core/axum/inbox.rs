@@ -38,9 +38,6 @@ where
 
     verify_signature(&headers, &method, &uri, actor.public_key())?;
 
-    debug!("Verifying activity {}", activity.id().to_string());
-    activity.verify(data, request_counter).await?;
-
     debug!("Receiving activity {}", activity.id().to_string());
     activity.receive(data, request_counter).await?;
     Ok(())

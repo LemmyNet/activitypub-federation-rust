@@ -50,15 +50,6 @@ impl ActivityHandler for CreateNote {
         self.actor.inner()
     }
 
-    async fn verify(
-        &self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        MyPost::verify(&self.object, self.id(), data, request_counter).await?;
-        Ok(())
-    }
-
     async fn receive(
         self,
         data: &Data<Self::DataType>,
