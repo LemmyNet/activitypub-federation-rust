@@ -16,15 +16,6 @@ pub trait ActivityHandler {
     /// `actor` field of activity
     fn actor(&self) -> &Url;
 
-    /// Verify that the activity is valid. If this method returns an error, the activity will be
-    /// discarded. This is separate from receive(), so that it can be called recursively on nested
-    /// objects, without storing something in the database by accident.
-    async fn verify(
-        &self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error>;
-
     /// Receives the activity and stores its action in database.
     async fn receive(
         self,
@@ -48,14 +39,6 @@ where
 
     fn actor(&self) -> &Url {
         self.deref().actor()
-    }
-
-    async fn verify(
-        &self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        self.deref().verify(data, request_counter).await
     }
 
     async fn receive(
@@ -99,16 +82,6 @@ pub trait ApubObject {
 
     /// Trait for converting an object or actor into the respective ActivityPub type.
     async fn into_apub(self, data: &Self::DataType) -> Result<Self::ApubType, Self::Error>;
-
-    /// Verify that the object is valid. If this method returns an error, it will be
-    /// discarded. This is separate from from_apub(), so that it can be called recursively on nested
-    /// objects, without storing something in the database by accident.
-    async fn verify(
-        apub: &Self::ApubType,
-        expected_domain: &Url,
-        data: &Self::DataType,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error>;
 
     /// Converts an object from ActivityPub type to Lemmy internal type.
     ///

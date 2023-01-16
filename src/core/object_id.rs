@@ -118,7 +118,6 @@ where
 
         let res2 = res?;
 
-        Kind::verify(&res2, self.inner(), data, request_counter).await?;
         Kind::from_apub(res2, data, request_counter).await
     }
 }
@@ -213,15 +212,6 @@ mod tests {
         }
 
         async fn into_apub(self, _data: &Self::DataType) -> Result<Self::ApubType, Self::Error> {
-            todo!()
-        }
-
-        async fn verify(
-            _apub: &Self::ApubType,
-            _expected_domain: &Url,
-            _data: &Self::DataType,
-            _request_counter: &mut i32,
-        ) -> Result<(), Self::Error> {
             todo!()
         }
 
