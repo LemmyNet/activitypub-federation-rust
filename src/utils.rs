@@ -1,4 +1,6 @@
 use crate::{Error, LocalInstance, APUB_JSON_CONTENT_TYPE};
+use bytes::{BufMut, BytesMut};
+use futures_util::stream::StreamExt;
 use http::{header::HeaderName, HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
@@ -33,7 +35,17 @@ pub async fn fetch_object_http<Kind: DeserializeOwned>(
         return Err(Error::ObjectDeleted);
     }
 
-    res.json().await.map_err(Error::conv)
+    let mut bytes_stream = res.bytes_stream();
+    let mut body = BytesMut::new();
+    while let Some(chunk) = bytes_stream.next().await.transpose().map_err(Error::conv)? {
+        body.put(chunk);
+
+        if body.len() > instance.settings.response_body_size {
+            return Err(Error::ResponseBodyLimit);
+        }
+    }
+
+    serde_json::from_slice(&body).map_err(Error::conv)
 }
 
 /// Check that both urls have the same domain. If not, return UrlVerificationError.
