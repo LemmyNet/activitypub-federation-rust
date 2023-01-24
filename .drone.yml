@@ -14,7 +14,7 @@ steps:
       - /root/.cargo/bin/cargo fmt -- --check
 
   - name: cargo check
-    image: rust:1.61-bullseye
+    image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -35,7 +35,7 @@ steps:
       - cargo clippy --workspace --all-features -- -D clippy::unwrap_used
 
   - name: cargo test
-    image: rust:1.61-bullseye
+    image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
@@ -43,14 +43,14 @@ steps:
       - cargo test --workspace --no-fail-fast
 
   - name: cargo run actix
-    image: rust:1.61-bullseye
+    image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
     commands:
       - cargo run --example simple_federation_actix
   - name: cargo run axum
-    image: rust:1.61-bullseye
+    image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
       RUST_BACKTRACE: 1
