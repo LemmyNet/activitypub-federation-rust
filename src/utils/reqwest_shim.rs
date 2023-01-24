@@ -2,7 +2,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures_core::{ready, stream::BoxStream, Stream};
 use pin_project_lite::pin_project;
 use reqwest::Response;
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use std::{
     future::Future,
     marker::PhantomData,
@@ -57,7 +57,7 @@ pin_project! {
 
 impl<T> Future for JsonFuture<T>
 where
-    T: for<'de> Deserialize<'de>,
+    T: DeserializeOwned,
 {
     type Output = Result<T, Error>;
 
