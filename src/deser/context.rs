@@ -26,6 +26,10 @@ impl<T> WithContext<T> {
     pub fn new(inner: T, context: Vec<Value>) -> WithContext<T> {
         WithContext { context, inner }
     }
+
+    pub fn inner(&self) -> &T {
+        &self.inner
+    }
 }
 
 #[async_trait::async_trait]
