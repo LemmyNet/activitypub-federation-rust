@@ -35,7 +35,7 @@ pub async fn fetch_object_http<Kind: DeserializeOwned>(
         return Err(Error::ObjectDeleted);
     }
 
-    res.json_limited(instance.settings.response_body_size).await
+    res.json_limited().await
 }
 
 /// Check that both urls have the same domain. If not, return UrlVerificationError.

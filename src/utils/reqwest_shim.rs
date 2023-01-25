@@ -1,3 +1,4 @@
+use crate::Error;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_core::{ready, stream::BoxStream, Stream};
 use pin_project_lite::pin_project;
@@ -11,7 +12,8 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::Error;
+/// 100KB
+const MAX_BODY_SIZE: usize = 102400;
 
 pin_project! {
     pub struct BytesFuture {
@@ -90,9 +92,9 @@ pub trait ResponseExt {
     type JsonFuture<T>;
     type TextFuture;
 
-    fn bytes_limited(self, limit: usize) -> Self::BytesFuture;
-    fn json_limited<T>(self, limit: usize) -> Self::JsonFuture<T>;
-    fn text_limited(self, limit: usize) -> Self::TextFuture;
+    fn bytes_limited(self) -> Self::BytesFuture;
+    fn json_limited<T>(self) -> Self::JsonFuture<T>;
+    fn text_limited(self) -> Self::TextFuture;
 }
 
 impl ResponseExt for Response {
@@ -100,24 +102,24 @@ impl ResponseExt for Response {
     type JsonFuture<T> = JsonFuture<T>;
     type TextFuture = TextFuture;
 
-    fn bytes_limited(self, limit: usize) -> Self::BytesFuture {
+    fn bytes_limited(self) -> Self::BytesFuture {
         BytesFuture {
             stream: Box::pin(self.bytes_stream()),
-            limit,
+            limit: MAX_BODY_SIZE,
             aggregator: BytesMut::new(),
         }
     }
 
-    fn json_limited<T>(self, limit: usize) -> Self::JsonFuture<T> {
+    fn json_limited<T>(self) -> Self::JsonFuture<T> {
         JsonFuture {
             _t: PhantomData,
-            future: self.bytes_limited(limit),
+            future: self.bytes_limited(),
         }
     }
 
-    fn text_limited(self, limit: usize) -> Self::TextFuture {
+    fn text_limited(self) -> Self::TextFuture {
         TextFuture {
-            future: self.bytes_limited(limit),
+            future: self.bytes_limited(),
         }
     }
 }

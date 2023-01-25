@@ -168,8 +168,7 @@ async fn do_send(
         }
         Ok(o) => {
             let status = o.status();
-            // Limit the status text to 1KB.
-            let text = o.text_limited(1024).await.map_err(Error::conv)?;
+            let text = o.text_limited().await.map_err(Error::conv)?;
             Err(anyhow!(
                 "Queueing activity {} to {} for retry after failure with status {}: {}",
                 task.activity_id,

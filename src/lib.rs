@@ -111,12 +111,6 @@ pub struct InstanceSettings {
     /// use the same as timeout when sending
     #[builder(default = "Duration::from_secs(10)")]
     request_timeout: Duration,
-    /// Maximum size of the HTTP response body in bytes.
-    /// This is limited to prevent potential memory exhaustion DoS attacks.
-    ///
-    /// Defaults to 2MB
-    #[builder(default = "2 * 1024 * 1024")]
-    response_body_size: usize,
     /// Function used to verify that urls are valid, used when receiving activities or fetching remote
     /// objects. Use this to implement functionality like federation blocklists. In case verification
     /// fails, it should return an error message.
