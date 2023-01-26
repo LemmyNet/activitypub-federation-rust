@@ -88,12 +88,12 @@ impl Future for TextFuture {
 }
 
 /// Response shim to work around [an issue in reqwest](https://github.com/seanmonstar/reqwest/issues/1234) (there is an [open pull request](https://github.com/seanmonstar/reqwest/pull/1532) fixing this).
-/// 
+///
 /// Reqwest doesn't limit the response body size by default nor does it offer an option to configure one.
 /// Since we have to fetch data from untrusted sources, not restricting the maximum size is a DoS hazard for us.
-/// 
+///
 /// This shim reimplements the `bytes`, `json`, and `text` functions and restricts the bodies to 100KB.
-/// 
+///
 /// TODO: Remove this shim as soon as reqwest gets support for size-limited bodies.
 pub trait ResponseExt {
     type BytesFuture;
