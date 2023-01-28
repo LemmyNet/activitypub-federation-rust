@@ -173,6 +173,8 @@ pub enum Error {
     NotFound,
     #[error("Request limit was reached during fetch")]
     RequestLimit,
+    #[error("Response body limit was reached during fetch")]
+    ResponseBodyLimit,
     #[error("Object to be fetched was deleted")]
     ObjectDeleted,
     #[error("{0}")]

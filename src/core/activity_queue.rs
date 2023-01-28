@@ -1,6 +1,7 @@
 use crate::{
     core::signatures::{sign_request, PublicKey},
     traits::ActivityHandler,
+    utils::reqwest_shim::ResponseExt,
     Error,
     InstanceSettings,
     LocalInstance,
@@ -167,7 +168,7 @@ async fn do_send(
         }
         Ok(o) => {
             let status = o.status();
-            let text = o.text().await.map_err(Error::conv)?;
+            let text = o.text_limited().await.map_err(Error::conv)?;
             Err(anyhow!(
                 "Queueing activity {} to {} for retry after failure with status {}: {}",
                 task.activity_id,

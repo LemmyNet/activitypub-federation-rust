@@ -1,9 +1,11 @@
-use crate::{Error, LocalInstance, APUB_JSON_CONTENT_TYPE};
+use crate::{utils::reqwest_shim::ResponseExt, Error, LocalInstance, APUB_JSON_CONTENT_TYPE};
 use http::{header::HeaderName, HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use tracing::info;
 use url::Url;
+
+pub(crate) mod reqwest_shim;
 
 pub async fn fetch_object_http<Kind: DeserializeOwned>(
     url: &Url,
@@ -33,7 +35,7 @@ pub async fn fetch_object_http<Kind: DeserializeOwned>(
         return Err(Error::ObjectDeleted);
     }
 
-    res.json().await.map_err(Error::conv)
+    res.json_limited().await
 }
 
 /// Check that both urls have the same domain. If not, return UrlVerificationError.
