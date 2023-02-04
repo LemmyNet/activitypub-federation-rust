@@ -58,9 +58,26 @@ where
     T: Deserialize<'de> + Default,
     D: Deserializer<'de>,
 {
-    let result = Deserialize::deserialize(deserializer);
-    Ok(match result {
-        Ok(o) => o,
-        Err(_) => Default::default(),
-    })
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let inner = T::deserialize(value).unwrap_or_default();
+    Ok(inner)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize_skip_error() {
+        #[derive(Debug, Deserialize)]
+        pub struct MyData {
+            #[serde(deserialize_with = "deserialize_skip_error")]
+            pub data: Option<String>,
+        }
+        // data has type object
+        let _: MyData = serde_json::from_str(r#"{ "data": {} }"#).unwrap();
+
+        // data has type array
+        let _: MyData = serde_json::from_str(r#"{"data": []}"#).unwrap();
+    }
 }
