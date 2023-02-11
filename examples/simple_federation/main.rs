@@ -1,7 +1,16 @@
-use crate::{error::Error, instance::Database, objects::note::MyPost, utils::generate_object_id};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use crate::{
+    instance::{listen, Database},
+    objects::note::MyPost,
+    utils::generate_object_id,
+};
+use error::Error;
+use tracing::log::LevelFilter;
 
 mod activities;
+#[cfg(feature = "actix-web")]
+mod actix_web;
+#[cfg(feature = "axum")]
+mod axum;
 mod error;
 mod instance;
 mod objects;
@@ -9,26 +18,20 @@ mod utils;
 
 #[actix_rt::main]
 async fn main() -> Result<(), Error> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| {
-                "activitypub_federation=debug,federation-axum=debug,tower_http=debug".into()
-            }),
-        ))
-        .with(tracing_subscriber::fmt::layer())
+    env_logger::builder()
+        .filter_level(LevelFilter::Debug)
         .init();
 
     let alpha = Database::new("localhost:8001".to_string())?;
     let beta = Database::new("localhost:8002".to_string())?;
-    Database::listen(&alpha)?;
-    Database::listen(&beta)?;
+    listen(&alpha)?;
+    listen(&beta)?;
 
     // alpha user follows beta user
     alpha
         .local_user()
         .follow(&beta.local_user(), &alpha.to_request_data())
         .await?;
-
     // assert that follow worked correctly
     assert_eq!(
         beta.local_user().followers(),

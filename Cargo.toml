@@ -37,24 +37,21 @@ bytes = "1.3.0"
 futures-core = { version = "0.3.25", default-features = false }
 pin-project-lite = "0.2.9"
 
+# Actix-web
 actix-web = { version = "4.2.1", default-features = false, optional = true }
-axum = { version = "0.6.0", features = ["json", "headers", "macros", "original-uri"], optional = true }
 
 # Axum
-tower-http = { version = "0.3", features = ["map-request-body", "util", "trace"], optional = true }
+axum = { version = "0.6.0", features = ["json", "headers", "macros", "original-uri"], optional = true }
 tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 
 [features]
-default = ["actix"]
-actix = ["dep:actix-web"]
+default = []
+actix-web = ["dep:actix-web"]
 axum = [
     "dep:axum",
-    "dep:tower-http",
     "dep:tower",
     "dep:hyper",
-    "dep:tracing-subscriber",
 ]
 
 [dev-dependencies]
@@ -63,14 +60,13 @@ rand = "0.8.5"
 actix-rt = "2.7.0"
 tokio = { version = "1.21.2", features = ["full"] }
 env_logger = { version = "0.9.3", default-features = false }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower-http = { version = "0.3", features = ["map-request-body", "util", "trace"] }
+
+[profile.dev]
+strip = "symbols"
+debug = 0
 
 [[example]]
-name = "simple_federation_actix"
-path = "examples/federation-actix/main.rs"
-required-features = ["actix"]
-
-[[example]]
-name = "simple_federation_axum"
-path = "examples/federation-axum/main.rs"
-required-features = ["axum"]
-
+name = "simple_federation"
+path = "examples/simple_federation/main.rs"

@@ -5,5 +5,5 @@ pub mod signatures;
 #[cfg(feature = "axum")]
 pub mod axum;
 
-#[cfg(feature = "actix")]
-pub mod actix;
+#[cfg(feature = "actix-web")]
+pub mod actix_web;

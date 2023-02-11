@@ -83,11 +83,11 @@ impl MyUser {
     pub async fn follow(
         &self,
         other: &MyUser,
-        data: &RequestData<DatabaseHandle>,
+        instance: &RequestData<DatabaseHandle>,
     ) -> Result<(), Error> {
-        let id = generate_object_id(data.local_instance().hostname())?;
+        let id = generate_object_id(instance.local_instance().hostname())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
-        self.send(follow, vec![other.shared_inbox_or_inbox()], data)
+        self.send(follow, vec![other.shared_inbox_or_inbox()], instance)
             .await?;
         Ok(())
     }
@@ -95,16 +95,16 @@ impl MyUser {
     pub async fn post(
         &self,
         post: MyPost,
-        data: &RequestData<DatabaseHandle>,
+        instance: &RequestData<DatabaseHandle>,
     ) -> Result<(), Error> {
-        let id = generate_object_id(data.local_instance().hostname())?;
-        let create = CreateNote::new(post.into_apub(data).await?, id.clone());
+        let id = generate_object_id(instance.local_instance().hostname())?;
+        let create = CreateNote::new(post.into_apub(instance).await?, id.clone());
         let mut inboxes = vec![];
         for f in self.followers.clone() {
-            let user: MyUser = ObjectId::new(f).dereference(data).await?;
+            let user: MyUser = ObjectId::new(f).dereference(instance).await?;
             inboxes.push(user.shared_inbox_or_inbox());
         }
-        self.send(create, inboxes, data).await?;
+        self.send(create, inboxes, instance).await?;
         Ok(())
     }
 
@@ -136,7 +136,7 @@ impl ApubObject for MyUser {
     type DataType = DatabaseHandle;
     type ApubType = Person;
     type DbType = MyUser;
-    type Error = crate::error::Error;
+    type Error = Error;
 
     async fn read_from_apub_id(
         object_id: Url,

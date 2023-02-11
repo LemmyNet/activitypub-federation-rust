@@ -1,9 +1,8 @@
-use actix_web::ResponseError;
 use std::fmt::{Display, Formatter};
 
 /// Necessary because of this issue: https://github.com/actix/actix-web/issues/1711
 #[derive(Debug)]
-pub struct Error(anyhow::Error);
+pub struct Error(pub(crate) anyhow::Error);
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -19,5 +18,3 @@ where
         Error(t.into())
     }
 }
-
-impl ResponseError for Error {}

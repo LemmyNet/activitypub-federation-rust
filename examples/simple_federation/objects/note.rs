@@ -1,4 +1,4 @@
-use crate::{generate_object_id, instance::DatabaseHandle, objects::person::MyUser};
+use crate::{error::Error, generate_object_id, instance::DatabaseHandle, objects::person::MyUser};
 use activitypub_federation::{
     core::object_id::ObjectId,
     deser::helpers::deserialize_one_or_many,
@@ -45,7 +45,7 @@ impl ApubObject for MyPost {
     type DataType = DatabaseHandle;
     type ApubType = Note;
     type DbType = ();
-    type Error = crate::error::Error;
+    type Error = Error;
 
     async fn read_from_apub_id(
         _object_id: Url,
