@@ -1,4 +1,8 @@
-use crate::{data::Data, deser::helpers::deserialize_one_or_many, traits::ActivityHandler};
+use crate::{
+    deser::helpers::deserialize_one_or_many,
+    request_data::RequestData,
+    traits::ActivityHandler,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
@@ -48,11 +52,7 @@ where
         self.inner.actor()
     }
 
-    async fn receive(
-        self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        self.inner.receive(data, request_counter).await
+    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        self.inner.receive(data).await
     }
 }

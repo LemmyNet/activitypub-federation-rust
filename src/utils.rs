@@ -1,24 +1,29 @@
-use crate::{utils::reqwest_shim::ResponseExt, Error, LocalInstance, APUB_JSON_CONTENT_TYPE};
+use crate::{
+    request_data::RequestData,
+    utils::reqwest_shim::ResponseExt,
+    Error,
+    APUB_JSON_CONTENT_TYPE,
+};
 use http::{header::HeaderName, HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::atomic::Ordering};
 use tracing::info;
 use url::Url;
 
 pub(crate) mod reqwest_shim;
 
-pub async fn fetch_object_http<Kind: DeserializeOwned>(
+pub async fn fetch_object_http<T, Kind: DeserializeOwned>(
     url: &Url,
-    instance: &LocalInstance,
-    request_counter: &mut i32,
+    data: &RequestData<T>,
 ) -> Result<Kind, Error> {
+    let instance = &data.local_instance();
     // dont fetch local objects this way
     debug_assert!(url.domain() != Some(&instance.hostname));
     instance.verify_url_valid(url).await?;
     info!("Fetching remote object {}", url.to_string());
 
-    *request_counter += 1;
-    if *request_counter > instance.settings.http_fetch_limit {
+    let counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    if counter > instance.settings.http_fetch_limit {
         return Err(Error::RequestLimit);
     }
 

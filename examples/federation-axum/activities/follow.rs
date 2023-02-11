@@ -1,12 +1,12 @@
 use crate::{
     activities::accept::Accept,
     generate_object_id,
-    instance::InstanceHandle,
+    instance::DatabaseHandle,
     objects::person::MyUser,
 };
 use activitypub_federation::{
     core::object_id::ObjectId,
-    data::Data,
+    request_data::RequestData,
     traits::{ActivityHandler, Actor},
 };
 use activitystreams_kinds::activity::FollowType;
@@ -36,7 +36,7 @@ impl Follow {
 
 #[async_trait::async_trait]
 impl ActivityHandler for Follow {
-    type DataType = InstanceHandle;
+    type DataType = DatabaseHandle;
     type Error = crate::error::Error;
 
     fn id(&self) -> &Url {
@@ -49,11 +49,7 @@ impl ActivityHandler for Follow {
 
     // Ignore clippy false positive: https://github.com/rust-lang/rust-clippy/issues/6446
     #[allow(clippy::await_holding_lock)]
-    async fn receive(
-        self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
+    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
         // add to followers
         let local_user = {
             let mut users = data.users.lock().unwrap();
@@ -63,18 +59,11 @@ impl ActivityHandler for Follow {
         };
 
         // send back an accept
-        let follower = self
-            .actor
-            .dereference(data, data.local_instance(), request_counter)
-            .await?;
+        let follower = self.actor.dereference(data).await?;
         let id = generate_object_id(data.local_instance().hostname())?;
         let accept = Accept::new(local_user.ap_id.clone(), self, id.clone());
         local_user
-            .send(
-                accept,
-                vec![follower.shared_inbox_or_inbox()],
-                data.local_instance(),
-            )
+            .send(accept, vec![follower.shared_inbox_or_inbox()], data)
             .await?;
         Ok(())
     }

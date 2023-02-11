@@ -1,9 +1,8 @@
 use crate::{
     core::{axum::DigestVerified, object_id::ObjectId, signatures::verify_signature},
-    data::Data,
+    request_data::RequestData,
     traits::{ActivityHandler, Actor, ApubObject},
     Error,
-    LocalInstance,
 };
 use http::{HeaderMap, Method, Uri};
 use serde::de::DeserializeOwned;
@@ -13,8 +12,7 @@ use tracing::debug;
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     _digest_verified: DigestVerified,
     activity: Activity,
-    local_instance: &LocalInstance,
-    data: &Data<Datatype>,
+    data: &RequestData<Datatype>,
     headers: HeaderMap,
     method: Method,
     uri: Uri,
@@ -29,16 +27,17 @@ where
         + From<serde_json::Error>,
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
-    local_instance.verify_url_and_domain(&activity).await?;
+    data.local_instance()
+        .verify_url_and_domain(&activity)
+        .await?;
 
-    let request_counter = &mut 0;
     let actor = ObjectId::<ActorT>::new(activity.actor().clone())
-        .dereference(data, local_instance, request_counter)
+        .dereference(data)
         .await?;
 
     verify_signature(&headers, &method, &uri, actor.public_key())?;
 
     debug!("Receiving activity {}", activity.id().to_string());
-    activity.receive(data, request_counter).await?;
+    activity.receive(data).await?;
     Ok(())
 }

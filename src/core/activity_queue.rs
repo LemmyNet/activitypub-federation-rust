@@ -3,8 +3,8 @@ use crate::{
     traits::ActivityHandler,
     utils::reqwest_shim::ResponseExt,
     Error,
-    InstanceSettings,
-    LocalInstance,
+    FederationSettings,
+    InstanceConfig,
     APUB_JSON_CONTENT_TYPE,
 };
 use anyhow::anyhow;
@@ -44,7 +44,7 @@ pub async fn send_activity<Activity>(
     public_key: PublicKey,
     private_key: String,
     recipients: Vec<Url>,
-    instance: &LocalInstance,
+    instance: &InstanceConfig,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler + Serialize,
@@ -211,7 +211,7 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 
 pub(crate) fn create_activity_queue(
     client: ClientWithMiddleware,
-    settings: &InstanceSettings,
+    settings: &FederationSettings,
 ) -> Manager {
     // queue is not used in debug mod, so dont create any workers to avoid log spam
     let worker_count = if settings.debug {

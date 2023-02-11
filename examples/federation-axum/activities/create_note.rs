@@ -1,12 +1,12 @@
 use crate::{
-    instance::InstanceHandle,
+    instance::DatabaseHandle,
     objects::{note::Note, person::MyUser},
     MyPost,
 };
 use activitypub_federation::{
     core::object_id::ObjectId,
-    data::Data,
     deser::helpers::deserialize_one_or_many,
+    request_data::RequestData,
     traits::{ActivityHandler, ApubObject},
 };
 use activitystreams_kinds::activity::CreateType;
@@ -39,7 +39,7 @@ impl CreateNote {
 
 #[async_trait::async_trait]
 impl ActivityHandler for CreateNote {
-    type DataType = InstanceHandle;
+    type DataType = DatabaseHandle;
     type Error = crate::error::Error;
 
     fn id(&self) -> &Url {
@@ -50,12 +50,8 @@ impl ActivityHandler for CreateNote {
         self.actor.inner()
     }
 
-    async fn receive(
-        self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        MyPost::from_apub(self.object, data, request_counter).await?;
+    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        MyPost::from_apub(self.object, data).await?;
         Ok(())
     }
 }

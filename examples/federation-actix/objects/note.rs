@@ -1,7 +1,8 @@
-use crate::{generate_object_id, instance::InstanceHandle, objects::person::MyUser};
+use crate::{generate_object_id, instance::DatabaseHandle, objects::person::MyUser};
 use activitypub_federation::{
     core::object_id::ObjectId,
     deser::helpers::deserialize_one_or_many,
+    request_data::RequestData,
     traits::ApubObject,
 };
 use activitystreams_kinds::{object::NoteType, public};
@@ -41,19 +42,22 @@ pub struct Note {
 
 #[async_trait::async_trait]
 impl ApubObject for MyPost {
-    type DataType = InstanceHandle;
+    type DataType = DatabaseHandle;
     type ApubType = Note;
     type DbType = ();
     type Error = crate::error::Error;
 
     async fn read_from_apub_id(
         _object_id: Url,
-        _data: &Self::DataType,
+        _data: &RequestData<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         todo!()
     }
 
-    async fn into_apub(self, data: &Self::DataType) -> Result<Self::ApubType, Self::Error> {
+    async fn into_apub(
+        self,
+        data: &RequestData<Self::DataType>,
+    ) -> Result<Self::ApubType, Self::Error> {
         let creator = self.creator.dereference_local(data).await?;
         Ok(Note {
             kind: Default::default(),
@@ -66,8 +70,7 @@ impl ApubObject for MyPost {
 
     async fn from_apub(
         apub: Self::ApubType,
-        data: &Self::DataType,
-        _request_counter: &mut i32,
+        data: &RequestData<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         let post = MyPost {
             text: apub.content,
