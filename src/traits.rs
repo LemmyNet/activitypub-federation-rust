@@ -1,4 +1,4 @@
-use crate::data::Data;
+use crate::request_data::RequestData;
 use chrono::NaiveDateTime;
 use std::ops::Deref;
 use url::Url;
@@ -17,18 +17,14 @@ pub trait ActivityHandler {
     fn actor(&self) -> &Url;
 
     /// Receives the activity and stores its action in database.
-    async fn receive(
-        self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error>;
+    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error>;
 }
 
 /// Allow for boxing of enum variants
 #[async_trait::async_trait]
 impl<T> ActivityHandler for Box<T>
 where
-    T: ActivityHandler + Send + Sync,
+    T: ActivityHandler + Send,
 {
     type DataType = T::DataType;
     type Error = T::Error;
@@ -41,12 +37,8 @@ where
         self.deref().actor()
     }
 
-    async fn receive(
-        self,
-        data: &Data<Self::DataType>,
-        request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
-        (*self).receive(data, request_counter).await
+    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        (*self).receive(data).await
     }
 }
 
@@ -66,14 +58,14 @@ pub trait ApubObject {
     /// Try to read the object with given ID from local database. Returns Ok(None) if it doesn't exist.
     async fn read_from_apub_id(
         object_id: Url,
-        data: &Self::DataType,
+        data: &RequestData<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error>
     where
         Self: Sized;
 
     /// Marks the object as deleted in local db. Called when a delete activity is received, or if
     /// fetch returns a tombstone.
-    async fn delete(self, _data: &Self::DataType) -> Result<(), Self::Error>
+    async fn delete(self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error>
     where
         Self: Sized,
     {
@@ -81,7 +73,10 @@ pub trait ApubObject {
     }
 
     /// Trait for converting an object or actor into the respective ActivityPub type.
-    async fn into_apub(self, data: &Self::DataType) -> Result<Self::ApubType, Self::Error>;
+    async fn into_apub(
+        self,
+        data: &RequestData<Self::DataType>,
+    ) -> Result<Self::ApubType, Self::Error>;
 
     /// Converts an object from ActivityPub type to Lemmy internal type.
     ///
@@ -91,8 +86,7 @@ pub trait ApubObject {
     /// * `mod_action_allowed` True if the object can be a mod activity, ignore `expected_domain` in this case
     async fn from_apub(
         apub: Self::ApubType,
-        data: &Self::DataType,
-        request_counter: &mut i32,
+        data: &RequestData<Self::DataType>,
     ) -> Result<Self, Self::Error>
     where
         Self: Sized;

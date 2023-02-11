@@ -1,7 +1,7 @@
 use crate::{
     activities::{accept::Accept, create_note::CreateNote, follow::Follow},
     error::Error,
-    instance::InstanceHandle,
+    instance::DatabaseHandle,
     objects::note::MyPost,
     utils::generate_object_id,
 };
@@ -11,10 +11,9 @@ use activitypub_federation::{
         object_id::ObjectId,
         signatures::{Keypair, PublicKey},
     },
-    data::Data,
     deser::context::WithContext,
+    request_data::RequestData,
     traits::{ActivityHandler, Actor, ApubObject},
-    LocalInstance,
 };
 use activitystreams_kinds::actor::PersonType;
 use serde::{Deserialize, Serialize};
@@ -81,30 +80,31 @@ impl MyUser {
         PublicKey::new_main_key(self.ap_id.clone().into_inner(), self.public_key.clone())
     }
 
-    pub async fn follow(&self, other: &MyUser, instance: &InstanceHandle) -> Result<(), Error> {
-        let id = generate_object_id(instance.local_instance().hostname())?;
+    pub async fn follow(
+        &self,
+        other: &MyUser,
+        data: &RequestData<DatabaseHandle>,
+    ) -> Result<(), Error> {
+        let id = generate_object_id(data.local_instance().hostname())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
-        self.send(
-            follow,
-            vec![other.shared_inbox_or_inbox()],
-            instance.local_instance(),
-        )
-        .await?;
+        self.send(follow, vec![other.shared_inbox_or_inbox()], data)
+            .await?;
         Ok(())
     }
 
-    pub async fn post(&self, post: MyPost, instance: &InstanceHandle) -> Result<(), Error> {
-        let id = generate_object_id(instance.local_instance().hostname())?;
-        let create = CreateNote::new(post.into_apub(instance).await?, id.clone());
+    pub async fn post(
+        &self,
+        post: MyPost,
+        data: &RequestData<DatabaseHandle>,
+    ) -> Result<(), Error> {
+        let id = generate_object_id(data.local_instance().hostname())?;
+        let create = CreateNote::new(post.into_apub(data).await?, id.clone());
         let mut inboxes = vec![];
         for f in self.followers.clone() {
-            let user: MyUser = ObjectId::new(f)
-                .dereference(instance, instance.local_instance(), &mut 0)
-                .await?;
+            let user: MyUser = ObjectId::new(f).dereference(data).await?;
             inboxes.push(user.shared_inbox_or_inbox());
         }
-        self.send(create, inboxes, instance.local_instance())
-            .await?;
+        self.send(create, inboxes, data).await?;
         Ok(())
     }
 
@@ -112,7 +112,7 @@ impl MyUser {
         &self,
         activity: Activity,
         recipients: Vec<Url>,
-        local_instance: &LocalInstance,
+        data: &RequestData<DatabaseHandle>,
     ) -> Result<(), <Activity as ActivityHandler>::Error>
     where
         Activity: ActivityHandler + Serialize + Send + Sync,
@@ -124,7 +124,7 @@ impl MyUser {
             self.public_key(),
             self.private_key.clone().expect("has private key"),
             recipients,
-            local_instance,
+            data.local_instance(),
         )
         .await?;
         Ok(())
@@ -133,14 +133,14 @@ impl MyUser {
 
 #[async_trait::async_trait]
 impl ApubObject for MyUser {
-    type DataType = InstanceHandle;
+    type DataType = DatabaseHandle;
     type ApubType = Person;
     type DbType = MyUser;
     type Error = crate::error::Error;
 
     async fn read_from_apub_id(
         object_id: Url,
-        data: &Self::DataType,
+        data: &RequestData<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         let users = data.users.lock().unwrap();
         let res = users
@@ -150,7 +150,10 @@ impl ApubObject for MyUser {
         Ok(res)
     }
 
-    async fn into_apub(self, _data: &Self::DataType) -> Result<Self::ApubType, Self::Error> {
+    async fn into_apub(
+        self,
+        _data: &RequestData<Self::DataType>,
+    ) -> Result<Self::ApubType, Self::Error> {
         Ok(Person {
             kind: Default::default(),
             id: self.ap_id.clone(),
@@ -161,8 +164,7 @@ impl ApubObject for MyUser {
 
     async fn from_apub(
         apub: Self::ApubType,
-        _data: &Self::DataType,
-        _request_counter: &mut i32,
+        _data: &RequestData<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         Ok(MyUser {
             ap_id: apub.id,

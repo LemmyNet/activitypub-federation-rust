@@ -6,40 +6,32 @@ use crate::{
         person::{MyUser, PersonAcceptedActivities},
     },
 };
-
 use activitypub_federation::{
     core::{
         actix::inbox::receive_activity,
         object_id::ObjectId,
         signatures::generate_actor_keypair,
     },
-    data::Data,
     deser::context::WithContext,
+    request_data::{ApubContext, ApubMiddleware, RequestData},
     traits::ApubObject,
-    InstanceSettings,
-    LocalInstance,
+    FederationSettings,
+    InstanceConfig,
     UrlVerifier,
     APUB_JSON_CONTENT_TYPE,
 };
-
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use async_trait::async_trait;
 use reqwest::Client;
-use std::{
-    ops::Deref,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 use tokio::task;
 use url::Url;
 
-pub type InstanceHandle = Arc<Instance>;
+pub type DatabaseHandle = Arc<Database>;
 
-pub struct Instance {
-    /// This holds all library data
-    local_instance: LocalInstance,
-    /// Our "database" which contains all known users (local and federated)
+/// Our "database" which contains all known posts users (local and federated)
+pub struct Database {
     pub users: Mutex<Vec<MyUser>>,
-    /// Same, but for posts
     pub posts: Mutex<Vec<MyPost>>,
 }
 
@@ -58,37 +50,32 @@ impl UrlVerifier for MyUrlVerifier {
     }
 }
 
-impl Instance {
-    pub fn new(hostname: String) -> Result<InstanceHandle, Error> {
-        let settings = InstanceSettings::builder()
+impl Database {
+    pub fn new(hostname: String) -> Result<ApubContext<DatabaseHandle>, Error> {
+        let settings = FederationSettings::builder()
             .debug(true)
             .url_verifier(Box::new(MyUrlVerifier()))
             .build()?;
         let local_instance =
-            LocalInstance::new(hostname.clone(), Client::default().into(), settings);
+            InstanceConfig::new(hostname.clone(), Client::default().into(), settings);
         let local_user = MyUser::new(generate_object_id(&hostname)?, generate_actor_keypair()?);
-        let instance = Arc::new(Instance {
-            local_instance,
+        let instance = Arc::new(Database {
             users: Mutex::new(vec![local_user]),
             posts: Mutex::new(vec![]),
         });
-        Ok(instance)
+        Ok(ApubContext::new(instance, local_instance))
     }
 
     pub fn local_user(&self) -> MyUser {
         self.users.lock().unwrap().first().cloned().unwrap()
     }
 
-    pub fn local_instance(&self) -> &LocalInstance {
-        &self.local_instance
-    }
-
-    pub fn listen(instance: &InstanceHandle) -> Result<(), Error> {
-        let hostname = instance.local_instance.hostname();
-        let instance = instance.clone();
+    pub fn listen(data: &ApubContext<DatabaseHandle>) -> Result<(), Error> {
+        let hostname = data.local_instance().hostname();
+        let data = data.clone();
         let server = HttpServer::new(move || {
             App::new()
-                .app_data(web::Data::new(instance.clone()))
+                .wrap(ApubMiddleware::new(data.clone()))
                 .route("/objects/{user_name}", web::get().to(http_get_user))
                 .service(
                     web::scope("")
@@ -106,10 +93,9 @@ impl Instance {
 /// Handles requests to fetch user json over HTTP
 async fn http_get_user(
     request: HttpRequest,
-    data: web::Data<InstanceHandle>,
+    data: RequestData<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
-    let data: InstanceHandle = data.into_inner().deref().clone();
-    let hostname: String = data.local_instance.hostname().to_string();
+    let hostname: String = data.local_instance().hostname().to_string();
     let request_url = format!("http://{}{}", hostname, &request.uri().to_string());
     let url = Url::parse(&request_url)?;
     let user = ObjectId::<MyUser>::new(url)
@@ -127,15 +113,11 @@ async fn http_get_user(
 async fn http_post_user_inbox(
     request: HttpRequest,
     payload: String,
-    data: web::Data<InstanceHandle>,
+    data: RequestData<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
-    let data: InstanceHandle = data.into_inner().deref().clone();
     let activity = serde_json::from_str(&payload)?;
-    receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
-        request,
-        activity,
-        &data.clone().local_instance,
-        &Data::new(data),
+    receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, DatabaseHandle>(
+        request, activity, &data,
     )
     .await
 }

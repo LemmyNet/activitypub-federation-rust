@@ -11,6 +11,7 @@ use digest::{verify_sha256, DigestPart};
 mod digest;
 pub mod inbox;
 pub mod json;
+pub mod middleware;
 
 /// A request guard to ensure digest has been verified request has been
 /// see [`receive_activity`]

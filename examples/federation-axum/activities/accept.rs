@@ -1,5 +1,9 @@
-use crate::{activities::follow::Follow, instance::InstanceHandle, objects::person::MyUser};
-use activitypub_federation::{core::object_id::ObjectId, data::Data, traits::ActivityHandler};
+use crate::{activities::follow::Follow, instance::DatabaseHandle, objects::person::MyUser};
+use activitypub_federation::{
+    core::object_id::ObjectId,
+    request_data::RequestData,
+    traits::ActivityHandler,
+};
 use activitystreams_kinds::activity::AcceptType;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -27,7 +31,7 @@ impl Accept {
 
 #[async_trait::async_trait]
 impl ActivityHandler for Accept {
-    type DataType = InstanceHandle;
+    type DataType = DatabaseHandle;
     type Error = crate::error::Error;
 
     fn id(&self) -> &Url {
@@ -38,11 +42,7 @@ impl ActivityHandler for Accept {
         self.actor.inner()
     }
 
-    async fn receive(
-        self,
-        _data: &Data<Self::DataType>,
-        _request_counter: &mut i32,
-    ) -> Result<(), Self::Error> {
+    async fn receive(self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 }

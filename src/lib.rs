@@ -13,24 +13,24 @@ use std::time::Duration;
 use url::Url;
 
 pub mod core;
-pub mod data;
 pub mod deser;
+pub mod request_data;
 pub mod traits;
 pub mod utils;
 
 /// Mime type for Activitypub, used for `Accept` and `Content-Type` HTTP headers
 pub static APUB_JSON_CONTENT_TYPE: &str = "application/activity+json";
 
-/// Represents a single, federated instance (for example lemmy.ml). There should only be one of
-/// this in your application (except for testing).
-pub struct LocalInstance {
+/// Represents configuration for a single, federated instance. There should usually be only one of
+/// this per application.
+pub struct InstanceConfig {
     hostname: String,
     client: ClientWithMiddleware,
     activity_queue: Manager,
-    settings: InstanceSettings,
+    settings: FederationSettings,
 }
 
-impl LocalInstance {
+impl InstanceConfig {
     async fn verify_url_and_domain<Activity, Datatype>(
         &self,
         activity: &Activity,
@@ -92,9 +92,11 @@ pub trait UrlVerifier: DynClone + Send {
 }
 clone_trait_object!(UrlVerifier);
 
-// Use InstanceSettingsBuilder to initialize this
+/// Various settings related to Activitypub federation.
+///
+/// Use [FederationSettings.builder()] to initialize this.
 #[derive(Builder)]
-pub struct InstanceSettings {
+pub struct FederationSettings {
     /// Maximum number of outgoing HTTP requests per incoming activity
     #[builder(default = "20")]
     http_fetch_limit: i32,
@@ -124,9 +126,9 @@ pub struct InstanceSettings {
     http_signature_compat: bool,
 }
 
-impl InstanceSettings {
+impl FederationSettings {
     /// Returns a new settings builder.
-    pub fn builder() -> InstanceSettingsBuilder {
+    pub fn builder() -> FederationSettingsBuilder {
         <_>::default()
     }
 }
@@ -141,10 +143,10 @@ impl UrlVerifier for DefaultUrlVerifier {
     }
 }
 
-impl LocalInstance {
-    pub fn new(domain: String, client: ClientWithMiddleware, settings: InstanceSettings) -> Self {
+impl InstanceConfig {
+    pub fn new(domain: String, client: ClientWithMiddleware, settings: FederationSettings) -> Self {
         let activity_queue = create_activity_queue(client.clone(), &settings);
-        LocalInstance {
+        InstanceConfig {
             hostname: domain,
             client,
             activity_queue,

@@ -3,26 +3,27 @@ use crate::{
     generate_object_id,
     objects::{
         note::MyPost,
-        person::{MyUser, PersonAcceptedActivities},
+        person::{MyUser, Person, PersonAcceptedActivities},
     },
 };
-
 use activitypub_federation::{
-    core::{object_id::ObjectId, signatures::generate_actor_keypair},
-    data::Data,
+    core::{
+        axum::{inbox::receive_activity, json::ApubJson, verify_request_payload, DigestVerified},
+        object_id::ObjectId,
+        signatures::generate_actor_keypair,
+    },
     deser::context::WithContext,
+    request_data::{ApubContext, ApubMiddleware, RequestData},
     traits::ApubObject,
-    InstanceSettings,
-    LocalInstance,
+    FederationSettings,
+    InstanceConfig,
     UrlVerifier,
 };
-
-use activitypub_federation::core::axum::{verify_request_payload, DigestVerified};
 use async_trait::async_trait;
 use axum::{
     body,
     body::Body,
-    extract::{Json, OriginalUri, State},
+    extract::{Json, OriginalUri},
     middleware,
     response::IntoResponse,
     routing::{get, post},
@@ -37,17 +38,14 @@ use std::{
 };
 use tokio::task;
 use tower::ServiceBuilder;
-use tower_http::ServiceBuilderExt;
+use tower_http::{trace::TraceLayer, ServiceBuilderExt};
 use url::Url;
 
-pub type InstanceHandle = Arc<Instance>;
+pub type DatabaseHandle = Arc<Database>;
 
-pub struct Instance {
-    /// This holds all library data
-    local_instance: LocalInstance,
-    /// Our "database" which contains all known users (local and federated)
+/// Our "database" which contains all known posts and users (local and federated)
+pub struct Database {
     pub users: Mutex<Vec<MyUser>>,
-    /// Same, but for posts
     pub posts: Mutex<Vec<MyPost>>,
 }
 
@@ -66,34 +64,29 @@ impl UrlVerifier for MyUrlVerifier {
     }
 }
 
-impl Instance {
-    pub fn new(hostname: String) -> Result<InstanceHandle, Error> {
-        let settings = InstanceSettings::builder()
+impl Database {
+    pub fn new(hostname: String) -> Result<ApubContext<DatabaseHandle>, Error> {
+        let settings = FederationSettings::builder()
             .debug(true)
             .url_verifier(Box::new(MyUrlVerifier()))
             .build()?;
         let local_instance =
-            LocalInstance::new(hostname.clone(), Client::default().into(), settings);
+            InstanceConfig::new(hostname.clone(), Client::default().into(), settings);
         let local_user = MyUser::new(generate_object_id(&hostname)?, generate_actor_keypair()?);
-        let instance = Arc::new(Instance {
-            local_instance,
+        let instance = Arc::new(Database {
             users: Mutex::new(vec![local_user]),
             posts: Mutex::new(vec![]),
         });
-        Ok(instance)
+        Ok(ApubContext::new(instance, local_instance))
     }
 
     pub fn local_user(&self) -> MyUser {
         self.users.lock().unwrap().first().cloned().unwrap()
     }
 
-    pub fn local_instance(&self) -> &LocalInstance {
-        &self.local_instance
-    }
-
-    pub fn listen(instance: &InstanceHandle) -> Result<(), Error> {
-        let hostname = instance.local_instance.hostname();
-        let instance = instance.clone();
+    pub fn listen(data: &ApubContext<DatabaseHandle>) -> Result<(), Error> {
+        let hostname = data.local_instance().hostname();
+        let data = data.clone();
         let app = Router::new()
             .route("/inbox", post(http_post_user_inbox))
             .layer(
@@ -102,7 +95,7 @@ impl Instance {
                     .layer(middleware::from_fn(verify_request_payload)),
             )
             .route("/objects/:user_name", get(http_get_user))
-            .with_state(instance)
+            .layer(ApubMiddleware::new(data))
             .layer(TraceLayer::new_for_http());
 
         // run it
@@ -117,15 +110,11 @@ impl Instance {
     }
 }
 
-use crate::objects::person::Person;
-use activitypub_federation::core::axum::{inbox::receive_activity, json::ApubJson};
-use tower_http::trace::TraceLayer;
-
 async fn http_get_user(
-    State(data): State<InstanceHandle>,
+    data: RequestData<DatabaseHandle>,
     request: Request<Body>,
 ) -> Result<ApubJson<WithContext<Person>>, Error> {
-    let hostname: String = data.local_instance.hostname().to_string();
+    let hostname: String = data.local_instance().hostname().to_string();
     let request_url = format!("http://{}{}", hostname, &request.uri());
 
     let url = Url::parse(&request_url).expect("Failed to parse url");
@@ -143,15 +132,14 @@ async fn http_post_user_inbox(
     headers: HeaderMap,
     method: Method,
     OriginalUri(uri): OriginalUri,
-    State(data): State<InstanceHandle>,
+    data: RequestData<DatabaseHandle>,
     Extension(digest_verified): Extension<DigestVerified>,
     Json(activity): Json<WithContext<PersonAcceptedActivities>>,
 ) -> impl IntoResponse {
-    receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, InstanceHandle>(
+    receive_activity::<WithContext<PersonAcceptedActivities>, MyUser, DatabaseHandle>(
         digest_verified,
         activity,
-        &data.clone().local_instance,
-        &Data::new(data),
+        &data,
         headers,
         method,
         uri,

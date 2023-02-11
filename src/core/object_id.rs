@@ -1,4 +1,4 @@
-use crate::{traits::ApubObject, utils::fetch_object_http, Error, LocalInstance};
+use crate::{request_data::RequestData, traits::ApubObject, utils::fetch_object_http, Error};
 use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use url::Url;
 #[serde(transparent)]
 pub struct ObjectId<Kind>(Box<Url>, PhantomData<Kind>)
 where
-    Kind: ApubObject + Send + 'static,
+    Kind: ApubObject,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>;
 
 impl<Kind> ObjectId<Kind>
@@ -39,9 +39,7 @@ where
     /// Fetches an activitypub object, either from local database (if possible), or over http.
     pub async fn dereference(
         &self,
-        data: &<Kind as ApubObject>::DataType,
-        instance: &LocalInstance,
-        request_counter: &mut i32,
+        data: &RequestData<<Kind as ApubObject>::DataType>,
     ) -> Result<Kind, <Kind as ApubObject>::Error>
     where
         <Kind as ApubObject>::Error: From<Error> + From<anyhow::Error>,
@@ -49,7 +47,7 @@ where
         let db_object = self.dereference_from_db(data).await?;
 
         // if its a local object, only fetch it from the database and not over http
-        if instance.is_local_url(&self.0) {
+        if data.local_instance().is_local_url(&self.0) {
             return match db_object {
                 None => Err(Error::NotFound.into()),
                 Some(o) => Ok(o),
@@ -61,17 +59,14 @@ where
             // object is old and should be refetched
             if let Some(last_refreshed_at) = object.last_refreshed_at() {
                 if should_refetch_object(last_refreshed_at) {
-                    return self
-                        .dereference_from_http(data, instance, request_counter, Some(object))
-                        .await;
+                    return self.dereference_from_http(data, Some(object)).await;
                 }
             }
             Ok(object)
         }
         // object not found, need to fetch over http
         else {
-            self.dereference_from_http(data, instance, request_counter, None)
-                .await
+            self.dereference_from_http(data, None).await
         }
     }
 
@@ -79,7 +74,7 @@ where
     /// the object is not found in the database.
     pub async fn dereference_local(
         &self,
-        data: &<Kind as ApubObject>::DataType,
+        data: &RequestData<<Kind as ApubObject>::DataType>,
     ) -> Result<Kind, <Kind as ApubObject>::Error>
     where
         <Kind as ApubObject>::Error: From<Error>,
@@ -91,7 +86,7 @@ where
     /// returning none means the object was not found in local db
     async fn dereference_from_db(
         &self,
-        data: &<Kind as ApubObject>::DataType,
+        data: &RequestData<<Kind as ApubObject>::DataType>,
     ) -> Result<Option<Kind>, <Kind as ApubObject>::Error> {
         let id = self.0.clone();
         ApubObject::read_from_apub_id(*id, data).await
@@ -99,15 +94,13 @@ where
 
     async fn dereference_from_http(
         &self,
-        data: &<Kind as ApubObject>::DataType,
-        instance: &LocalInstance,
-        request_counter: &mut i32,
+        data: &RequestData<<Kind as ApubObject>::DataType>,
         db_object: Option<Kind>,
     ) -> Result<Kind, <Kind as ApubObject>::Error>
     where
         <Kind as ApubObject>::Error: From<Error> + From<anyhow::Error>,
     {
-        let res = fetch_object_http(&self.0, instance, request_counter).await;
+        let res = fetch_object_http(&self.0, data).await;
 
         if let Err(Error::ObjectDeleted) = &res {
             if let Some(db_object) = db_object {
@@ -118,14 +111,14 @@ where
 
         let res2 = res?;
 
-        Kind::from_apub(res2, data, request_counter).await
+        Kind::from_apub(res2, data).await
     }
 }
 
 /// Need to implement clone manually, to avoid requiring Kind to be Clone
 impl<Kind> Clone for ObjectId<Kind>
 where
-    Kind: ApubObject + Send + 'static,
+    Kind: ApubObject,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     fn clone(&self) -> Self {
@@ -155,7 +148,7 @@ fn should_refetch_object(last_refreshed: NaiveDateTime) -> bool {
 
 impl<Kind> Display for ObjectId<Kind>
 where
-    Kind: ApubObject + Send + 'static,
+    Kind: ApubObject,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     #[allow(clippy::recursive_format_impl)]
@@ -167,7 +160,7 @@ where
 
 impl<Kind> From<ObjectId<Kind>> for Url
 where
-    Kind: ApubObject + Send + 'static,
+    Kind: ApubObject,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     fn from(id: ObjectId<Kind>) -> Self {
@@ -175,9 +168,19 @@ where
     }
 }
 
-impl<Kind> PartialEq for ObjectId<Kind>
+impl<Kind> From<Url> for ObjectId<Kind>
 where
     Kind: ApubObject + Send + 'static,
+    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+{
+    fn from(url: Url) -> Self {
+        ObjectId::new(url)
+    }
+}
+
+impl<Kind> PartialEq for ObjectId<Kind>
+where
+    Kind: ApubObject,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -191,7 +194,7 @@ mod tests {
     use crate::core::object_id::should_refetch_object;
     use anyhow::Error;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct TestObject {}
 
     #[async_trait::async_trait]
@@ -203,7 +206,7 @@ mod tests {
 
         async fn read_from_apub_id(
             _object_id: Url,
-            _data: &Self::DataType,
+            _data: &RequestData<Self::DataType>,
         ) -> Result<Option<Self>, Self::Error>
         where
             Self: Sized,
@@ -211,14 +214,16 @@ mod tests {
             todo!()
         }
 
-        async fn into_apub(self, _data: &Self::DataType) -> Result<Self::ApubType, Self::Error> {
+        async fn into_apub(
+            self,
+            _data: &RequestData<Self::DataType>,
+        ) -> Result<Self::ApubType, Self::Error> {
             todo!()
         }
 
         async fn from_apub(
             _apub: Self::ApubType,
-            _data: &Self::DataType,
-            _request_counter: &mut i32,
+            _data: &RequestData<Self::DataType>,
         ) -> Result<Self, Self::Error>
         where
             Self: Sized,

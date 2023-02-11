@@ -1,4 +1,4 @@
-use crate::{error::Error, instance::Instance, objects::note::MyPost, utils::generate_object_id};
+use crate::{error::Error, instance::Database, objects::note::MyPost, utils::generate_object_id};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod activities;
@@ -18,15 +18,15 @@ async fn main() -> Result<(), Error> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let alpha = Instance::new("localhost:8001".to_string())?;
-    let beta = Instance::new("localhost:8002".to_string())?;
-    Instance::listen(&alpha)?;
-    Instance::listen(&beta)?;
+    let alpha = Database::new("localhost:8001".to_string())?;
+    let beta = Database::new("localhost:8002".to_string())?;
+    Database::listen(&alpha)?;
+    Database::listen(&beta)?;
 
     // alpha user follows beta user
     alpha
         .local_user()
-        .follow(&beta.local_user(), &alpha)
+        .follow(&beta.local_user(), &alpha.to_request_data())
         .await?;
 
     // assert that follow worked correctly
@@ -37,7 +37,9 @@ async fn main() -> Result<(), Error> {
 
     // beta sends a post to its followers
     let sent_post = MyPost::new("hello world!".to_string(), beta.local_user().ap_id);
-    beta.local_user().post(sent_post.clone(), &beta).await?;
+    beta.local_user()
+        .post(sent_post.clone(), &beta.to_request_data())
+        .await?;
     let received_post = alpha.posts.lock().unwrap().first().cloned().unwrap();
 
     // assert that alpha received the post

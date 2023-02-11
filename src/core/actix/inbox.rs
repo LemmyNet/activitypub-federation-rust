@@ -1,12 +1,9 @@
 use crate::{
-    core::object_id::ObjectId,
-    data::Data,
+    core::{object_id::ObjectId, signatures::verify_signature},
+    request_data::RequestData,
     traits::{ActivityHandler, Actor, ApubObject},
     Error,
-    LocalInstance,
 };
-
-use crate::core::signatures::verify_signature;
 use actix_web::{HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
 use tracing::debug;
@@ -15,8 +12,7 @@ use tracing::debug;
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
     activity: Activity,
-    local_instance: &LocalInstance,
-    data: &Data<Datatype>,
+    data: &RequestData<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
@@ -28,11 +24,12 @@ where
         + From<serde_json::Error>,
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
 {
-    local_instance.verify_url_and_domain(&activity).await?;
+    data.local_instance()
+        .verify_url_and_domain(&activity)
+        .await?;
 
-    let request_counter = &mut 0;
     let actor = ObjectId::<ActorT>::new(activity.actor().clone())
-        .dereference(data, local_instance, request_counter)
+        .dereference(data)
         .await?;
 
     verify_signature(
@@ -43,6 +40,6 @@ where
     )?;
 
     debug!("Receiving activity {}", activity.id().to_string());
-    activity.receive(data, request_counter).await?;
+    activity.receive(data).await?;
     Ok(HttpResponse::Ok().finish())
 }
