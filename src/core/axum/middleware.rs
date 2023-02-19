@@ -1,4 +1,7 @@
-use crate::request_data::{ApubContext, ApubMiddleware, RequestData};
+use crate::{
+    config::FederationConfig,
+    request_data::{ApubMiddleware, RequestData},
+};
 use axum::{async_trait, body::Body, extract::FromRequestParts, http::Request, response::Response};
 use http::{request::Parts, StatusCode};
 use std::task::{Context, Poll};
@@ -10,15 +13,15 @@ impl<S, T: Clone> Layer<S> for ApubMiddleware<T> {
     fn layer(&self, inner: S) -> Self::Service {
         ApubService {
             inner,
-            context: self.0.clone(),
+            config: self.0.clone(),
         }
     }
 }
 
 #[derive(Clone)]
-pub struct ApubService<S, T> {
+pub struct ApubService<S, T: Clone> {
     inner: S,
-    context: ApubContext<T>,
+    config: FederationConfig<T>,
 }
 
 impl<S, T> Service<Request<Body>> for ApubService<S, T>
@@ -36,7 +39,7 @@ where
     }
 
     fn call(&mut self, mut request: Request<Body>) -> Self::Future {
-        request.extensions_mut().insert(self.context.clone());
+        request.extensions_mut().insert(self.config.clone());
         self.inner.call(request)
     }
 }
@@ -50,8 +53,7 @@ where
     type Rejection = (StatusCode, &'static str);
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // TODO: need to set this extension from middleware
-        match parts.extensions.get::<ApubContext<T>>() {
+        match parts.extensions.get::<FederationConfig<T>>() {
             Some(c) => Ok(c.to_request_data()),
             None => Err((
                 StatusCode::INTERNAL_SERVER_ERROR,

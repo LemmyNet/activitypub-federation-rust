@@ -1,21 +1,20 @@
 use crate::{
-    core::{axum::DigestVerified, object_id::ObjectId, signatures::verify_signature},
+    core::{
+        axum::ActivityData,
+        object_id::ObjectId,
+        signatures::{verify_inbox_hash, verify_signature},
+    },
     request_data::RequestData,
     traits::{ActivityHandler, Actor, ApubObject},
     Error,
 };
-use http::{HeaderMap, Method, Uri};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
 /// Receive an activity and perform some basic checks, including HTTP signature verification.
 pub async fn receive_activity<Activity, ActorT, Datatype>(
-    _digest_verified: DigestVerified,
-    activity: Activity,
+    activity_data: ActivityData,
     data: &RequestData<Datatype>,
-    headers: HeaderMap,
-    method: Method,
-    uri: Uri,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
@@ -26,18 +25,26 @@ where
         + From<<ActorT as ApubObject>::Error>
         + From<serde_json::Error>,
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
+    Datatype: Clone,
 {
-    data.local_instance()
-        .verify_url_and_domain(&activity)
-        .await?;
+    verify_inbox_hash(activity_data.headers.get("Digest"), &activity_data.body)?;
 
+    let activity: Activity = serde_json::from_slice(&activity_data.body)?;
+    data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::new(activity.actor().clone())
         .dereference(data)
         .await?;
 
-    verify_signature(&headers, &method, &uri, actor.public_key())?;
+    verify_signature(
+        &activity_data.headers,
+        &activity_data.method,
+        &activity_data.uri,
+        actor.public_key(),
+    )?;
 
     debug!("Receiving activity {}", activity.id().to_string());
     activity.receive(data).await?;
     Ok(())
 }
+
+// TODO: copy tests from actix-web inbox and implement for axum as well

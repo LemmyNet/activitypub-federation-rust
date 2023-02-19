@@ -1,2 +1,2 @@
-pub mod note;
 pub mod person;
+pub mod post;

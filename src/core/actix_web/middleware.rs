@@ -1,4 +1,7 @@
-use crate::request_data::{ApubContext, ApubMiddleware, RequestData};
+use crate::{
+    config::FederationConfig,
+    request_data::{ApubMiddleware, RequestData},
+};
 use actix_web::{
     dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
@@ -24,19 +27,19 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(ApubService {
             service,
-            context: self.0.clone(),
+            config: self.0.clone(),
         }))
     }
 }
 
-pub struct ApubService<S, T>
+pub struct ApubService<S, T: Clone>
 where
     S: Service<ServiceRequest, Error = Error>,
     S::Future: 'static,
     T: Sync,
 {
     service: S,
-    context: ApubContext<T>,
+    config: FederationConfig<T>,
 }
 
 impl<S, B, T> Service<ServiceRequest> for ApubService<S, T>
@@ -53,7 +56,7 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        req.extensions_mut().insert(self.context.clone());
+        req.extensions_mut().insert(self.config.clone());
 
         self.service.call(req)
     }
@@ -64,7 +67,7 @@ impl<T: Clone + 'static> FromRequest for RequestData<T> {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        ready(match req.extensions().get::<ApubContext<T>>() {
+        ready(match req.extensions().get::<FederationConfig<T>>() {
             Some(c) => Ok(c.to_request_data()),
             None => Err(actix_web::error::ErrorBadRequest(
                 "Missing extension, did you register ApubMiddleware?",

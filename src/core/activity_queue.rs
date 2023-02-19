@@ -1,10 +1,9 @@
 use crate::{
     core::signatures::{sign_request, PublicKey},
+    request_data::RequestData,
     traits::ActivityHandler,
     utils::reqwest_shim::ResponseExt,
     Error,
-    FederationSettings,
-    InstanceConfig,
     APUB_JSON_CONTENT_TYPE,
 };
 use anyhow::anyhow;
@@ -30,8 +29,10 @@ use std::{
 use tracing::{debug, info, warn};
 use url::Url;
 
-/// Send out the given activity to all inboxes, automatically generating the HTTP signatures. By
-/// default, sending is done on a background thread, and automatically retried on failure with
+/// Hands off an activity for delivery to remote actors.
+///
+/// Send out the given activity to all recipient inboxes, automatically generating the HTTP
+/// signatures. In production builds, sending is done on a background thread, and automatically retried on failure with
 /// exponential backoff.
 ///
 /// - `activity`: The activity to be sent, gets converted to json
@@ -39,28 +40,35 @@ use url::Url;
 /// - `private_key`: The sending actor's private key for signing HTTP signature
 /// - `recipients`: List of actors who should receive the activity. This gets deduplicated, and
 ///                 local/invalid inbox urls removed
-pub async fn send_activity<Activity>(
+///
+/// TODO: how can this only take a single pubkey? seems completely wrong, should be one per recipient
+/// TODO: example
+/// TODO: consider reading privkey from activity
+pub async fn send_activity<Activity, T>(
     activity: Activity,
     public_key: PublicKey,
     private_key: String,
     recipients: Vec<Url>,
-    instance: &InstanceConfig,
+    data: &RequestData<T>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler + Serialize,
     <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
+    T: Clone,
 {
+    let config = &data.config;
     let activity_id = activity.id();
     let activity_serialized = serde_json::to_string_pretty(&activity)?;
     let inboxes: Vec<Url> = recipients
         .into_iter()
         .unique()
-        .filter(|i| !instance.is_local_url(i))
+        .filter(|i| !config.is_local_url(i))
         .collect();
 
-    let activity_queue = &instance.activity_queue;
+    // This field is only optional to make builder work, its always present at this point
+    let activity_queue = config.activity_queue.as_ref().unwrap();
     for inbox in inboxes {
-        if instance.verify_url_valid(&inbox).await.is_err() {
+        if config.verify_url_valid(&inbox).await.is_err() {
             continue;
         }
 
@@ -70,10 +78,10 @@ where
             activity: activity_serialized.clone(),
             public_key: public_key.clone(),
             private_key: private_key.clone(),
-            http_signature_compat: instance.settings.http_signature_compat,
+            http_signature_compat: config.http_signature_compat,
         };
-        if instance.settings.debug {
-            let res = do_send(message, &instance.client, instance.settings.request_timeout).await;
+        if config.debug {
+            let res = do_send(message, &config.client, config.request_timeout).await;
             // Don't fail on error, as we intentionally do some invalid actions in tests, to verify that
             // they are rejected on the receiving side. These errors shouldn't bubble up to make the API
             // call fail. This matches the behaviour in production.
@@ -90,7 +98,7 @@ where
         stats.dead.this_hour(),
         stats.complete.this_hour()
       );
-            if stats.running as u64 == instance.settings.worker_count {
+            if stats.running as u64 == config.worker_count {
                 warn!("Maximum number of activitypub workers reached. Consider increasing worker count to avoid federation delays");
             }
         }
@@ -211,20 +219,17 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 
 pub(crate) fn create_activity_queue(
     client: ClientWithMiddleware,
-    settings: &FederationSettings,
+    worker_count: u64,
+    request_timeout: Duration,
+    debug: bool,
 ) -> Manager {
     // queue is not used in debug mod, so dont create any workers to avoid log spam
-    let worker_count = if settings.debug {
-        0
-    } else {
-        settings.worker_count
-    };
-    let timeout = settings.request_timeout;
+    let worker_count = if debug { 0 } else { worker_count };
 
     // Configure and start our workers
     WorkerConfig::new_managed(Storage::new(ActixTimer), move |_| MyState {
         client: client.clone(),
-        timeout,
+        timeout: request_timeout,
     })
     .register::<SendActivityTask>()
     .set_worker_count("default", worker_count)

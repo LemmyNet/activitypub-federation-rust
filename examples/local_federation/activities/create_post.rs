@@ -1,22 +1,22 @@
 use crate::{
     instance::DatabaseHandle,
-    objects::{note::Note, person::MyUser},
-    MyPost,
+    objects::{person::DbUser, post::Note},
+    DbPost,
 };
 use activitypub_federation::{
     core::object_id::ObjectId,
-    deser::helpers::deserialize_one_or_many,
+    kinds::activity::CreateType,
+    protocol::helpers::deserialize_one_or_many,
     request_data::RequestData,
     traits::{ActivityHandler, ApubObject},
 };
-use activitystreams_kinds::activity::CreateType;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateNote {
-    pub(crate) actor: ObjectId<MyUser>,
+    pub(crate) actor: ObjectId<DbUser>,
     #[serde(deserialize_with = "deserialize_one_or_many")]
     pub(crate) to: Vec<Url>,
     pub(crate) object: Note,
@@ -51,7 +51,7 @@ impl ActivityHandler for CreateNote {
     }
 
     async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
-        MyPost::from_apub(self.object, data).await?;
+        DbPost::from_apub(self.object, data).await?;
         Ok(())
     }
 }

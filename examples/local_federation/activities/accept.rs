@@ -1,17 +1,17 @@
-use crate::{activities::follow::Follow, instance::DatabaseHandle, objects::person::MyUser};
+use crate::{activities::follow::Follow, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
     core::object_id::ObjectId,
+    kinds::activity::AcceptType,
     request_data::RequestData,
     traits::ActivityHandler,
 };
-use activitystreams_kinds::activity::AcceptType;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Accept {
-    actor: ObjectId<MyUser>,
+    actor: ObjectId<DbUser>,
     object: Follow,
     #[serde(rename = "type")]
     kind: AcceptType,
@@ -19,7 +19,7 @@ pub struct Accept {
 }
 
 impl Accept {
-    pub fn new(actor: ObjectId<MyUser>, object: Follow, id: Url) -> Accept {
+    pub fn new(actor: ObjectId<DbUser>, object: Follow, id: Url) -> Accept {
         Accept {
             actor,
             object,

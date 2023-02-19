@@ -6,13 +6,19 @@ use serde::Serialize;
 /// A wrapper struct to respond with [`APUB_JSON_CONTENT_TYPE`]
 /// in axum handlers
 ///
-/// ## Example:
-/// ```rust, no_run
-/// use activitypub_federation::deser::context::WithContext;
-///  async fn http_get_user() -> Result<ApubJson<WithContext<Person>>, Error> {
-///     let user = WithContext::new_default(M);
+/// ```
+/// # use anyhow::Error;
+/// # use axum::extract::Path;
+/// # use activitypub_federation::core::axum::json::ApubJson;
+/// # use activitypub_federation::protocol::context::WithContext;
+/// # use activitypub_federation::request_data::RequestData;
+/// # use activitypub_federation::traits::ApubObject;
+/// # use activitypub_federation::traits::tests::{DbConnection, DbUser, Person};
+/// async fn http_get_user(Path(name): Path<String>, data: RequestData<DbConnection>) -> Result<ApubJson<WithContext<Person>>, Error> {
+///     let user: DbUser = data.read_local_user(name).await?;
+///     let person = user.into_apub(&data).await?;
 ///
-///     Ok(ApubJson(WithContext::new_default(MyUser::default())))
+///     Ok(ApubJson(WithContext::new_default(person)))
 /// }
 /// ```
 #[derive(Debug, Clone, Copy, Default)]

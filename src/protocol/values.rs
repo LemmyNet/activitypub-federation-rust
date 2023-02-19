@@ -14,7 +14,7 @@
 //! ```
 //! use serde_json::from_str;
 //! use serde::{Deserialize, Serialize};
-//! use activitypub_federation::deser::values::MediaTypeMarkdown;
+//! use activitypub_federation::protocol::values::MediaTypeMarkdown;
 //!
 //! #[derive(Deserialize, Serialize)]
 //! struct MyObject {

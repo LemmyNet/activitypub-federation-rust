@@ -1,30 +1,31 @@
-use crate::{error::Error, generate_object_id, instance::DatabaseHandle, objects::person::MyUser};
+use crate::{error::Error, generate_object_id, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
     core::object_id::ObjectId,
-    deser::helpers::deserialize_one_or_many,
+    kinds::{object::NoteType, public},
+    protocol::helpers::deserialize_one_or_many,
     request_data::RequestData,
     traits::ApubObject,
 };
-use activitystreams_kinds::{object::NoteType, public};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 #[derive(Clone, Debug)]
-pub struct MyPost {
+pub struct DbPost {
     pub text: String,
-    pub ap_id: ObjectId<MyPost>,
-    pub creator: ObjectId<MyUser>,
+    pub ap_id: ObjectId<DbPost>,
+    pub creator: ObjectId<DbUser>,
     pub local: bool,
 }
 
-impl MyPost {
-    pub fn new(text: String, creator: ObjectId<MyUser>) -> MyPost {
-        MyPost {
+impl DbPost {
+    pub fn new(text: String, creator: ObjectId<DbUser>) -> Result<DbPost, Error> {
+        let ap_id = generate_object_id(creator.inner().domain().unwrap())?.into();
+        Ok(DbPost {
             text,
-            ap_id: ObjectId::new(generate_object_id(creator.inner().domain().unwrap()).unwrap()),
+            ap_id,
             creator,
             local: true,
-        }
+        })
     }
 }
 
@@ -33,18 +34,17 @@ impl MyPost {
 pub struct Note {
     #[serde(rename = "type")]
     kind: NoteType,
-    id: ObjectId<MyPost>,
-    pub(crate) attributed_to: ObjectId<MyUser>,
+    id: ObjectId<DbPost>,
+    pub(crate) attributed_to: ObjectId<DbUser>,
     #[serde(deserialize_with = "deserialize_one_or_many")]
     pub(crate) to: Vec<Url>,
     content: String,
 }
 
 #[async_trait::async_trait]
-impl ApubObject for MyPost {
+impl ApubObject for DbPost {
     type DataType = DatabaseHandle;
     type ApubType = Note;
-    type DbType = ();
     type Error = Error;
 
     async fn read_from_apub_id(
@@ -72,7 +72,7 @@ impl ApubObject for MyPost {
         apub: Self::ApubType,
         data: &RequestData<Self::DataType>,
     ) -> Result<Self, Self::Error> {
-        let post = MyPost {
+        let post = DbPost {
             text: apub.content,
             ap_id: apub.id,
             creator: apub.attributed_to,

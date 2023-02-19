@@ -1,4 +1,4 @@
-use crate::utils::header_to_map;
+use crate::{utils::header_to_map, Error, Error::ActivitySignatureInvalid};
 use anyhow::anyhow;
 use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
 use http_signature_normalization_reqwest::prelude::{Config, SignExt};
@@ -13,7 +13,7 @@ use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::io::{Error, ErrorKind};
+use std::io::ErrorKind;
 use tracing::debug;
 use url::Url;
 
@@ -26,15 +26,15 @@ pub struct Keypair {
     pub public_key: String,
 }
 
-/// Generate the asymmetric keypair for ActivityPub HTTP signatures.
-pub fn generate_actor_keypair() -> Result<Keypair, Error> {
+/// Generate a random asymmetric keypair for ActivityPub HTTP signatures.
+pub fn generate_actor_keypair() -> Result<Keypair, std::io::Error> {
     let rsa = Rsa::generate(2048)?;
     let pkey = PKey::from_rsa(rsa)?;
     let public_key = pkey.public_key_to_pem()?;
     let private_key = pkey.private_key_to_pem_pkcs8()?;
     let key_to_string = |key| match String::from_utf8(key) {
         Ok(s) => Ok(s),
-        Err(e) => Err(Error::new(
+        Err(e) => Err(std::io::Error::new(
             ErrorKind::Other,
             format!("Failed converting key to string: {}", e),
         )),
@@ -79,6 +79,8 @@ pub(crate) async fn sign_request(
         .await
 }
 
+/// Public key of actors which is used for HTTP signatures. This needs to be federated in the
+/// `public_key` field of all actors.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicKey {
@@ -113,7 +115,7 @@ pub fn verify_signature<'a, H>(
     method: &Method,
     uri: &Uri,
     public_key: &str,
-) -> Result<(), anyhow::Error>
+) -> Result<(), Error>
 where
     H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,
 {
@@ -121,7 +123,8 @@ where
     let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
     let verified = CONFIG2
-        .begin_verify(method.as_str(), path_and_query, headers)?
+        .begin_verify(method.as_str(), path_and_query, headers)
+        .map_err(Error::conv)?
         .verify(|signature, signing_string| -> anyhow::Result<bool> {
             debug!(
                 "Verifying with key {}, message {}",
@@ -131,12 +134,61 @@ where
             let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
             verifier.update(signing_string.as_bytes())?;
             Ok(verifier.verify(&base64::decode(signature)?)?)
-        })?;
+        })
+        .map_err(Error::conv)?;
 
     if verified {
         debug!("verified signature for {}", uri);
         Ok(())
     } else {
-        Err(anyhow!("Invalid signature on request: {}", uri))
+        Err(ActivitySignatureInvalid)
     }
+}
+
+#[derive(Clone, Debug)]
+struct DigestPart {
+    pub algorithm: String,
+    pub digest: String,
+}
+
+impl DigestPart {
+    fn try_from_header(h: &HeaderValue) -> Option<Vec<DigestPart>> {
+        let h = h.to_str().ok()?.split(';').next()?;
+        let v: Vec<_> = h
+            .split(',')
+            .filter_map(|p| {
+                let mut iter = p.splitn(2, '=');
+                iter.next()
+                    .and_then(|alg| iter.next().map(|value| (alg, value)))
+            })
+            .map(|(alg, value)| DigestPart {
+                algorithm: alg.to_owned(),
+                digest: value.to_owned(),
+            })
+            .collect();
+
+        if v.is_empty() {
+            None
+        } else {
+            Some(v)
+        }
+    }
+}
+
+/// Verify body of an inbox request against the hash provided in `Digest` header.
+pub(crate) fn verify_inbox_hash(
+    digest_header: Option<&HeaderValue>,
+    body: &[u8],
+) -> Result<(), crate::Error> {
+    let digests = DigestPart::try_from_header(digest_header.unwrap()).unwrap();
+    let mut hasher = Sha256::new();
+
+    for part in digests {
+        hasher.update(body);
+        if base64::encode(hasher.finalize_reset()) != part.digest {
+            return Err(crate::Error::ActivityBodyDigestInvalid);
+        }
+    }
+
+    Ok(())
 }

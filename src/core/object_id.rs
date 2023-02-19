@@ -8,8 +8,41 @@ use std::{
 };
 use url::Url;
 
-/// We store Url on the heap because it is quite large (88 bytes).
-#[derive(Serialize, Deserialize, Debug)]
+/// Typed wrapper for Activitypub Object ID.
+///
+/// It provides convenient methods for fetching the object from remote server or local database.
+/// Objects are automatically cached locally, so they don't have to be fetched every time. Much of
+/// the crate functionality relies on this wrapper.
+///
+/// Every time an object is fetched via HTTP, [RequestData.request_counter] is incremented by one.
+/// If the value exceeds [FederationSettings.http_fetch_limit], the request is aborted with
+/// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
+/// infinite, recursive fetching of data.
+///
+/// ```
+/// # use activitypub_federation::core::object_id::ObjectId;
+/// # use activitypub_federation::config::FederationConfig;
+/// # use activitypub_federation::Error::NotFound;
+/// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
+/// # let _ = actix_rt::System::new();
+/// # actix_rt::Runtime::new().unwrap().block_on(async {
+/// # let db_connection = DbConnection;
+/// let config = FederationConfig::builder()
+///     .hostname("example.com")
+///     .app_data(db_connection)
+///     .build()?;
+/// let request_data = config.to_request_data();
+/// let object_id: ObjectId::<DbUser> = "https://lemmy.ml/u/nutomic".try_into()?;
+/// // Attempt to fetch object from local database or fall back to remote server
+/// let user = object_id.dereference(&request_data).await;
+/// assert!(user.is_ok());
+/// // Now you can also read the object from local database without network requests
+/// let user = object_id.dereference_local(&request_data).await;
+/// assert!(user.is_ok());
+/// # Ok::<(), anyhow::Error>(())
+/// # }).unwrap();
+/// ```
+#[derive(Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ObjectId<Kind>(Box<Url>, PhantomData<Kind>)
 where
@@ -21,6 +54,7 @@ where
     Kind: ApubObject + Send + 'static,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
+    /// Construct a new objectid instance
     pub fn new<T>(url: T) -> Self
     where
         T: Into<Url>,
@@ -47,7 +81,7 @@ where
         let db_object = self.dereference_from_db(data).await?;
 
         // if its a local object, only fetch it from the database and not over http
-        if data.local_instance().is_local_url(&self.0) {
+        if data.config.is_local_url(&self.0) {
             return match db_object {
                 None => Err(Error::NotFound.into()),
                 Some(o) => Ok(o),
@@ -132,9 +166,6 @@ static ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG: i64 = 20;
 /// Determines when a remote actor should be refetched from its instance. In release builds, this is
 /// `ACTOR_REFETCH_INTERVAL_SECONDS` after the last refetch, in debug builds
 /// `ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG`.
-///
-/// TODO it won't pick up new avatars, summaries etc until a day after.
-/// Actors need an "update" activity pushed to other servers to fix this.
 fn should_refetch_object(last_refreshed: NaiveDateTime) -> bool {
     let update_interval = if cfg!(debug_assertions) {
         // avoid infinite loop when fetching community outbox
@@ -151,10 +182,18 @@ where
     Kind: ApubObject,
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
-    #[allow(clippy::recursive_format_impl)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // Use to_string here because Url.display is not useful for us
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+impl<Kind> Debug for ObjectId<Kind>
+where
+    Kind: ApubObject,
+    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_str())
     }
 }
 
@@ -178,6 +217,18 @@ where
     }
 }
 
+impl<'a, Kind> TryFrom<&'a str> for ObjectId<Kind>
+where
+    Kind: ApubObject + Send + 'static,
+    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+{
+    type Error = url::ParseError;
+
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        Ok(ObjectId::new(Url::parse(value)?))
+    }
+}
+
 impl<Kind> PartialEq for ObjectId<Kind>
 where
     Kind: ApubObject,
@@ -189,67 +240,28 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
-    use crate::core::object_id::should_refetch_object;
-    use anyhow::Error;
-
-    #[derive(Debug, Clone)]
-    struct TestObject {}
-
-    #[async_trait::async_trait]
-    impl ApubObject for TestObject {
-        type DataType = TestObject;
-        type ApubType = ();
-        type DbType = ();
-        type Error = Error;
-
-        async fn read_from_apub_id(
-            _object_id: Url,
-            _data: &RequestData<Self::DataType>,
-        ) -> Result<Option<Self>, Self::Error>
-        where
-            Self: Sized,
-        {
-            todo!()
-        }
-
-        async fn into_apub(
-            self,
-            _data: &RequestData<Self::DataType>,
-        ) -> Result<Self::ApubType, Self::Error> {
-            todo!()
-        }
-
-        async fn from_apub(
-            _apub: Self::ApubType,
-            _data: &RequestData<Self::DataType>,
-        ) -> Result<Self, Self::Error>
-        where
-            Self: Sized,
-        {
-            todo!()
-        }
-    }
+    use crate::{core::object_id::should_refetch_object, traits::tests::DbUser};
 
     #[test]
     fn test_deserialize() {
         let url = Url::parse("http://test.com/").unwrap();
-        let id = ObjectId::<TestObject>::new(url);
+        let id = ObjectId::<DbUser>::new(url);
 
         let string = serde_json::to_string(&id).unwrap();
         assert_eq!("\"http://test.com/\"", string);
 
-        let parsed: ObjectId<TestObject> = serde_json::from_str(&string).unwrap();
+        let parsed: ObjectId<DbUser> = serde_json::from_str(&string).unwrap();
         assert_eq!(parsed, id);
     }
 
     #[test]
     fn test_should_refetch_object() {
         let one_second_ago = Utc::now().naive_utc() - ChronoDuration::seconds(1);
-        assert!(!should_refetch_object(one_second_ago));
+        assert_eq!(false, should_refetch_object(one_second_ago));
 
         let two_days_ago = Utc::now().naive_utc() - ChronoDuration::days(2);
-        assert!(should_refetch_object(two_days_ago));
+        assert_eq!(true, should_refetch_object(two_days_ago));
     }
 }
