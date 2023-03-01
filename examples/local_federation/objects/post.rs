@@ -1,9 +1,9 @@
 use crate::{error::Error, generate_object_id, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
+    config::RequestData,
     core::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::helpers::deserialize_one_or_many,
-    request_data::RequestData,
     traits::ApubObject,
 };
 use serde::{Deserialize, Serialize};

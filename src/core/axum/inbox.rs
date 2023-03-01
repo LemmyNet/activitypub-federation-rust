@@ -1,12 +1,12 @@
 use crate::{
+    config::RequestData,
     core::{
         axum::ActivityData,
+        http_signatures::{verify_inbox_hash, verify_signature},
         object_id::ObjectId,
-        signatures::{verify_inbox_hash, verify_signature},
     },
-    request_data::RequestData,
+    error::Error,
     traits::{ActivityHandler, Actor, ApubObject},
-    Error,
 };
 use serde::de::DeserializeOwned;
 use tracing::debug;
@@ -31,7 +31,7 @@ where
 
     let activity: Activity = serde_json::from_slice(&activity_data.body)?;
     data.config.verify_url_and_domain(&activity).await?;
-    let actor = ObjectId::<ActorT>::new(activity.actor().clone())
+    let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)
         .await?;
 

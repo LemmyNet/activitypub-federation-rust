@@ -1,7 +1,4 @@
-use crate::{
-    config::FederationConfig,
-    request_data::{ApubMiddleware, RequestData},
-};
+use crate::config::{ApubMiddleware, FederationConfig, RequestData};
 use axum::{async_trait, body::Body, extract::FromRequestParts, http::Request, response::Response};
 use http::{request::Parts, StatusCode};
 use std::task::{Context, Poll};

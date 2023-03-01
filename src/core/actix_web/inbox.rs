@@ -1,11 +1,11 @@
 use crate::{
+    config::RequestData,
     core::{
+        http_signatures::{verify_inbox_hash, verify_signature},
         object_id::ObjectId,
-        signatures::{verify_inbox_hash, verify_signature},
     },
-    request_data::RequestData,
+    error::Error,
     traits::{ActivityHandler, Actor, ApubObject},
-    Error,
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
@@ -32,7 +32,7 @@ where
 
     let activity: Activity = serde_json::from_slice(&body)?;
     data.config.verify_url_and_domain(&activity).await?;
-    let actor = ObjectId::<ActorT>::new(activity.actor().clone())
+    let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)
         .await?;
 
@@ -53,13 +53,12 @@ mod test {
     use super::*;
     use crate::{
         config::FederationConfig,
-        core::signatures::{sign_request, PublicKey},
+        core::http_signatures::sign_request,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},
     };
     use actix_web::test::TestRequest;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
-    use url::Url;
 
     #[actix_rt::test]
     async fn test_receive_activity() {
@@ -109,21 +108,17 @@ mod test {
     async fn setup_receive_test() -> (String, TestRequest, FederationConfig<DbConnection>) {
         let request_builder =
             ClientWithMiddleware::from(Client::default()).post("https://example.com/inbox");
-        let public_key = PublicKey::new_main_key(
-            Url::parse("https://example.com").unwrap(),
-            DB_USER_KEYPAIR.public_key.clone(),
-        );
         let activity = Follow {
-            actor: "http://localhost:123".try_into().unwrap(),
-            object: "http://localhost:124".try_into().unwrap(),
+            actor: ObjectId::new("http://localhost:123").unwrap(),
+            object: ObjectId::new("http://localhost:124").unwrap(),
             kind: Default::default(),
             id: "http://localhost:123/1".try_into().unwrap(),
         };
         let body = serde_json::to_string(&activity).unwrap();
         let outgoing_request = sign_request(
             request_builder,
+            activity.actor.into_inner(),
             body.to_string(),
-            public_key,
             DB_USER_KEYPAIR.private_key.clone(),
             false,
         )
@@ -135,7 +130,7 @@ mod test {
         }
 
         let config = FederationConfig::builder()
-            .hostname("localhost:8002")
+            .domain("localhost:8002")
             .app_data(DbConnection)
             .debug(true)
             .build()

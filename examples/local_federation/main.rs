@@ -1,5 +1,5 @@
 use crate::{
-    instance::{listen, Database},
+    instance::{listen, new_instance},
     objects::post::DbPost,
     utils::generate_object_id,
 };
@@ -25,16 +25,16 @@ async fn main() -> Result<(), Error> {
         .init();
 
     info!("Starting local instances alpha and beta on localhost:8001, localhost:8002");
-    let alpha = Database::new("localhost:8001", "alpha".to_string())?;
-    let beta = Database::new("localhost:8002", "beta".to_string())?;
+    let alpha = new_instance("localhost:8001", "alpha".to_string())?;
+    let beta = new_instance("localhost:8002", "beta".to_string())?;
     listen(&alpha)?;
     listen(&beta)?;
     info!("Local instances started");
 
-    info!("Alpha user follows beta user");
+    info!("Alpha user follows beta user via webfinger");
     alpha
         .local_user()
-        .follow(&beta.local_user(), &alpha.to_request_data())
+        .follow("beta@localhost:8002", &alpha.to_request_data())
         .await?;
     assert_eq!(
         beta.local_user().followers(),

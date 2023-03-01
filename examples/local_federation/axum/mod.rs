@@ -2,6 +2,7 @@ use crate::error::Error;
 use ::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
+#[allow(clippy::diverging_sub_expression, clippy::items_after_statements)]
 pub mod http;
 
 impl IntoResponse for Error {

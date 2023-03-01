@@ -4,24 +4,26 @@ use crate::{
     objects::person::{DbUser, PersonAcceptedActivities},
 };
 use activitypub_federation::{
-    config::FederationConfig,
+    config::{ApubMiddleware, FederationConfig, RequestData},
     core::actix_web::inbox::receive_activity,
     protocol::context::WithContext,
-    request_data::{ApubMiddleware, RequestData},
     traits::ApubObject,
+    webfinger::{build_webfinger_response, extract_webfinger_name},
     APUB_JSON_CONTENT_TYPE,
 };
 use actix_web::{web, web::Bytes, App, HttpRequest, HttpResponse, HttpServer};
 use anyhow::anyhow;
+use serde::Deserialize;
 
-pub fn listen(data: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
-    let hostname = data.hostname();
-    let data = data.clone();
+pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
+    let hostname = config.hostname();
+    let config = config.clone();
     let server = HttpServer::new(move || {
         App::new()
-            .wrap(ApubMiddleware::new(data.clone()))
+            .wrap(ApubMiddleware::new(config.clone()))
             .route("/{user}", web::get().to(http_get_user))
             .route("/{user}/inbox", web::post().to(http_post_user_inbox))
+            .route("/.well-known/webfinger", web::get().to(webfinger))
     })
     .bind(hostname)?
     .run();
@@ -55,4 +57,21 @@ pub async fn http_post_user_inbox(
         request, body, &data,
     )
     .await
+}
+
+#[derive(Deserialize)]
+pub struct WebfingerQuery {
+    resource: String,
+}
+
+pub async fn webfinger(
+    query: web::Query<WebfingerQuery>,
+    data: RequestData<DatabaseHandle>,
+) -> Result<HttpResponse, Error> {
+    let name = extract_webfinger_name(&query.resource, &data)?;
+    let db_user = data.read_user(&name)?;
+    Ok(HttpResponse::Ok().json(build_webfinger_response(
+        query.resource.clone(),
+        db_user.ap_id.into_inner(),
+    )))
 }

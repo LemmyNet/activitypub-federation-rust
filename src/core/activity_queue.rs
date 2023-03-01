@@ -1,9 +1,9 @@
 use crate::{
-    core::signatures::{sign_request, PublicKey},
-    request_data::RequestData,
+    config::RequestData,
+    core::http_signatures::sign_request,
+    error::Error,
     traits::ActivityHandler,
     utils::reqwest_shim::ResponseExt,
-    Error,
     APUB_JSON_CONTENT_TYPE,
 };
 use anyhow::anyhow;
@@ -29,54 +29,95 @@ use std::{
 use tracing::{debug, info, warn};
 use url::Url;
 
-/// Hands off an activity for delivery to remote actors.
+/// Signs and delivers outgoing activities with retry.
 ///
-/// Send out the given activity to all recipient inboxes, automatically generating the HTTP
-/// signatures. In production builds, sending is done on a background thread, and automatically retried on failure with
-/// exponential backoff.
+/// The list of inboxes gets deduplicated (important for shared inbox). All inboxes on the local
+/// domain and those which fail the [crate::config::UrlVerifier] check are excluded from delivery.
+/// For each remaining inbox a background tasks is created. It signs the HTTP header with the given
+/// private key. Finally the activity is delivered to the inbox.
+///
+/// It is possible that delivery fails because the target instance is temporarily unreachable. In
+/// this case the task is scheduled for retry after a certain waiting time. For each task delivery
+/// is retried up to 3 times after the initial attempt. The retry intervals are as follows:
+/// - one minute, for service restart
+/// - one hour, for instance maintenance
+/// - 2.5 days, for major incident with rebuild from backup
+///
+/// In case [crate::config::FederationConfigBuilder::debug] is enabled, no background thread is used but activities
+/// are sent directly on the foreground. This makes it easier to catch delivery errors and avoids
+/// complicated steps to await delivery.
 ///
 /// - `activity`: The activity to be sent, gets converted to json
-/// - `public_key`: The sending actor's public key. In fact, we only need the key id for signing
-/// - `private_key`: The sending actor's private key for signing HTTP signature
-/// - `recipients`: List of actors who should receive the activity. This gets deduplicated, and
-///                 local/invalid inbox urls removed
+/// - `private_key`: Private key belonging to the actor who sends the activity, for signing HTTP
+///                  signature. Generated with [crate::core::http_signatures::generate_actor_keypair].
+/// - `inboxes`: List of actor inboxes that should receive the activity. Should be built by calling
+///              [crate::traits::Actor::shared_inbox_or_inbox] for each target actor.
 ///
-/// TODO: how can this only take a single pubkey? seems completely wrong, should be one per recipient
-/// TODO: example
-/// TODO: consider reading privkey from activity
-pub async fn send_activity<Activity, T>(
+/// ```
+/// # use activitypub_federation::config::FederationConfig;
+/// # use activitypub_federation::core::activity_queue::send_activity;
+/// # use activitypub_federation::core::http_signatures::generate_actor_keypair;
+/// # use activitypub_federation::traits::Actor;
+/// # use activitypub_federation::core::object_id::ObjectId;
+/// # use activitypub_federation::traits::tests::{DB_USER, DbConnection, Follow};
+/// # let _ = actix_rt::System::new();
+/// # actix_rt::Runtime::new().unwrap().block_on(async {
+/// # let db_connection = DbConnection;
+/// # let config = FederationConfig::builder()
+/// #     .domain("example.com")
+/// #     .app_data(db_connection)
+/// #     .build()?;
+/// # let data = config.to_request_data();
+/// # let recipient = DB_USER.clone();
+/// // Each actor has a keypair. Generate it on signup and store it in the database.
+/// let keypair = generate_actor_keypair()?;
+/// let activity = Follow {
+///     actor: ObjectId::new("https://lemmy.ml/u/nutomic")?,
+///     object: recipient.apub_id.clone().into(),
+///     kind: Default::default(),
+///     id: "https://lemmy.ml/activities/321".try_into()?
+/// };
+/// let inboxes = vec![recipient.shared_inbox_or_inbox()];
+/// send_activity(activity, keypair.private_key, inboxes, &data).await?;
+/// # Ok::<(), anyhow::Error>(())
+/// # }).unwrap()
+/// ```
+pub async fn send_activity<Activity, Datatype>(
     activity: Activity,
-    public_key: PublicKey,
     private_key: String,
-    recipients: Vec<Url>,
-    data: &RequestData<T>,
+    inboxes: Vec<Url>,
+    data: &RequestData<Datatype>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler + Serialize,
     <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
-    T: Clone,
+    Datatype: Clone,
 {
     let config = &data.config;
+    let actor_id = activity.actor();
     let activity_id = activity.id();
     let activity_serialized = serde_json::to_string_pretty(&activity)?;
-    let inboxes: Vec<Url> = recipients
+    let inboxes: Vec<Url> = inboxes
         .into_iter()
         .unique()
         .filter(|i| !config.is_local_url(i))
         .collect();
 
     // This field is only optional to make builder work, its always present at this point
-    let activity_queue = config.activity_queue.as_ref().unwrap();
+    let activity_queue = config
+        .activity_queue
+        .as_ref()
+        .expect("Config has activity queue");
     for inbox in inboxes {
         if config.verify_url_valid(&inbox).await.is_err() {
             continue;
         }
 
         let message = SendActivityTask {
+            actor_id: actor_id.clone(),
             activity_id: activity_id.clone(),
             inbox,
             activity: activity_serialized.clone(),
-            public_key: public_key.clone(),
             private_key: private_key.clone(),
             http_signature_compat: config.http_signature_compat,
         };
@@ -89,15 +130,15 @@ where
                 warn!("{}", e);
             }
         } else {
-            activity_queue.queue::<SendActivityTask>(message).await?;
+            activity_queue.queue(message).await?;
             let stats = activity_queue.get_stats().await?;
             info!(
-        "Activity queue stats: pending: {}, running: {}, dead (this hour): {}, complete (this hour): {}",
-        stats.pending,
-        stats.running,
-        stats.dead.this_hour(),
-        stats.complete.this_hour()
-      );
+                "Activity queue stats: pending: {}, running: {}, dead (this hour): {}, complete (this hour): {}",
+                stats.pending,
+                stats.running,
+                stats.dead.this_hour(),
+                stats.complete.this_hour()
+            );
             if stats.running as u64 == config.worker_count {
                 warn!("Maximum number of activitypub workers reached. Consider increasing worker count to avoid federation delays");
             }
@@ -109,29 +150,24 @@ where
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct SendActivityTask {
+    actor_id: Url,
     activity_id: Url,
-    inbox: Url,
     activity: String,
-    public_key: PublicKey,
+    inbox: Url,
     private_key: String,
     http_signature_compat: bool,
 }
 
-/// Signs the activity with the sending actor's key, and delivers to the given inbox. Also retries
-/// if the delivery failed.
 impl ActixJob for SendActivityTask {
-    type State = MyState;
+    type State = QueueState;
     type Future = Pin<Box<dyn Future<Output = Result<(), anyhow::Error>>>>;
     const NAME: &'static str = "SendActivityTask";
 
-    /// We need to retry activity sending in case the target instances is temporarily unreachable.
-    /// In this case, the task is stored and resent when the instance is hopefully back up. This
-    /// list shows the retry intervals, and which events of the target instance can be covered:
-    /// - 60s (one minute, service restart)
-    /// - 60min (one hour, instance maintenance)
-    /// - 60h (2.5 days, major incident with rebuild from backup)
-    /// TODO: make the intervals configurable
     const MAX_RETRIES: MaxRetries = MaxRetries::Count(3);
+    /// This gives the following retry intervals:
+    /// - 60s (one minute, for service restart)
+    /// - 60min (one hour, for instance maintenance)
+    /// - 60h (2.5 days, for major incident with rebuild from backup)
     const BACKOFF: Backoff = Backoff::Exponential(60);
 
     fn run(self, state: Self::State) -> Self::Future {
@@ -151,9 +187,9 @@ async fn do_send(
         .headers(generate_request_headers(&task.inbox));
     let request = sign_request(
         request_builder,
-        task.activity.clone(),
-        task.public_key.clone(),
-        task.private_key.clone(),
+        task.actor_id,
+        task.activity,
+        task.private_key,
         task.http_signature_compat,
     )
     .await?;
@@ -176,7 +212,7 @@ async fn do_send(
         }
         Ok(o) => {
             let status = o.status();
-            let text = o.text_limited().await.map_err(Error::conv)?;
+            let text = o.text_limited().await.map_err(Error::other)?;
             Err(anyhow!(
                 "Queueing activity {} to {} for retry after failure with status {}: {}",
                 task.activity_id,
@@ -227,7 +263,7 @@ pub(crate) fn create_activity_queue(
     let worker_count = if debug { 0 } else { worker_count };
 
     // Configure and start our workers
-    WorkerConfig::new_managed(Storage::new(ActixTimer), move |_| MyState {
+    WorkerConfig::new_managed(Storage::new(ActixTimer), move |_| QueueState {
         client: client.clone(),
         timeout: request_timeout,
     })
@@ -237,7 +273,7 @@ pub(crate) fn create_activity_queue(
 }
 
 #[derive(Clone)]
-struct MyState {
+struct QueueState {
     client: ClientWithMiddleware,
     timeout: Duration,
 }

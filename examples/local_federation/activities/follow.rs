@@ -5,9 +5,9 @@ use crate::{
     objects::person::DbUser,
 };
 use activitypub_federation::{
+    config::RequestData,
     core::object_id::ObjectId,
     kinds::activity::FollowType,
-    request_data::RequestData,
     traits::{ActivityHandler, Actor},
 };
 use serde::{Deserialize, Serialize};
@@ -60,7 +60,7 @@ impl ActivityHandler for Follow {
 
         // send back an accept
         let follower = self.actor.dereference(data).await?;
-        let id = generate_object_id(data.hostname())?;
+        let id = generate_object_id(data.domain())?;
         let accept = Accept::new(local_user.ap_id.clone(), self, id.clone());
         local_user
             .send(accept, vec![follower.shared_inbox_or_inbox()], data)

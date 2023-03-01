@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::error::Error;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_core::{ready, stream::BoxStream, Stream};
 use pin_project_lite::pin_project;
@@ -32,7 +32,7 @@ impl Future for BytesFuture {
             let this = self.as_mut().project();
             if let Some(chunk) = ready!(this.stream.poll_next(cx))
                 .transpose()
-                .map_err(Error::conv)?
+                .map_err(Error::other)?
             {
                 this.aggregator.put(chunk);
                 if this.aggregator.len() > *this.limit {
@@ -66,7 +66,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let bytes = ready!(this.future.poll(cx))?;
-        Poll::Ready(serde_json::from_slice(&bytes).map_err(Error::conv))
+        Poll::Ready(serde_json::from_slice(&bytes).map_err(Error::other))
     }
 }
 
@@ -83,7 +83,7 @@ impl Future for TextFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let bytes = ready!(this.future.poll(cx))?;
-        Poll::Ready(String::from_utf8(bytes.to_vec()).map_err(Error::conv))
+        Poll::Ready(String::from_utf8(bytes.to_vec()).map_err(Error::other))
     }
 }
 

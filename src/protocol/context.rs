@@ -1,6 +1,6 @@
 use crate::{
+    config::RequestData,
     protocol::helpers::deserialize_one_or_many,
-    request_data::RequestData,
     traits::ActivityHandler,
 };
 use serde::{Deserialize, Serialize};

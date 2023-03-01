@@ -3,9 +3,27 @@ use crate::{
     Error,
 };
 use activitypub_federation::config::{FederationConfig, UrlVerifier};
+use anyhow::anyhow;
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use url::Url;
+
+pub fn new_instance(
+    hostname: &str,
+    name: String,
+) -> Result<FederationConfig<DatabaseHandle>, Error> {
+    let local_user = DbUser::new(hostname, name)?;
+    let database = Arc::new(Database {
+        users: Mutex::new(vec![local_user]),
+        posts: Mutex::new(vec![]),
+    });
+    let config = FederationConfig::builder()
+        .domain(hostname)
+        .app_data(database)
+        .debug(true)
+        .build()?;
+    Ok(config)
+}
 
 pub type DatabaseHandle = Arc<Database>;
 
@@ -30,34 +48,29 @@ impl UrlVerifier for MyUrlVerifier {
     }
 }
 
-pub fn listen(data: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
+pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     if cfg!(feature = "actix-web") == cfg!(feature = "axum") {
         panic!("Exactly one of features \"actix-web\" and \"axum\" must be enabled");
     }
     #[cfg(feature = "actix-web")]
-    crate::actix_web::http::listen(data)?;
+    crate::actix_web::http::listen(config)?;
     #[cfg(feature = "axum")]
-    crate::axum::http::listen(data)?;
+    crate::axum::http::listen(config)?;
     Ok(())
 }
 
 impl Database {
-    pub fn new(hostname: &str, name: String) -> Result<FederationConfig<DatabaseHandle>, Error> {
-        let local_user = DbUser::new(hostname, name)?;
-        let database = Arc::new(Database {
-            users: Mutex::new(vec![local_user]),
-            posts: Mutex::new(vec![]),
-        });
-        let config = FederationConfig::builder()
-            .hostname(hostname)
-            .app_data(database)
-            .debug(true)
-            .build()?;
-        Ok(config)
-    }
-
     pub fn local_user(&self) -> DbUser {
         let lock = self.users.lock().unwrap();
         lock.first().unwrap().clone()
+    }
+
+    pub fn read_user(&self, name: &str) -> Result<DbUser, Error> {
+        let db_user = self.local_user();
+        if name == db_user.name {
+            Ok(db_user)
+        } else {
+            Err(anyhow!("Invalid user {name}").into())
+        }
     }
 }

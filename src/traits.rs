@@ -1,4 +1,4 @@
-use crate::request_data::RequestData;
+use crate::config::RequestData;
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use std::ops::Deref;
@@ -8,8 +8,8 @@ use url::Url;
 ///
 /// ```
 /// # use url::Url;
-/// # use activitypub_federation::core::signatures::PublicKey;
-/// # use activitypub_federation::request_data::RequestData;
+/// # use activitypub_federation::protocol::public_key::PublicKey;
+/// # use activitypub_federation::config::RequestData;
 /// # use activitypub_federation::traits::ApubObject;
 /// # use activitypub_federation::traits::tests::{DbConnection, Person};
 /// # pub struct DbUser {
@@ -40,7 +40,7 @@ use url::Url;
 ///             preferred_username: self.name,
 ///             id: self.ap_id.clone().into(),
 ///             inbox: self.inbox,
-///             public_key: PublicKey::new_main_key(self.ap_id, self.public_key),
+///             public_key: PublicKey::new(self.ap_id, self.public_key),
 ///         })
 ///     }
 ///
@@ -57,8 +57,7 @@ use url::Url;
 ///         };
 ///
 ///         // Make sure not to overwrite any local object
-///         // TODO: this should be handled by library so the method doesnt get called for local object
-///         if data.hostname() == user.ap_id.domain().unwrap() {
+///         if data.domain() == user.ap_id.domain().unwrap() {
 ///             // Activitypub doesnt distinguish between creating and updating an object. Thats why we
 ///             // need to use upsert functionality here
 ///             data.upsert(&user).await?;
@@ -69,7 +68,8 @@ use url::Url;
 /// }
 #[async_trait]
 pub trait ApubObject: Sized {
-    /// App data type passed to handlers. Must be identical to [crate::config::FederationConfig::app_data].
+    /// App data type passed to handlers. Must be identical to
+    /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
     /// The type of protocol struct which gets sent over network to federate this database struct.
     type ApubType;
@@ -125,7 +125,7 @@ pub trait ApubObject: Sized {
 /// # use activitystreams_kinds::activity::FollowType;
 /// # use url::Url;
 /// # use activitypub_federation::core::object_id::ObjectId;
-/// # use activitypub_federation::request_data::RequestData;
+/// # use activitypub_federation::config::RequestData;
 /// # use activitypub_federation::traits::ActivityHandler;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 /// #[derive(serde::Deserialize)]
@@ -161,7 +161,8 @@ pub trait ApubObject: Sized {
 #[async_trait]
 #[enum_delegate::register]
 pub trait ActivityHandler {
-    /// App data type passed to handlers. Must be identical to [crate::config::FederationConfig::app_data].
+    /// App data type passed to handlers. Must be identical to
+    /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
     /// Error type returned by handler methods
     type Error;
@@ -181,7 +182,7 @@ pub trait ActivityHandler {
 
 /// Trait to allow retrieving common Actor data.
 pub trait Actor: ApubObject {
-    /// The actor's public key for verification of HTTP signatures
+    /// The actor's public key for verifying signatures of incoming activities.
     fn public_key(&self) -> &str;
 
     /// The inbox where activities for this user should be sent to
@@ -224,11 +225,15 @@ where
 ///
 /// TODO: Should be using `cfg[doctest]` but blocked by <https://github.com/rust-lang/rust/issues/67295>
 #[doc(hidden)]
+#[allow(clippy::unwrap_used)]
 pub mod tests {
     use super::*;
-    use crate::core::{
-        object_id::ObjectId,
-        signatures::{generate_actor_keypair, Keypair, PublicKey},
+    use crate::{
+        core::{
+            http_signatures::{generate_actor_keypair, Keypair},
+            object_id::ObjectId,
+        },
+        protocol::public_key::PublicKey,
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};
     use anyhow::Error;
@@ -266,17 +271,26 @@ pub mod tests {
     #[derive(Debug, Clone)]
     pub struct DbUser {
         pub name: String,
-        pub ap_id: Url,
+        pub apub_id: Url,
         pub inbox: Url,
-        // exists for all users (necessary to verify http signatures)
         pub public_key: String,
-        // exists only for local users
+        #[allow(dead_code)]
         private_key: Option<String>,
         pub followers: Vec<Url>,
         pub local: bool,
     }
 
     pub static DB_USER_KEYPAIR: Lazy<Keypair> = Lazy::new(|| generate_actor_keypair().unwrap());
+
+    pub static DB_USER: Lazy<DbUser> = Lazy::new(|| DbUser {
+        name: String::new(),
+        apub_id: "https://localhost/123".parse().unwrap(),
+        inbox: "https://localhost/123/inbox".parse().unwrap(),
+        public_key: DB_USER_KEYPAIR.public_key.clone(),
+        private_key: None,
+        followers: vec![],
+        local: false,
+    });
 
     #[async_trait]
     impl ApubObject for DbUser {
@@ -285,29 +299,21 @@ pub mod tests {
         type Error = Error;
 
         async fn read_from_apub_id(
-            object_id: Url,
+            _object_id: Url,
             _data: &RequestData<Self::DataType>,
         ) -> Result<Option<Self>, Self::Error> {
-            Ok(Some(DbUser {
-                name: "".to_string(),
-                ap_id: object_id.clone().into(),
-                inbox: object_id.into(),
-                public_key: DB_USER_KEYPAIR.public_key.clone(),
-                private_key: None,
-                followers: vec![],
-                local: false,
-            }))
+            Ok(Some(DB_USER.clone()))
         }
 
         async fn into_apub(
             self,
             _data: &RequestData<Self::DataType>,
         ) -> Result<Self::ApubType, Self::Error> {
-            let public_key = PublicKey::new_main_key(self.ap_id.clone(), self.public_key.clone());
+            let public_key = PublicKey::new(self.apub_id.clone(), self.public_key.clone());
             Ok(Person {
                 preferred_username: self.name.clone(),
                 kind: Default::default(),
-                id: self.ap_id.into(),
+                id: self.apub_id.into(),
                 inbox: self.inbox,
                 public_key,
             })
@@ -319,7 +325,7 @@ pub mod tests {
         ) -> Result<Self, Self::Error> {
             Ok(DbUser {
                 name: apub.preferred_username,
-                ap_id: apub.id.into(),
+                apub_id: apub.id.into(),
                 inbox: apub.inbox,
                 public_key: apub.public_key.public_key_pem,
                 private_key: None,
@@ -335,7 +341,7 @@ pub mod tests {
         }
 
         fn inbox(&self) -> Url {
-            todo!()
+            self.inbox.clone()
         }
     }
 
@@ -362,8 +368,42 @@ pub mod tests {
             self.actor.inner()
         }
 
-        async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        async fn receive(self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
             Ok(())
+        }
+    }
+
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Note {}
+    #[derive(Debug, Clone)]
+    pub struct DbPost {}
+
+    #[async_trait]
+    impl ApubObject for DbPost {
+        type DataType = DbConnection;
+        type ApubType = Note;
+        type Error = Error;
+
+        async fn read_from_apub_id(
+            _: Url,
+            _: &RequestData<Self::DataType>,
+        ) -> Result<Option<Self>, Self::Error> {
+            todo!()
+        }
+
+        async fn into_apub(
+            self,
+            _: &RequestData<Self::DataType>,
+        ) -> Result<Self::ApubType, Self::Error> {
+            todo!()
+        }
+
+        async fn from_apub(
+            _: Self::ApubType,
+            _: &RequestData<Self::DataType>,
+        ) -> Result<Self, Self::Error> {
+            todo!()
         }
     }
 }

@@ -6,15 +6,16 @@ use crate::{
     utils::generate_object_id,
 };
 use activitypub_federation::{
+    config::RequestData,
     core::{
         activity_queue::send_activity,
+        http_signatures::generate_actor_keypair,
         object_id::ObjectId,
-        signatures::{generate_actor_keypair, PublicKey},
     },
     kinds::actor::PersonType,
-    protocol::context::WithContext,
-    request_data::RequestData,
+    protocol::{context::WithContext, public_key::PublicKey},
     traits::{ActivityHandler, Actor, ApubObject},
+    webfinger::webfinger_resolve_actor,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -81,15 +82,16 @@ impl DbUser {
     }
 
     fn public_key(&self) -> PublicKey {
-        PublicKey::new_main_key(self.ap_id.clone().into_inner(), self.public_key.clone())
+        PublicKey::new(self.ap_id.clone().into_inner(), self.public_key.clone())
     }
 
     pub async fn follow(
         &self,
-        other: &DbUser,
+        other: &str,
         data: &RequestData<DatabaseHandle>,
     ) -> Result<(), Error> {
-        let id = generate_object_id(data.hostname())?;
+        let other: DbUser = webfinger_resolve_actor(other, data).await?;
+        let id = generate_object_id(data.domain())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
         self.send(follow, vec![other.shared_inbox_or_inbox()], data)
             .await?;
@@ -101,11 +103,11 @@ impl DbUser {
         post: DbPost,
         data: &RequestData<DatabaseHandle>,
     ) -> Result<(), Error> {
-        let id = generate_object_id(data.hostname())?;
+        let id = generate_object_id(data.domain())?;
         let create = CreateNote::new(post.into_apub(data).await?, id.clone());
         let mut inboxes = vec![];
         for f in self.followers.clone() {
-            let user: DbUser = ObjectId::new(f).dereference(data).await?;
+            let user: DbUser = ObjectId::from(f).dereference(data).await?;
             inboxes.push(user.shared_inbox_or_inbox());
         }
         self.send(create, inboxes, data).await?;
@@ -125,7 +127,6 @@ impl DbUser {
         let activity = WithContext::new_default(activity);
         send_activity(
             activity,
-            self.public_key(),
             self.private_key.clone().unwrap(),
             recipients,
             data,

@@ -1,4 +1,4 @@
-use crate::{request_data::RequestData, traits::ApubObject, utils::fetch_object_http, Error};
+use crate::{config::RequestData, error::Error, traits::ApubObject, utils::fetch_object_http};
 use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -22,17 +22,17 @@ use url::Url;
 /// ```
 /// # use activitypub_federation::core::object_id::ObjectId;
 /// # use activitypub_federation::config::FederationConfig;
-/// # use activitypub_federation::Error::NotFound;
+/// # use activitypub_federation::error::Error::NotFound;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 /// # let _ = actix_rt::System::new();
 /// # actix_rt::Runtime::new().unwrap().block_on(async {
 /// # let db_connection = DbConnection;
 /// let config = FederationConfig::builder()
-///     .hostname("example.com")
+///     .domain("example.com")
 ///     .app_data(db_connection)
 ///     .build()?;
 /// let request_data = config.to_request_data();
-/// let object_id: ObjectId::<DbUser> = "https://lemmy.ml/u/nutomic".try_into()?;
+/// let object_id = ObjectId::<DbUser>::new("https://lemmy.ml/u/nutomic")?;
 /// // Attempt to fetch object from local database or fall back to remote server
 /// let user = object_id.dereference(&request_data).await;
 /// assert!(user.is_ok());
@@ -55,11 +55,12 @@ where
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
-    pub fn new<T>(url: T) -> Self
+    pub fn new<T>(url: T) -> Result<Self, url::ParseError>
     where
-        T: Into<Url>,
+        T: TryInto<Url>,
+        url::ParseError: From<<T as TryInto<Url>>::Error>,
     {
-        ObjectId(Box::new(url.into()), PhantomData::<Kind>)
+        Ok(ObjectId(Box::new(url.try_into()?), PhantomData::<Kind>))
     }
 
     pub fn inner(&self) -> &Url {
@@ -213,19 +214,7 @@ where
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     fn from(url: Url) -> Self {
-        ObjectId::new(url)
-    }
-}
-
-impl<'a, Kind> TryFrom<&'a str> for ObjectId<Kind>
-where
-    Kind: ApubObject + Send + 'static,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
-{
-    type Error = url::ParseError;
-
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        Ok(ObjectId::new(Url::parse(value)?))
+        ObjectId(Box::new(url), PhantomData::<Kind>)
     }
 }
 
@@ -246,8 +235,7 @@ pub mod tests {
 
     #[test]
     fn test_deserialize() {
-        let url = Url::parse("http://test.com/").unwrap();
-        let id = ObjectId::<DbUser>::new(url);
+        let id = ObjectId::<DbUser>::new("http://test.com/").unwrap();
 
         let string = serde_json::to_string(&id).unwrap();
         assert_eq!("\"http://test.com/\"", string);
@@ -259,9 +247,9 @@ pub mod tests {
     #[test]
     fn test_should_refetch_object() {
         let one_second_ago = Utc::now().naive_utc() - ChronoDuration::seconds(1);
-        assert_eq!(false, should_refetch_object(one_second_ago));
+        assert!(!should_refetch_object(one_second_ago));
 
         let two_days_ago = Utc::now().naive_utc() - ChronoDuration::days(2);
-        assert_eq!(true, should_refetch_object(two_days_ago));
+        assert!(should_refetch_object(two_days_ago));
     }
 }

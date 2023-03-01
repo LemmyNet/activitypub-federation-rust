@@ -1,7 +1,4 @@
-use crate::{
-    config::FederationConfig,
-    request_data::{ApubMiddleware, RequestData},
-};
+use crate::config::{ApubMiddleware, FederationConfig, RequestData};
 use actix_web::{
     dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
     Error,

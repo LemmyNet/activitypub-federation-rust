@@ -4,10 +4,10 @@ use crate::{
     DbPost,
 };
 use activitypub_federation::{
+    config::RequestData,
     core::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::helpers::deserialize_one_or_many,
-    request_data::RequestData,
     traits::{ActivityHandler, ApubObject},
 };
 use serde::{Deserialize, Serialize};

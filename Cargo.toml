@@ -37,14 +37,16 @@ bytes = "1.3.0"
 futures-core = { version = "0.3.25", default-features = false }
 pin-project-lite = "0.2.9"
 activitystreams-kinds = "0.2.1"
+regex = { version = "1.7.1", default-features = false, features = ["std"] }
 
 # Actix-web
 actix-web = { version = "4.2.1", default-features = false, optional = true }
 
 # Axum
-axum = { version = "0.6.0", features = ["json", "headers", "macros", "original-uri"], optional = true }
+axum = { version = "0.6.0", features = ["json", "headers"], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
+displaydoc = "0.2.3"
 
 [features]
 default = []
@@ -55,6 +57,7 @@ axum = ["dep:axum", "dep:tower", "dep:hyper"]
 rand = "0.8.5"
 env_logger = "0.9.3"
 tower-http = { version = "0.3", features = ["map-request-body", "util"] }
+axum = { version = "0.6.0", features = ["http1", "tokio", "query"], default-features = false }
 axum-macros = "0.3.4"
 
 [profile.dev]

@@ -1,9 +1,8 @@
 use crate::{
     core::activity_queue::create_activity_queue,
-    request_data::RequestData,
+    error::Error,
     traits::ActivityHandler,
     utils::verify_domains_match,
-    Error,
 };
 use async_trait::async_trait;
 use background_jobs::Manager;
@@ -11,7 +10,11 @@ use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::de::DeserializeOwned;
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{
+    ops::Deref,
+    sync::{atomic::AtomicI32, Arc},
+    time::Duration,
+};
 use url::Url;
 
 /// Various settings related to Activitypub federation.
@@ -22,7 +25,7 @@ use url::Url;
 /// # use activitypub_federation::config::FederationConfig;
 /// # let _ = actix_rt::System::new();
 /// let settings = FederationConfig::builder()
-///     .hostname("example.com")
+///     .domain("example.com")
 ///     .app_data(())
 ///     .http_fetch_limit(50)
 ///     .worker_count(16)
@@ -34,7 +37,7 @@ use url::Url;
 pub struct FederationConfig<T: Clone> {
     /// The domain where this federated instance is running
     #[builder(setter(into))]
-    pub(crate) hostname: String,
+    pub(crate) domain: String,
     /// Data which the application requires in handlers, such as database connection
     /// or configuration.
     pub(crate) app_data: T,
@@ -78,6 +81,7 @@ impl<T: Clone> FederationConfig<T> {
     pub fn builder() -> FederationConfigBuilder<T> {
         FederationConfigBuilder::default()
     }
+
     pub(crate) async fn verify_url_and_domain<Activity, Datatype>(
         &self,
         activity: &Activity,
@@ -146,12 +150,12 @@ impl<T: Clone> FederationConfig<T> {
         if let Some(port) = url.port() {
             domain = format!("{}:{}", domain, port);
         }
-        domain == self.hostname
+        domain == self.domain
     }
 
     /// Returns the local hostname
     pub fn hostname(&self) -> &str {
-        &self.hostname
+        &self.domain
     }
 }
 
@@ -228,3 +232,40 @@ impl UrlVerifier for DefaultUrlVerifier {
 }
 
 clone_trait_object!(UrlVerifier);
+
+/// Stores data for handling one specific HTTP request.
+///
+/// Most importantly this contains a counter for outgoing HTTP requests. This is necessary to
+/// prevent denial of service attacks, where an attacker triggers fetching of recursive objects.
+///
+/// <https://www.w3.org/TR/activitypub/#security-recursive-objects>
+pub struct RequestData<T: Clone> {
+    pub(crate) config: FederationConfig<T>,
+    pub(crate) request_counter: AtomicI32,
+}
+
+impl<T: Clone> RequestData<T> {
+    pub fn app_data(&self) -> &T {
+        &self.config.app_data
+    }
+    pub fn domain(&self) -> &str {
+        &self.config.domain
+    }
+}
+
+impl<T: Clone> Deref for RequestData<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.config.app_data
+    }
+}
+
+#[derive(Clone)]
+pub struct ApubMiddleware<T: Clone>(pub(crate) FederationConfig<T>);
+
+impl<T: Clone> ApubMiddleware<T> {
+    pub fn new(config: FederationConfig<T>) -> Self {
+        ApubMiddleware(config)
+    }
+}

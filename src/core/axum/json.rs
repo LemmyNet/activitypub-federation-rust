@@ -11,7 +11,7 @@ use serde::Serialize;
 /// # use axum::extract::Path;
 /// # use activitypub_federation::core::axum::json::ApubJson;
 /// # use activitypub_federation::protocol::context::WithContext;
-/// # use activitypub_federation::request_data::RequestData;
+/// # use activitypub_federation::config::RequestData;
 /// # use activitypub_federation::traits::ApubObject;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser, Person};
 /// async fn http_get_user(Path(name): Path<String>, data: RequestData<DbConnection>) -> Result<ApubJson<WithContext<Person>>, Error> {
