@@ -52,6 +52,7 @@ impl<T> WithContext<T> {
         WithContext { context, inner }
     }
 
+    /// Returns the inner `T` object which this `WithContext` object is wrapping
     pub fn inner(&self) -> &T {
         &self.inner
     }

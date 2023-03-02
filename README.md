@@ -32,10 +32,6 @@ There are two examples included to see how the library altogether:
 
 To see how this library is used in production, have a look at the [Lemmy federation code](https://github.com/LemmyNet/lemmy/tree/main/crates/apub).
 
-## Setup
-
-To use this crate in your project you need a web framework, preferably `actix-web` or `axum`. Be sure to enable the corresponding feature to access the full functionality. You also need a persistent storage such as PostgreSQL. Additionally, `serde` and `serde_json` are required to (de)serialize data which is sent over the network.
-
 ## Federating users
 
 This library intentionally doesn't include any predefined data structures for federated data. The reason is that each federated application is different, and needs different data formats. Activitypub also doesn't define any specific data structures, but provides a few mandatory fields and many which are optional. For this reason it works best to let each application define its own data structures, and take advantage of serde for (de)serialization. This means we don't use `json-ld` which Activitypub is based on, but that doesn't cause any problems in practice.
@@ -101,7 +97,7 @@ pub struct Person {
 
 `PersonType` is an enum with a single variant `Person`. It is used to deserialize objects in a typesafe way: If the JSON type value does not match the string `Person`, deserialization fails. This helps in places where we don't know the exact data type that is being deserialized, as you will see later.
 
-Besides we also need a second struct to represent the data which gets stored in our local database. This is necessary because the data format used by SQL is very different from that used by that from Activitypub. It is organized by an integer primary key instead of a link id. Nested structs are complicated to represent and easier if flattened. Some fields like `type` don't need to be stored at all. On the other hand, the database contains fields which can't be federated, such as the private key and a boolean indicating if the item is local or remote.
+Besides we also need a second struct to represent the data which gets stored in our local database (for example PostgreSQL). This is necessary because the data format used by SQL is very different from that used by that from Activitypub. It is organized by an integer primary key instead of a link id. Nested structs are complicated to represent and easier if flattened. Some fields like `type` don't need to be stored at all. On the other hand, the database contains fields which can't be federated, such as the private key and a boolean indicating if the item is local or remote.
 
 ```rust
 # use url::Url;

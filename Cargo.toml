@@ -49,7 +49,7 @@ hyper = { version = "0.14", optional = true }
 displaydoc = "0.2.3"
 
 [features]
-default = []
+default = ["actix-web", "axum"]
 actix-web = ["dep:actix-web"]
 axum = ["dep:axum", "dep:tower", "dep:hyper"]
 

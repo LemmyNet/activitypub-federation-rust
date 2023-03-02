@@ -11,7 +11,9 @@ use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
-/// Receive an activity and perform some basic checks, including HTTP signature verification.
+/// Handles incoming activities, verifying HTTP signatures and other checks
+///
+/// After successful validation, activities are passed to respective [trait@ActivityHandler].
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,

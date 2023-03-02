@@ -7,8 +7,11 @@ use axum::{
 };
 use http::{HeaderMap, Method, Uri};
 
+/// Handles incoming activities, verifying HTTP signatures and other checks
 pub mod inbox;
+/// Wrapper struct to respond with `application/activity+json` in axum handlers
 pub mod json;
+#[doc(hidden)]
 pub mod middleware;
 
 /// Contains everything that is necessary to verify HTTP signatures and receive an

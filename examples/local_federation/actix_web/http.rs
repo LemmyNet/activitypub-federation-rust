@@ -14,9 +14,11 @@ use activitypub_federation::{
 use actix_web::{web, web::Bytes, App, HttpRequest, HttpResponse, HttpServer};
 use anyhow::anyhow;
 use serde::Deserialize;
+use tracing::info;
 
 pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     let hostname = config.hostname();
+    info!("Listening with actix-web on {hostname}");
     let config = config.clone();
     let server = HttpServer::new(move || {
         App::new()

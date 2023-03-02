@@ -8,7 +8,7 @@ use std::{
 };
 use url::Url;
 
-/// Typed wrapper for Activitypub Object ID.
+/// Typed wrapper for Activitypub Object ID which helps with dereferencing and caching.
 ///
 /// It provides convenient methods for fetching the object from remote server or local database.
 /// Objects are automatically cached locally, so they don't have to be fetched every time. Much of
@@ -63,10 +63,12 @@ where
         Ok(ObjectId(Box::new(url.try_into()?), PhantomData::<Kind>))
     }
 
+    /// Returns a reference to the wrapped URL value
     pub fn inner(&self) -> &Url {
         &self.0
     }
 
+    /// Returns the wrapped URL value
     pub fn into_inner(self) -> Url {
         *self.0
     }

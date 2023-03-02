@@ -2,7 +2,7 @@ use crate::{
     core::activity_queue::create_activity_queue,
     error::Error,
     traits::ActivityHandler,
-    utils::verify_domains_match,
+    protocol::verification::verify_domains_match,
 };
 use async_trait::async_trait;
 use background_jobs::Manager;
@@ -78,6 +78,7 @@ pub struct FederationConfig<T: Clone> {
 }
 
 impl<T: Clone> FederationConfig<T> {
+    /// Returns a new config builder with default values.
     pub fn builder() -> FederationConfigBuilder<T> {
         FederationConfigBuilder::default()
     }
@@ -135,6 +136,11 @@ impl<T: Clone> FederationConfig<T> {
             ));
         }
 
+        // Urls which use our local domain are not a security risk, no further verification needed
+        if self.is_local_url(url) {
+            return Ok(());
+        }
+
         self.url_verifier
             .verify(url)
             .await
@@ -160,6 +166,10 @@ impl<T: Clone> FederationConfig<T> {
 }
 
 impl<T: Clone> FederationConfigBuilder<T> {
+    /// Constructs a new config instance with the values supplied to builder.
+    ///
+    /// Values which are not explicitly specified use the defaults. Also initializes the
+    /// queue for outgoing activities, which is stored internally in the config struct.
     pub fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
         let mut config = self.partial_build()?;
         let queue = create_activity_queue(
@@ -190,7 +200,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 ///
 /// ```
 /// # use async_trait::async_trait;
-/// use url::Url;
+/// # use url::Url;
 /// # use activitypub_federation::config::UrlVerifier;
 /// # #[derive(Clone)]
 /// # struct DatabaseConnection();
@@ -217,6 +227,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 /// ```
 #[async_trait]
 pub trait UrlVerifier: DynClone + Send {
+    /// Should return Ok iff the given url is valid for processing.
     async fn verify(&self, url: &Url) -> Result<(), &'static str>;
 }
 
@@ -245,9 +256,12 @@ pub struct RequestData<T: Clone> {
 }
 
 impl<T: Clone> RequestData<T> {
+    /// Returns the data which was stored in [FederationConfigBuilder::app_data]
     pub fn app_data(&self) -> &T {
         &self.config.app_data
     }
+
+    /// Returns the domain that was configured in [FederationConfig].
     pub fn domain(&self) -> &str {
         &self.config.domain
     }
@@ -261,10 +275,12 @@ impl<T: Clone> Deref for RequestData<T> {
     }
 }
 
+/// Middleware for HTTP handlers which provides access to [RequestData]
 #[derive(Clone)]
 pub struct ApubMiddleware<T: Clone>(pub(crate) FederationConfig<T>);
 
 impl<T: Clone> ApubMiddleware<T> {
+    /// Construct a new middleware instance
     pub fn new(config: FederationConfig<T>) -> Self {
         ApubMiddleware(config)
     }

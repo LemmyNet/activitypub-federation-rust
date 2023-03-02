@@ -3,8 +3,7 @@ use axum::response::IntoResponse;
 use http::header;
 use serde::Serialize;
 
-/// A wrapper struct to respond with [`APUB_JSON_CONTENT_TYPE`]
-/// in axum handlers
+/// Wrapper struct to respond with `application/activity+json` in axum handlers
 ///
 /// ```
 /// # use anyhow::Error;

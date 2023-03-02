@@ -1,9 +1,10 @@
 use crate::{
-    instance::{listen, new_instance},
+    instance::{listen, new_instance, Webserver},
     objects::post::DbPost,
     utils::generate_object_id,
 };
 use error::Error;
+use std::{env::args, str::FromStr};
 use tracing::log::{info, LevelFilter};
 
 mod activities;
@@ -24,11 +25,16 @@ async fn main() -> Result<(), Error> {
         .format_timestamp(None)
         .init();
 
-    info!("Starting local instances alpha and beta on localhost:8001, localhost:8002");
+    info!("Start with parameter `axum` or `actix-web` to select the webserver");
+    let webserver = args()
+        .nth(1)
+        .map(|arg| Webserver::from_str(&arg).unwrap())
+        .unwrap_or(Webserver::Axum);
+
     let alpha = new_instance("localhost:8001", "alpha".to_string())?;
     let beta = new_instance("localhost:8002", "beta".to_string())?;
-    listen(&alpha)?;
-    listen(&beta)?;
+    listen(&alpha, &webserver)?;
+    listen(&beta, &webserver)?;
     info!("Local instances started");
 
     info!("Alpha user follows beta user via webfinger");

@@ -53,11 +53,11 @@ steps:
     environment:
       CARGO_HOME: .cargo
     commands:
-      - cargo run --example simple_federation --features actix-web
+      - cargo run --example local_federation actix-web
 
   - name: cargo run axum example
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
-      - cargo run --example simple_federation --features axum
+      - cargo run --example local_federation axum

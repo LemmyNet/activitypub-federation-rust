@@ -23,7 +23,9 @@ static HTTP_SIG_CONFIG: OnceCell<Config> = OnceCell::new();
 /// A private/public key pair used for HTTP signatures
 #[derive(Debug, Clone)]
 pub struct Keypair {
+    /// Private key in PEM format
     pub private_key: String,
+    /// Public key in PEM format
     pub public_key: String,
 }
 

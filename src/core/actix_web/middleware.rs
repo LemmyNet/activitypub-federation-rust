@@ -29,6 +29,8 @@ where
     }
 }
 
+/// Passes [FederationConfig] to HTTP handlers, converting it to [RequestData] in the process
+#[doc(hidden)]
 pub struct ApubService<S, T: Clone>
 where
     S: Service<ServiceRequest, Error = Error>,

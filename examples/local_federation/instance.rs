@@ -5,7 +5,10 @@ use crate::{
 use activitypub_federation::config::{FederationConfig, UrlVerifier};
 use anyhow::anyhow;
 use async_trait::async_trait;
-use std::sync::{Arc, Mutex};
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 use url::Url;
 
 pub fn new_instance(
@@ -48,14 +51,31 @@ impl UrlVerifier for MyUrlVerifier {
     }
 }
 
-pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
-    if cfg!(feature = "actix-web") == cfg!(feature = "axum") {
-        panic!("Exactly one of features \"actix-web\" and \"axum\" must be enabled");
+pub enum Webserver {
+    Axum,
+    ActixWeb,
+}
+
+impl FromStr for Webserver {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "axum" => Webserver::Axum,
+            "actix-web" => Webserver::ActixWeb,
+            _ => panic!("Invalid webserver parameter, must be either `axum` or `actix-web`"),
+        })
     }
-    #[cfg(feature = "actix-web")]
-    crate::actix_web::http::listen(config)?;
-    #[cfg(feature = "axum")]
-    crate::axum::http::listen(config)?;
+}
+
+pub fn listen(
+    config: &FederationConfig<DatabaseHandle>,
+    webserver: &Webserver,
+) -> Result<(), Error> {
+    match webserver {
+        Webserver::Axum => crate::axum::http::listen(config)?,
+        Webserver::ActixWeb => crate::actix_web::http::listen(config)?,
+    }
     Ok(())
 }
 

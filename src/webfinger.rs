@@ -14,8 +14,10 @@ use std::collections::HashMap;
 use tracing::debug;
 use url::Url;
 
-/// Turns a person id like `@name@example.com` into an apub ID, like `https://example.com/user/name`,
-/// using webfinger.
+/// Takes an identifier of the form `name@example.com`, and returns an object of `Kind`.
+///
+/// For this the identifier is first resolved via webfinger protocol to an Activitypub ID. This ID
+/// is then fetched using [ObjectId::dereference], and the result returned.
 pub async fn webfinger_resolve_actor<T: Clone, Kind>(
     identifier: &str,
     data: &RequestData<T>,
@@ -29,7 +31,7 @@ where
     let (_, domain) = identifier
         .splitn(2, '@')
         .collect_tuple()
-        .ok_or_else(|| WebfingerResolveFailed)?;
+        .ok_or(WebfingerResolveFailed)?;
     let protocol = if data.config.debug { "http" } else { "https" };
     let fetch_url =
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
@@ -37,6 +39,7 @@ where
 
     let res: Webfinger = fetch_object_http(&Url::parse(&fetch_url)?, data).await?;
 
+    debug_assert_eq!(res.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res
         .links
         .iter()
@@ -60,7 +63,8 @@ where
 
 /// Extracts username from a webfinger resource parameter.
 ///
-/// For a parameter of the form `acct:gargron@mastodon.social` it returns `gargron`.
+/// Use this method for your HTTP handler at `.well-known/webfinger` to handle incoming webfinger
+/// request. For a parameter of the form `acct:gargron@mastodon.social` it returns `gargron`.
 ///
 /// Returns an error if query doesn't match local domain.
 pub fn extract_webfinger_name<T>(query: &str, data: &RequestData<T>) -> Result<String, Error>
@@ -78,11 +82,23 @@ where
         .to_string())
 }
 
-/// Builds a basic webfinger response under the assumption that `html` and `activity+json`
-/// links are identical.
-pub fn build_webfinger_response(resource: String, url: Url) -> Webfinger {
+/// Builds a basic webfinger response for the actor.
+///
+/// It assumes that the given URL is valid both to the view the actor in a browser as HTML, and
+/// for fetching it over Activitypub with `activity+json`. This setup is commonly used for ease
+/// of discovery.
+///
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::webfinger::build_webfinger_response;
+/// let subject = "acct:nutomic@lemmy.ml".to_string();
+/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// build_webfinger_response(subject, url);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
     Webfinger {
-        subject: resource,
+        subject,
         links: vec![
             WebfingerLink {
                 rel: Some("http://webfinger.net/rel/profile-page".to_string()),
@@ -97,23 +113,39 @@ pub fn build_webfinger_response(resource: String, url: Url) -> Webfinger {
                 properties: Default::default(),
             },
         ],
+        aliases: vec![],
+        properties: Default::default(),
     }
 }
 
+/// A webfinger response with information about a `Person` or other type of actor.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Webfinger {
+    /// The actor which is described here, for example `acct:LemmyDev@mastodon.social`
     pub subject: String,
+    /// Links where further data about `subject` can be retrieved
     pub links: Vec<WebfingerLink>,
+    /// Other Urls which identify the same actor as the `subject`
+    #[serde(default)]
+    pub aliases: Vec<Url>,
+    /// Additional data about the subject
+    #[serde(default)]
+    pub properties: HashMap<Url, String>,
 }
 
+/// A single link included as part of a [Webfinger] response.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WebfingerLink {
+    /// Relationship of the link, such as `self` or `http://webfinger.net/rel/profile-page`
     pub rel: Option<String>,
+    /// Media type of the target resource
     #[serde(rename = "type")]
     pub kind: Option<String>,
+    /// Url pointing to the target resource
     pub href: Option<Url>,
+    /// Additional data about the link
     #[serde(default)]
-    pub properties: HashMap<String, String>,
+    pub properties: HashMap<Url, String>,
 }
 
 #[cfg(test)]

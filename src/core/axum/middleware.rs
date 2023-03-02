@@ -15,6 +15,8 @@ impl<S, T: Clone> Layer<S> for ApubMiddleware<T> {
     }
 }
 
+/// Passes [FederationConfig] to HTTP handlers, converting it to [RequestData] in the process
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct ApubService<S, T: Clone> {
     inner: S,

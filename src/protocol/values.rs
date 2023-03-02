@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 /// <https://www.iana.org/assignments/media-types/media-types.xhtml>
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MediaTypeMarkdown {
+    /// `text/markdown`
     #[serde(rename = "text/markdown")]
     Markdown,
 }
@@ -47,6 +48,7 @@ pub enum MediaTypeMarkdown {
 /// <https://www.iana.org/assignments/media-types/media-types.xhtml>
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MediaTypeHtml {
+    /// `text/html`
     #[serde(rename = "text/html")]
     Html,
 }
@@ -54,8 +56,10 @@ pub enum MediaTypeHtml {
 /// Media type which allows both markdown and HTML.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum MediaTypeMarkdownOrHtml {
+    /// `text/markdown`
     #[serde(rename = "text/markdown")]
     Markdown,
+    /// `text/html`
     #[serde(rename = "text/html")]
     Html,
 }
