@@ -1,3 +1,5 @@
+//! Serde deserialization functions which help to receive differently shaped data
+
 use serde::{Deserialize, Deserializer};
 
 /// Deserialize JSON single value or array into Vec.

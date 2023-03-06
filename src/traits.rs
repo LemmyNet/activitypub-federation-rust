@@ -1,3 +1,5 @@
+//! Traits which need to be implemented for federated data types
+
 use crate::config::RequestData;
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
@@ -124,7 +126,7 @@ pub trait ApubObject: Sized {
 /// ```
 /// # use activitystreams_kinds::activity::FollowType;
 /// # use url::Url;
-/// # use activitypub_federation::core::object_id::ObjectId;
+/// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::config::RequestData;
 /// # use activitypub_federation::traits::ActivityHandler;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
@@ -229,10 +231,8 @@ where
 pub mod tests {
     use super::*;
     use crate::{
-        core::{
-            http_signatures::{generate_actor_keypair, Keypair},
-            object_id::ObjectId,
-        },
+        fetch::object_id::ObjectId,
+        http_signatures::{generate_actor_keypair, Keypair},
         protocol::public_key::PublicKey,
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};

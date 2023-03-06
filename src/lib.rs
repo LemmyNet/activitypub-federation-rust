@@ -1,22 +1,29 @@
-#![doc = include_str!("../README.md")]
+#![doc = include_str!("../docs/01_intro.md")]
+#![doc = include_str!("../docs/02_overview.md")]
+#![doc = include_str!("../docs/03_federating_users.md")]
+#![doc = include_str!("../docs/04_federating_posts.md")]
+#![doc = include_str!("../docs/05_configuration.md")]
+#![doc = include_str!("../docs/06_http_endpoints_axum.md")]
+#![doc = include_str!("../docs/07_fetching_data.md")]
+#![doc = include_str!("../docs/08_receiving_activities.md")]
+#![doc = include_str!("../docs/09_sending_activities.md")]
+#![doc = include_str!("../docs/10_fetching_objects_with_unknown_type.md")]
 #![deny(missing_docs)]
 
-/// Configuration for this library
+pub mod activity_queue;
+#[cfg(feature = "actix-web")]
+pub mod actix_web;
+#[cfg(feature = "axum")]
+pub mod axum;
 pub mod config;
-/// Contains main library functionality
-pub mod core;
-/// Error messages returned by this library.
 pub mod error;
-/// Data structures which help to define federated messages
+pub mod fetch;
+pub mod http_signatures;
 pub mod protocol;
-/// Traits which need to be implemented for federated data types
+pub(crate) mod reqwest_shim;
 pub mod traits;
-/// Some utility functions
-pub mod utils;
-/// Resolves identifiers of the form `name@example.com`
-pub mod webfinger;
 
 pub use activitystreams_kinds as kinds;
 
-/// Mime type for Activitypub, used for `Accept` and `Content-Type` HTTP headers
+/// Mime type for Activitypub data, used for `Accept` and `Content-Type` HTTP headers
 pub static APUB_JSON_CONTENT_TYPE: &str = "application/activity+json";

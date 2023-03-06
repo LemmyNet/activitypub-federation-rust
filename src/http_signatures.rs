@@ -1,3 +1,10 @@
+//! Generating keypairs, creating and verifying signatures
+//!
+//! Signature creation and verification is handled internally in the library. See
+//! [send_activity](crate::activity_queue::send_activity) and
+//! [receive_activity (actix-web)](crate::actix_web::inbox::receive_activity) /
+//! [receive_activity (axum)](crate::axum::inbox::receive_activity).
+
 use crate::{
     error::{Error, Error::ActivitySignatureInvalid},
     protocol::public_key::main_key_id,
@@ -87,7 +94,7 @@ static CONFIG2: Lazy<http_signature_normalization::Config> =
     Lazy::new(http_signature_normalization::Config::new);
 
 /// Verifies the HTTP signature on an incoming inbox request.
-pub fn verify_signature<'a, H>(
+pub(crate) fn verify_signature<'a, H>(
     headers: H,
     method: &Method,
     uri: &Uri,

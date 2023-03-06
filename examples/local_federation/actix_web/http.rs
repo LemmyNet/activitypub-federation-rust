@@ -4,11 +4,11 @@ use crate::{
     objects::person::{DbUser, PersonAcceptedActivities},
 };
 use activitypub_federation::{
+    actix_web::inbox::receive_activity,
     config::{ApubMiddleware, FederationConfig, RequestData},
-    core::actix_web::inbox::receive_activity,
+    fetch::webfinger::{build_webfinger_response, extract_webfinger_name},
     protocol::context::WithContext,
     traits::ApubObject,
-    webfinger::{build_webfinger_response, extract_webfinger_name},
     APUB_JSON_CONTENT_TYPE,
 };
 use actix_web::{web, web::Bytes, App, HttpRequest, HttpResponse, HttpServer};

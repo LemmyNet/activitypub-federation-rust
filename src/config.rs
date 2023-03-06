@@ -1,8 +1,24 @@
+//! Configuration for this library, with various federation settings
+//!
+//! Use [FederationConfig::builder](crate::config::FederationConfig::builder) to initialize it.
+//!
+//! ```
+//! # use activitypub_federation::config::FederationConfig;
+//! # let _ = actix_rt::System::new();
+//! let settings = FederationConfig::builder()
+//!     .domain("example.com")
+//!     .app_data(())
+//!     .http_fetch_limit(50)
+//!     .worker_count(16)
+//!     .build()?;
+//! # Ok::<(), anyhow::Error>(())
+//! ```
+
 use crate::{
-    core::activity_queue::create_activity_queue,
+    activity_queue::create_activity_queue,
     error::Error,
-    traits::ActivityHandler,
     protocol::verification::verify_domains_match,
+    traits::ActivityHandler,
 };
 use async_trait::async_trait;
 use background_jobs::Manager;
@@ -17,21 +33,7 @@ use std::{
 };
 use url::Url;
 
-/// Various settings related to Activitypub federation.
-///
-/// Use [FederationSettings.builder()] to initialize this.
-///
-/// ```
-/// # use activitypub_federation::config::FederationConfig;
-/// # let _ = actix_rt::System::new();
-/// let settings = FederationConfig::builder()
-///     .domain("example.com")
-///     .app_data(())
-///     .http_fetch_limit(50)
-///     .worker_count(16)
-///     .build()?;
-/// # Ok::<(), anyhow::Error>(())
-/// ```
+/// Configuration for this library, with various federation related settings
 #[derive(Builder, Clone)]
 #[builder(build_fn(private, name = "partial_build"))]
 pub struct FederationConfig<T: Clone> {
@@ -42,7 +44,7 @@ pub struct FederationConfig<T: Clone> {
     /// or configuration.
     pub(crate) app_data: T,
     /// Maximum number of outgoing HTTP requests per incoming HTTP request. See
-    /// [crate::utils::fetch_object_http] for more details.
+    /// [crate::fetch::object_id::ObjectId] for more details.
     #[builder(default = "20")]
     pub(crate) http_fetch_limit: i32,
     #[builder(default = "reqwest::Client::default().into()")]
@@ -54,8 +56,7 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) worker_count: u64,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
-    /// more consistent.
-    /// Do not use for production.
+    /// more consistent. Do not use for production.
     #[builder(default = "false")]
     pub(crate) debug: bool,
     /// Timeout for all HTTP requests. HTTP signatures are valid for 10s, so it makes sense to
@@ -246,7 +247,9 @@ clone_trait_object!(UrlVerifier);
 
 /// Stores data for handling one specific HTTP request.
 ///
-/// Most importantly this contains a counter for outgoing HTTP requests. This is necessary to
+/// It gives acess to the `app_data` which was passed to [FederationConfig::builder].
+///
+/// Additionally it contains a counter for outgoing HTTP requests. This is necessary to
 /// prevent denial of service attacks, where an attacker triggers fetching of recursive objects.
 ///
 /// <https://www.w3.org/TR/activitypub/#security-recursive-objects>

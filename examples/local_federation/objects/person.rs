@@ -6,16 +6,13 @@ use crate::{
     utils::generate_object_id,
 };
 use activitypub_federation::{
+    activity_queue::send_activity,
     config::RequestData,
-    core::{
-        activity_queue::send_activity,
-        http_signatures::generate_actor_keypair,
-        object_id::ObjectId,
-    },
+    fetch::{object_id::ObjectId, webfinger::webfinger_resolve_actor},
+    http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
     protocol::{context::WithContext, public_key::PublicKey},
     traits::{ActivityHandler, Actor, ApubObject},
-    webfinger::webfinger_resolve_actor,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

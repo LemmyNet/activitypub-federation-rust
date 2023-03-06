@@ -1,10 +1,10 @@
+//! Handles incoming activities, verifying HTTP signatures and other checks
+
 use crate::{
     config::RequestData,
-    core::{
-        http_signatures::{verify_inbox_hash, verify_signature},
-        object_id::ObjectId,
-    },
     error::Error,
+    fetch::object_id::ObjectId,
+    http_signatures::{verify_inbox_hash, verify_signature},
     traits::{ActivityHandler, Actor, ApubObject},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
@@ -55,7 +55,7 @@ mod test {
     use super::*;
     use crate::{
         config::FederationConfig,
-        core::http_signatures::sign_request,
+        http_signatures::sign_request,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},
     };
     use actix_web::test::TestRequest;

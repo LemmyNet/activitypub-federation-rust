@@ -4,11 +4,14 @@ use crate::{
     objects::person::{DbUser, Person, PersonAcceptedActivities},
 };
 use activitypub_federation::{
+    axum::{
+        inbox::{receive_activity, ActivityData},
+        json::ApubJson,
+    },
     config::{ApubMiddleware, FederationConfig, RequestData},
-    core::axum::{inbox::receive_activity, json::ApubJson, ActivityData},
+    fetch::webfinger::{build_webfinger_response, extract_webfinger_name, Webfinger},
     protocol::context::WithContext,
     traits::ApubObject,
-    webfinger::{build_webfinger_response, extract_webfinger_name, Webfinger},
 };
 use axum::{
     extract::{Path, Query},

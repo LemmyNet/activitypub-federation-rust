@@ -6,7 +6,7 @@ use crate::{
 };
 use activitypub_federation::{
     config::RequestData,
-    core::object_id::ObjectId,
+    fetch::object_id::ObjectId,
     kinds::activity::FollowType,
     traits::{ActivityHandler, Actor},
 };

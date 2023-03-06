@@ -1,20 +1,22 @@
-use crate::{
-    config::RequestData,
-    error::Error,
-    utils::reqwest_shim::ResponseExt,
-    APUB_JSON_CONTENT_TYPE,
-};
+//! Utilities for fetching data from other servers
+//!
+#![doc = include_str!("../../docs/07_fetching_data.md")]
+
+use crate::{config::RequestData, error::Error, reqwest_shim::ResponseExt, APUB_JSON_CONTENT_TYPE};
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
 use url::Url;
 
-pub(crate) mod reqwest_shim;
+/// Typed wrapper for Activitypub Object ID which helps with dereferencing and caching
+pub mod object_id;
+/// Resolves identifiers of the form `name@example.com`
+pub mod webfinger;
 
 /// Fetch a remote object over HTTP and convert to `Kind`.
 ///
-/// [crate::core::object_id::ObjectId::dereference] wraps this function to add caching and
+/// [crate::fetch::object_id::ObjectId::dereference] wraps this function to add caching and
 /// conversion to database type. Only use this function directly in exceptional cases where that
 /// behaviour is undesired.
 ///
@@ -22,7 +24,7 @@ pub(crate) mod reqwest_shim;
 /// If the value exceeds [FederationSettings.http_fetch_limit], the request is aborted with
 /// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
 /// infinite, recursive fetching of data.
-pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
+async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &RequestData<T>,
 ) -> Result<Kind, Error> {

@@ -1,9 +1,13 @@
+//! Queue for signing and sending outgoing activities with retry
+//!
+#![doc = include_str!("../docs/09_sending_activities.md")]
+
 use crate::{
     config::RequestData,
-    core::http_signatures::sign_request,
     error::Error,
+    http_signatures::sign_request,
+    reqwest_shim::ResponseExt,
     traits::ActivityHandler,
-    utils::reqwest_shim::ResponseExt,
     APUB_JSON_CONTENT_TYPE,
 };
 use anyhow::anyhow;
@@ -29,59 +33,13 @@ use std::{
 use tracing::{debug, info, warn};
 use url::Url;
 
-/// Signs and delivers outgoing activities with retry.
-///
-/// The list of inboxes gets deduplicated (important for shared inbox). All inboxes on the local
-/// domain and those which fail the [crate::config::UrlVerifier] check are excluded from delivery.
-/// For each remaining inbox a background tasks is created. It signs the HTTP header with the given
-/// private key. Finally the activity is delivered to the inbox.
-///
-/// It is possible that delivery fails because the target instance is temporarily unreachable. In
-/// this case the task is scheduled for retry after a certain waiting time. For each task delivery
-/// is retried up to 3 times after the initial attempt. The retry intervals are as follows:
-/// - one minute, for service restart
-/// - one hour, for instance maintenance
-/// - 2.5 days, for major incident with rebuild from backup
-///
-/// In case [crate::config::FederationConfigBuilder::debug] is enabled, no background thread is used but activities
-/// are sent directly on the foreground. This makes it easier to catch delivery errors and avoids
-/// complicated steps to await delivery.
+/// Send a new activity to the given inboxes
 ///
 /// - `activity`: The activity to be sent, gets converted to json
 /// - `private_key`: Private key belonging to the actor who sends the activity, for signing HTTP
-///                  signature. Generated with [crate::core::http_signatures::generate_actor_keypair].
+///                  signature. Generated with [crate::http_signatures::generate_actor_keypair].
 /// - `inboxes`: List of actor inboxes that should receive the activity. Should be built by calling
 ///              [crate::traits::Actor::shared_inbox_or_inbox] for each target actor.
-///
-/// ```
-/// # use activitypub_federation::config::FederationConfig;
-/// # use activitypub_federation::core::activity_queue::send_activity;
-/// # use activitypub_federation::core::http_signatures::generate_actor_keypair;
-/// # use activitypub_federation::traits::Actor;
-/// # use activitypub_federation::core::object_id::ObjectId;
-/// # use activitypub_federation::traits::tests::{DB_USER, DbConnection, Follow};
-/// # let _ = actix_rt::System::new();
-/// # actix_rt::Runtime::new().unwrap().block_on(async {
-/// # let db_connection = DbConnection;
-/// # let config = FederationConfig::builder()
-/// #     .domain("example.com")
-/// #     .app_data(db_connection)
-/// #     .build()?;
-/// # let data = config.to_request_data();
-/// # let recipient = DB_USER.clone();
-/// // Each actor has a keypair. Generate it on signup and store it in the database.
-/// let keypair = generate_actor_keypair()?;
-/// let activity = Follow {
-///     actor: ObjectId::new("https://lemmy.ml/u/nutomic")?,
-///     object: recipient.apub_id.clone().into(),
-///     kind: Default::default(),
-///     id: "https://lemmy.ml/activities/321".try_into()?
-/// };
-/// let inboxes = vec![recipient.shared_inbox_or_inbox()];
-/// send_activity(activity, keypair.private_key, inboxes, &data).await?;
-/// # Ok::<(), anyhow::Error>(())
-/// # }).unwrap()
-/// ```
 pub async fn send_activity<Activity, Datatype>(
     activity: Activity,
     private_key: String,

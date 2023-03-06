@@ -1,6 +1,8 @@
+//! Error messages returned by this library
+
 use displaydoc::Display;
 
-/// Error messages returned by this library.
+/// Error messages returned by this library
 #[derive(thiserror::Error, Debug, Display)]
 pub enum Error {
     /// Object was not found in local database

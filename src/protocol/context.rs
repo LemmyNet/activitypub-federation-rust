@@ -1,3 +1,24 @@
+//! Wrapper for federated structs which handles `@context` field.
+//!
+//! This wrapper can be used when sending Activitypub data, to automatically add `@context`. It
+//! avoids having to repeat the `@context` property on every struct, and getting multiple contexts
+//! in nested structs.
+//!
+//! ```
+//! # use activitypub_federation::protocol::context::WithContext;
+//! #[derive(serde::Serialize)]
+//! struct Note {
+//!     content: String
+//! }
+//! let note = Note {
+//!     content: "Hello world".to_string()
+//! };
+//! let note_with_context = WithContext::new_default(note);
+//! let serialized = serde_json::to_string(&note_with_context)?;
+//! assert_eq!(serialized, r#"{"@context":[["https://www.w3.org/ns/activitystreams"]],"content":"Hello world"}"#);
+//! Ok::<(), serde_json::error::Error>(())
+//! ```
+
 use crate::{
     config::RequestData,
     protocol::helpers::deserialize_one_or_many,
@@ -12,25 +33,6 @@ use url::Url;
 const DEFAULT_CONTEXT: &str = "[\"https://www.w3.org/ns/activitystreams\"]";
 
 /// Wrapper for federated structs which handles `@context` field.
-///
-/// This wrapper can be used when sending Activitypub data, to automatically add `@context`. It
-/// avoids having to repeat the `@context` property on every struct, and getting multiple contexts
-/// in nested structs.
-///
-/// ```
-/// # use activitypub_federation::protocol::context::WithContext;
-/// #[derive(serde::Serialize)]
-/// struct Note {
-///     content: String
-/// }
-/// let note = Note {
-///     content: "Hello world".to_string()
-/// };
-/// let note_with_context = WithContext::new_default(note);
-/// let serialized = serde_json::to_string(&note_with_context)?;
-/// assert_eq!(serialized, r#"{"@context":[["https://www.w3.org/ns/activitystreams"]],"content":"Hello world"}"#);
-/// Ok::<(), serde_json::error::Error>(())
-/// ```
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WithContext<T> {
     #[serde(rename = "@context")]

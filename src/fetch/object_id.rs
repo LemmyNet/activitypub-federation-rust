@@ -1,4 +1,4 @@
-use crate::{config::RequestData, error::Error, traits::ApubObject, utils::fetch_object_http};
+use crate::{config::RequestData, error::Error, fetch::fetch_object_http, traits::ApubObject};
 use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ use url::Url;
 /// infinite, recursive fetching of data.
 ///
 /// ```
-/// # use activitypub_federation::core::object_id::ObjectId;
+/// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::config::FederationConfig;
 /// # use activitypub_federation::error::Error::NotFound;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
@@ -233,7 +233,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::{core::object_id::should_refetch_object, traits::tests::DbUser};
+    use crate::{fetch::object_id::should_refetch_object, traits::tests::DbUser};
 
     #[test]
     fn test_deserialize() {

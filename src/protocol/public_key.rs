@@ -1,3 +1,5 @@
+//! Struct which is used to federate actor key for HTTP signatures
+
 use serde::{Deserialize, Serialize};
 use url::Url;
 

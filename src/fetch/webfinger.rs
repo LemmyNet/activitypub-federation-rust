@@ -1,9 +1,8 @@
 use crate::{
     config::RequestData,
-    core::object_id::ObjectId,
     error::{Error, Error::WebfingerResolveFailed},
+    fetch::{fetch_object_http, object_id::ObjectId},
     traits::{Actor, ApubObject},
-    utils::fetch_object_http,
     APUB_JSON_CONTENT_TYPE,
 };
 use anyhow::anyhow;
@@ -90,7 +89,7 @@ where
 ///
 /// ```
 /// # use url::Url;
-/// # use activitypub_federation::webfinger::build_webfinger_response;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
 /// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
 /// build_webfinger_response(subject, url);

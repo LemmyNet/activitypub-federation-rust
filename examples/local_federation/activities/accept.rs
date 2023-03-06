@@ -1,7 +1,7 @@
 use crate::{activities::follow::Follow, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
     config::RequestData,
-    core::object_id::ObjectId,
+    fetch::object_id::ObjectId,
     kinds::activity::AcceptType,
     traits::ActivityHandler,
 };

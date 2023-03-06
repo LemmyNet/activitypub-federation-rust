@@ -5,7 +5,7 @@ use crate::{
 };
 use activitypub_federation::{
     config::RequestData,
-    core::object_id::ObjectId,
+    fetch::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::helpers::deserialize_one_or_many,
     traits::{ActivityHandler, ApubObject},
