@@ -15,7 +15,7 @@
 //! };
 //! let note_with_context = WithContext::new_default(note);
 //! let serialized = serde_json::to_string(&note_with_context)?;
-//! assert_eq!(serialized, r#"{"@context":[["https://www.w3.org/ns/activitystreams"]],"content":"Hello world"}"#);
+//! assert_eq!(serialized, r#"{"@context":["https://www.w3.org/ns/activitystreams"],"content":"Hello world"}"#);
 //! Ok::<(), serde_json::error::Error>(())
 //! ```
 
@@ -26,11 +26,10 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::str::FromStr;
 use url::Url;
 
 /// Default context used in Activitypub
-const DEFAULT_CONTEXT: &str = "[\"https://www.w3.org/ns/activitystreams\"]";
+const DEFAULT_CONTEXT: &str = "https://www.w3.org/ns/activitystreams";
 
 /// Wrapper for federated structs which handles `@context` field.
 #[derive(Serialize, Deserialize, Debug)]
@@ -45,7 +44,7 @@ pub struct WithContext<T> {
 impl<T> WithContext<T> {
     /// Create a new wrapper with the default Activitypub context.
     pub fn new_default(inner: T) -> WithContext<T> {
-        let context = vec![Value::from_str(DEFAULT_CONTEXT).expect("valid context")];
+        let context = vec![Value::String(DEFAULT_CONTEXT.to_string())];
         WithContext::new(inner, context)
     }
 

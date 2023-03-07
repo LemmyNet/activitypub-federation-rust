@@ -21,6 +21,7 @@ mod utils;
 async fn main() -> Result<(), Error> {
     env_logger::builder()
         .filter_level(LevelFilter::Warn)
+        .filter_module("activitypub_federation", LevelFilter::Info)
         .filter_module("local_federation", LevelFilter::Info)
         .format_timestamp(None)
         .init();

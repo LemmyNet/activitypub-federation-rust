@@ -9,6 +9,7 @@ use url::Url;
 /// Helper for converting between database structs and federated protocol structs.
 ///
 /// ```
+/// # use chrono::{Local, NaiveDateTime};
 /// # use url::Url;
 /// # use activitypub_federation::protocol::public_key::PublicKey;
 /// # use activitypub_federation::config::RequestData;
@@ -19,7 +20,9 @@ use url::Url;
 /// #     pub ap_id: Url,
 /// #     pub inbox: Url,
 /// #     pub public_key: String,
+/// #     pub private_key: Option<String>,
 /// #     pub local: bool,
+/// #     pub last_refreshed_at: NaiveDateTime,
 /// # }
 ///
 /// #[async_trait::async_trait]
@@ -27,6 +30,10 @@ use url::Url;
 ///     type DataType = DbConnection;
 ///     type ApubType = Person;
 ///     type Error = anyhow::Error;
+///
+/// fn last_refreshed_at(&self) -> Option<NaiveDateTime> {
+///     Some(self.last_refreshed_at)
+/// }
 ///
 /// async fn read_from_apub_id(object_id: Url, data: &RequestData<Self::DataType>) -> Result<Option<Self>, Self::Error> {
 ///         // Attempt to read object from local database. Return Ok(None) if not found.
@@ -55,7 +62,9 @@ use url::Url;
 ///             ap_id: apub.id.into_inner(),
 ///             inbox: apub.inbox,
 ///             public_key: apub.public_key.public_key_pem,
+///             private_key: None,
 ///             local: false,
+///             last_refreshed_at: Local::now().naive_local(),
 ///         };
 ///
 ///         // Make sure not to overwrite any local object
@@ -80,8 +89,13 @@ pub trait ApubObject: Sized {
 
     /// Returns the last time this object was updated.
     ///
-    /// Used to avoid refetching an object over HTTP every time it is dereferenced. Only called
-    /// for remote objects.
+    /// If this returns `Some` and the value is too long ago, the object is refetched from the
+    /// original instance. This should always be implemented for actors, because there is no active
+    /// update mechanism prescribed. It is possible to send `Update/Person` activities for profile
+    /// changes, but not all implementations do this, so `last_refreshed_at` is still necessary.
+    ///
+    /// The object is refetched if `last_refreshed_at` value is more than 24 hours ago. In debug
+    /// mode this is reduced to 20 seconds.
     fn last_refreshed_at(&self) -> Option<NaiveDateTime> {
         None
     }

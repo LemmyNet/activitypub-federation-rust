@@ -1,13 +1,16 @@
 use crate::{
-    instance::DatabaseHandle,
+    database::DatabaseHandle,
+    error::Error,
     objects::{person::DbUser, post::Note},
+    utils::generate_object_id,
     DbPost,
 };
 use activitypub_federation::{
+    activity_queue::send_activity,
     config::RequestData,
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
-    protocol::helpers::deserialize_one_or_many,
+    protocol::{context::WithContext, helpers::deserialize_one_or_many},
     traits::{ActivityHandler, ApubObject},
 };
 use serde::{Deserialize, Serialize};
@@ -26,14 +29,26 @@ pub struct CreatePost {
 }
 
 impl CreatePost {
-    pub fn new(note: Note, id: Url) -> CreatePost {
-        CreatePost {
+    pub async fn send(
+        note: Note,
+        inbox: Url,
+        data: &RequestData<DatabaseHandle>,
+    ) -> Result<(), Error> {
+        print!("Sending reply to {}", &note.attributed_to);
+        let create = CreatePost {
             actor: note.attributed_to.clone(),
             to: note.to.clone(),
             object: note,
             kind: CreateType::Create,
-            id,
-        }
+            id: generate_object_id(data.domain())?,
+        };
+        let create_with_context = WithContext::new_default(create);
+        let private_key = data
+            .local_user()
+            .private_key
+            .expect("local user always has private key");
+        send_activity(create_with_context, private_key, vec![inbox], data).await?;
+        Ok(())
     }
 }
 

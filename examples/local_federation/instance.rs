@@ -30,7 +30,7 @@ pub fn new_instance(
 
 pub type DatabaseHandle = Arc<Database>;
 
-/// Our "database" which contains all known posts users (local and federated)
+/// Our "database" which contains all known posts and users (local and federated)
 pub struct Database {
     pub users: Mutex<Vec<DbUser>>,
     pub posts: Mutex<Vec<DbPost>>,

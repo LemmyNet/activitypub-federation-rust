@@ -44,6 +44,7 @@ where
         .dereference(data)
         .await?;
 
+    // TODO: why do errors here not get returned over http?
     verify_signature(
         &activity_data.headers,
         &activity_data.method,

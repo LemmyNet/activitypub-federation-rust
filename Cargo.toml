@@ -67,3 +67,7 @@ debug = 0
 [[example]]
 name = "local_federation"
 path = "examples/local_federation/main.rs"
+
+[[example]]
+name = "live_federation"
+path = "examples/live_federation/main.rs"

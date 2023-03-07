@@ -162,9 +162,10 @@ async fn do_send(
             Ok(())
         }
         Ok(o) if o.status().is_client_error() => {
+            let text = o.text_limited().await.map_err(Error::other)?;
             info!(
-                "Target server {} rejected {}, aborting",
-                task.inbox, task.activity_id,
+                "Activity {} was rejected by {}, aborting: {}",
+                task.activity_id, task.inbox, text,
             );
             Ok(())
         }

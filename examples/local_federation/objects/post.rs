@@ -48,10 +48,15 @@ impl ApubObject for DbPost {
     type Error = Error;
 
     async fn read_from_apub_id(
-        _object_id: Url,
-        _data: &RequestData<Self::DataType>,
+        object_id: Url,
+        data: &RequestData<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
-        todo!()
+        let posts = data.posts.lock().unwrap();
+        let res = posts
+            .clone()
+            .into_iter()
+            .find(|u| u.ap_id.inner() == &object_id);
+        Ok(res)
     }
 
     async fn into_apub(

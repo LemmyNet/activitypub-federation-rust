@@ -9,5 +9,5 @@ pub fn generate_object_id(domain: &str) -> Result<Url, ParseError> {
         .take(7)
         .map(char::from)
         .collect();
-    Url::parse(&format!("http://{}/objects/{}", domain, id))
+    Url::parse(&format!("https://{}/objects/{}", domain, id))
 }

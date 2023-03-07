@@ -1,5 +1,5 @@
 use crate::{
-    activities::{accept::Accept, create_post::CreateNote, follow::Follow},
+    activities::{accept::Accept, create_post::CreatePost, follow::Follow},
     error::Error,
     instance::DatabaseHandle,
     objects::post::DbPost,
@@ -14,6 +14,7 @@ use activitypub_federation::{
     protocol::{context::WithContext, public_key::PublicKey},
     traits::{ActivityHandler, Actor, ApubObject},
 };
+use chrono::{Local, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use url::Url;
@@ -27,6 +28,7 @@ pub struct DbUser {
     public_key: String,
     // exists only for local users
     private_key: Option<String>,
+    last_refreshed_at: NaiveDateTime,
     pub followers: Vec<Url>,
     pub local: bool,
 }
@@ -38,7 +40,7 @@ pub struct DbUser {
 pub enum PersonAcceptedActivities {
     Follow(Follow),
     Accept(Accept),
-    CreateNote(CreateNote),
+    CreateNote(CreatePost),
 }
 
 impl DbUser {
@@ -52,6 +54,7 @@ impl DbUser {
             inbox,
             public_key: keypair.public_key,
             private_key: Some(keypair.private_key),
+            last_refreshed_at: Local::now().naive_local(),
             followers: vec![],
             local: true,
         })
@@ -101,7 +104,7 @@ impl DbUser {
         data: &RequestData<DatabaseHandle>,
     ) -> Result<(), Error> {
         let id = generate_object_id(data.domain())?;
-        let create = CreateNote::new(post.into_apub(data).await?, id.clone());
+        let create = CreatePost::new(post.into_apub(data).await?, id.clone());
         let mut inboxes = vec![];
         for f in self.followers.clone() {
             let user: DbUser = ObjectId::from(f).dereference(data).await?;
@@ -139,6 +142,10 @@ impl ApubObject for DbUser {
     type ApubType = Person;
     type Error = Error;
 
+    fn last_refreshed_at(&self) -> Option<NaiveDateTime> {
+        Some(self.last_refreshed_at)
+    }
+
     async fn read_from_apub_id(
         object_id: Url,
         data: &RequestData<Self::DataType>,
@@ -166,17 +173,21 @@ impl ApubObject for DbUser {
 
     async fn from_apub(
         apub: Self::ApubType,
-        _data: &RequestData<Self::DataType>,
+        data: &RequestData<Self::DataType>,
     ) -> Result<Self, Self::Error> {
-        Ok(DbUser {
+        let user = DbUser {
             name: apub.preferred_username,
             ap_id: apub.id,
             inbox: apub.inbox,
             public_key: apub.public_key.public_key_pem,
             private_key: None,
+            last_refreshed_at: Local::now().naive_local(),
             followers: vec![],
             local: false,
-        })
+        };
+        let mut mutex = data.users.lock().unwrap();
+        mutex.push(user.clone());
+        Ok(user)
     }
 }
 

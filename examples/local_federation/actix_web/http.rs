@@ -17,7 +17,7 @@ use serde::Deserialize;
 use tracing::info;
 
 pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
-    let hostname = config.hostname();
+    let hostname = config.domain();
     info!("Listening with actix-web on {hostname}");
     let config = config.clone();
     let server = HttpServer::new(move || {

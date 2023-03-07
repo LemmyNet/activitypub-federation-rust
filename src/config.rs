@@ -160,8 +160,8 @@ impl<T: Clone> FederationConfig<T> {
         domain == self.domain
     }
 
-    /// Returns the local hostname
-    pub fn hostname(&self) -> &str {
+    /// Returns the local domain
+    pub fn domain(&self) -> &str {
         &self.domain
     }
 }

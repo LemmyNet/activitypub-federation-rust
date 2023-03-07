@@ -125,10 +125,10 @@ pub struct Webfinger {
     /// Links where further data about `subject` can be retrieved
     pub links: Vec<WebfingerLink>,
     /// Other Urls which identify the same actor as the `subject`
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<Url>,
     /// Additional data about the subject
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub properties: HashMap<Url, String>,
 }
 
@@ -143,7 +143,7 @@ pub struct WebfingerLink {
     /// Url pointing to the target resource
     pub href: Option<Url>,
     /// Additional data about the link
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub properties: HashMap<Url, String>,
 }
 

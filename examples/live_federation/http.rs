@@ -1,6 +1,6 @@
 use crate::{
+    database::DatabaseHandle,
     error::Error,
-    instance::DatabaseHandle,
     objects::person::{DbUser, Person, PersonAcceptedActivities},
 };
 use activitypub_federation::{
@@ -8,45 +8,28 @@ use activitypub_federation::{
         inbox::{receive_activity, ActivityData},
         json::ApubJson,
     },
-    config::{ApubMiddleware, FederationConfig, RequestData},
+    config::RequestData,
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name, Webfinger},
     protocol::context::WithContext,
     traits::ApubObject,
 };
 use axum::{
     extract::{Path, Query},
-    response::IntoResponse,
-    routing::{get, post},
+    response::{IntoResponse, Response},
     Json,
-    Router,
 };
 use axum_macros::debug_handler;
+use http::StatusCode;
 use serde::Deserialize;
-use std::net::ToSocketAddrs;
-use tracing::info;
 
-pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
-    let hostname = config.domain();
-    info!("Listening with axum on {hostname}");
-    let config = config.clone();
-    let app = Router::new()
-        .route("/:user/inbox", post(http_post_user_inbox))
-        .route("/:user", get(http_get_user))
-        .route("/.well-known/webfinger", get(webfinger))
-        .layer(ApubMiddleware::new(config));
-
-    let addr = hostname
-        .to_socket_addrs()?
-        .next()
-        .expect("Failed to lookup domain name");
-    let server = axum::Server::bind(&addr).serve(app.into_make_service());
-
-    actix_rt::spawn(server);
-    Ok(())
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{}", self.0)).into_response()
+    }
 }
 
 #[debug_handler]
-async fn http_get_user(
+pub async fn http_get_user(
     Path(name): Path<String>,
     data: RequestData<DatabaseHandle>,
 ) -> Result<ApubJson<WithContext<Person>>, Error> {
@@ -56,7 +39,7 @@ async fn http_get_user(
 }
 
 #[debug_handler]
-async fn http_post_user_inbox(
+pub async fn http_post_user_inbox(
     data: RequestData<DatabaseHandle>,
     activity_data: ActivityData,
 ) -> impl IntoResponse {
@@ -68,12 +51,12 @@ async fn http_post_user_inbox(
 }
 
 #[derive(Deserialize)]
-struct WebfingerQuery {
+pub struct WebfingerQuery {
     resource: String,
 }
 
 #[debug_handler]
-async fn webfinger(
+pub async fn webfinger(
     Query(query): Query<WebfingerQuery>,
     data: RequestData<DatabaseHandle>,
 ) -> Result<Json<Webfinger>, Error> {
