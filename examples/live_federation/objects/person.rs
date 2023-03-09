@@ -4,7 +4,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
-    protocol::public_key::PublicKey,
+    protocol::{public_key::PublicKey, verification::verify_domains_match},
     traits::{ActivityHandler, Actor, ApubObject},
 };
 use chrono::{Local, NaiveDateTime};
@@ -99,6 +99,15 @@ impl ApubObject for DbUser {
         })
     }
 
+    async fn verify(
+        apub: &Self::ApubType,
+        expected_domain: &Url,
+        _data: &RequestData<Self::DataType>,
+    ) -> Result<(), Self::Error> {
+        verify_domains_match(apub.id.inner(), expected_domain)?;
+        Ok(())
+    }
+
     async fn from_apub(
         apub: Self::ApubType,
         _data: &RequestData<Self::DataType>,
@@ -117,11 +126,15 @@ impl ApubObject for DbUser {
 }
 
 impl Actor for DbUser {
-    fn public_key(&self) -> &str {
+    fn public_key_pem(&self) -> &str {
         &self.public_key
     }
 
     fn inbox(&self) -> Url {
         self.inbox.clone()
+    }
+
+    fn id(&self) -> &Url {
+        self.ap_id.inner()
     }
 }

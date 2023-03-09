@@ -3,7 +3,7 @@ use activitypub_federation::{
     config::RequestData,
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
-    protocol::helpers::deserialize_one_or_many,
+    protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
     traits::ApubObject,
 };
 use serde::{Deserialize, Serialize};
@@ -71,6 +71,15 @@ impl ApubObject for DbPost {
             to: vec![public(), creator.followers_url()?],
             content: self.text,
         })
+    }
+
+    async fn verify(
+        apub: &Self::ApubType,
+        expected_domain: &Url,
+        _data: &RequestData<Self::DataType>,
+    ) -> Result<(), Self::Error> {
+        verify_domains_match(apub.id.inner(), expected_domain)?;
+        Ok(())
     }
 
     async fn from_apub(

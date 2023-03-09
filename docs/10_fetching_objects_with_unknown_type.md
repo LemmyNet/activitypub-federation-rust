@@ -44,6 +44,10 @@ impl ApubObject for SearchableDbObjects {
     ) -> Result<Self::ApubType, Self::Error> {
         unimplemented!();
     }
+    
+    async fn verify(apub: &Self::ApubType, expected_domain: &Url, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        Ok(())
+    }
 
     async fn from_apub(
         apub: Self::ApubType,

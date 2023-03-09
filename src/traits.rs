@@ -1,6 +1,6 @@
 //! Traits which need to be implemented for federated data types
 
-use crate::config::RequestData;
+use crate::{config::RequestData, protocol::public_key::PublicKey};
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use std::ops::Deref;
@@ -13,6 +13,7 @@ use url::Url;
 /// # use url::Url;
 /// # use activitypub_federation::protocol::public_key::PublicKey;
 /// # use activitypub_federation::config::RequestData;
+/// use activitypub_federation::protocol::verification::verify_domains_match;
 /// # use activitypub_federation::traits::ApubObject;
 /// # use activitypub_federation::traits::tests::{DbConnection, Person};
 /// # pub struct DbUser {
@@ -53,7 +54,13 @@ use url::Url;
 ///         })
 ///     }
 ///
-/// async fn from_apub(apub: Self::ApubType, data: &RequestData<Self::DataType>) -> Result<Self, Self::Error> {
+///     async fn verify(apub: &Self::ApubType, expected_domain: &Url, data: &RequestData<Self::DataType>,) -> Result<(), Self::Error> {
+///         verify_domains_match(apub.id.inner(), expected_domain)?;
+///         // additional application specific checks
+///         Ok(())
+///     }
+///
+///     async fn from_apub(apub: Self::ApubType, data: &RequestData<Self::DataType>) -> Result<Self, Self::Error> {
 ///         // Called when a remote object gets received over Activitypub. Validate and insert it
 ///         // into the database.
 ///
@@ -124,6 +131,19 @@ pub trait ApubObject: Sized {
         data: &RequestData<Self::DataType>,
     ) -> Result<Self::ApubType, Self::Error>;
 
+    /// Verifies that the received object is valid.
+    ///
+    /// You should check here that the domain of id matches `expected_domain`. Additionally you
+    /// should perform any application specific checks.
+    ///
+    /// It is necessary to use a separate method for this, because it might be used for activities
+    /// like `Delete/Note`, which shouldn't perform any database write for the inner `Note`.
+    async fn verify(
+        apub: &Self::ApubType,
+        expected_domain: &Url,
+        data: &RequestData<Self::DataType>,
+    ) -> Result<(), Self::Error>;
+
     /// Convert object from ActivityPub type to database type.
     ///
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
@@ -166,6 +186,10 @@ pub trait ApubObject: Sized {
 ///         self.actor.inner()
 ///     }
 ///
+///     async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+///         Ok(())
+///     }
+///
 ///     async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
 ///         let local_user = self.object.dereference(data).await?;
 ///         let follower = self.actor.dereference(data).await?;
@@ -189,6 +213,12 @@ pub trait ActivityHandler {
     /// `actor` field of activity
     fn actor(&self) -> &Url;
 
+    /// Verifies that the received activity is valid.
+    ///
+    /// This needs to be a separate method, because it might be used for activities
+    /// like `Undo/Follow`, which shouldn't perform any database write for the inner `Follow`.
+    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error>;
+
     /// Called when an activity is received.
     ///
     /// Should perform validation and possibly write action to the database. In case the activity
@@ -198,11 +228,22 @@ pub trait ActivityHandler {
 
 /// Trait to allow retrieving common Actor data.
 pub trait Actor: ApubObject {
+    /// `id` field of the actor
+    fn id(&self) -> &Url;
+
     /// The actor's public key for verifying signatures of incoming activities.
-    fn public_key(&self) -> &str;
+    ///
+    /// Use [generate_actor_keypair](crate::http_signatures::generate_actor_keypair) to create the
+    /// actor keypair.
+    fn public_key_pem(&self) -> &str;
 
     /// The inbox where activities for this user should be sent to
     fn inbox(&self) -> Url;
+
+    /// Generates a public key struct for use in the actor json representation
+    fn public_key(&self) -> PublicKey {
+        PublicKey::new(self.id().clone(), self.public_key_pem().to_string())
+    }
 
     /// The actor's shared inbox, if any
     fn shared_inbox(&self) -> Option<Url> {
@@ -219,7 +260,7 @@ pub trait Actor: ApubObject {
 #[async_trait]
 impl<T> ActivityHandler for Box<T>
 where
-    T: ActivityHandler + Send,
+    T: ActivityHandler + Send + Sync,
 {
     type DataType = T::DataType;
     type Error = T::Error;
@@ -230,6 +271,10 @@ where
 
     fn actor(&self) -> &Url {
         self.deref().actor()
+    }
+
+    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        (*self).verify(data).await
     }
 
     async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
@@ -247,7 +292,7 @@ pub mod tests {
     use crate::{
         fetch::object_id::ObjectId,
         http_signatures::{generate_actor_keypair, Keypair},
-        protocol::public_key::PublicKey,
+        protocol::{public_key::PublicKey, verification::verify_domains_match},
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};
     use anyhow::Error;
@@ -333,6 +378,15 @@ pub mod tests {
             })
         }
 
+        async fn verify(
+            apub: &Self::ApubType,
+            expected_domain: &Url,
+            _data: &RequestData<Self::DataType>,
+        ) -> Result<(), Self::Error> {
+            verify_domains_match(apub.id.inner(), expected_domain)?;
+            Ok(())
+        }
+
         async fn from_apub(
             apub: Self::ApubType,
             _data: &RequestData<Self::DataType>,
@@ -350,7 +404,11 @@ pub mod tests {
     }
 
     impl Actor for DbUser {
-        fn public_key(&self) -> &str {
+        fn id(&self) -> &Url {
+            &self.apub_id
+        }
+
+        fn public_key_pem(&self) -> &str {
             &self.public_key
         }
 
@@ -382,6 +440,10 @@ pub mod tests {
             self.actor.inner()
         }
 
+        async fn verify(&self, _: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+            Ok(())
+        }
+
         async fn receive(self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
             Ok(())
         }
@@ -410,6 +472,14 @@ pub mod tests {
             self,
             _: &RequestData<Self::DataType>,
         ) -> Result<Self::ApubType, Self::Error> {
+            todo!()
+        }
+
+        async fn verify(
+            _: &Self::ApubType,
+            _: &Url,
+            _: &RequestData<Self::DataType>,
+        ) -> Result<(), Self::Error> {
             todo!()
         }
 

@@ -42,10 +42,11 @@ where
         request.headers(),
         request.method(),
         request.uri(),
-        actor.public_key(),
+        actor.public_key_pem(),
     )?;
 
     debug!("Receiving activity {}", activity.id().to_string());
+    activity.verify(data).await?;
     activity.receive(data).await?;
     Ok(HttpResponse::Ok().finish())
 }

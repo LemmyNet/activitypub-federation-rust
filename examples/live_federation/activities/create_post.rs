@@ -65,6 +65,11 @@ impl ActivityHandler for CreatePost {
         self.actor.inner()
     }
 
+    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        DbPost::verify(&self.object, &self.id, data).await?;
+        Ok(())
+    }
+
     async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::from_apub(self.object, data).await?;
         Ok(())

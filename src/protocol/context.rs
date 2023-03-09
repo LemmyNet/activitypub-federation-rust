@@ -62,7 +62,7 @@ impl<T> WithContext<T> {
 #[async_trait::async_trait]
 impl<T> ActivityHandler for WithContext<T>
 where
-    T: ActivityHandler + Send,
+    T: ActivityHandler + Send + Sync,
 {
     type DataType = <T as ActivityHandler>::DataType;
     type Error = <T as ActivityHandler>::Error;
@@ -73,6 +73,10 @@ where
 
     fn actor(&self) -> &Url {
         self.inner.actor()
+    }
+
+    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        self.inner.verify(data).await
     }
 
     async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
