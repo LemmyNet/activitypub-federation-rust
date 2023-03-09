@@ -44,15 +44,15 @@ where
         .dereference(data)
         .await?;
 
-    // TODO: why do errors here not get returned over http?
     verify_signature(
         &activity_data.headers,
         &activity_data.method,
         &activity_data.uri,
-        actor.public_key(),
+        actor.public_key_pem(),
     )?;
 
     debug!("Receiving activity {}", activity.id().to_string());
+    activity.verify(data).await?;
     activity.receive(data).await?;
     Ok(())
 }

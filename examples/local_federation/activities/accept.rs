@@ -42,6 +42,10 @@ impl ActivityHandler for Accept {
         self.actor.inner()
     }
 
+    async fn verify(&self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     async fn receive(self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }

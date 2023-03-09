@@ -148,6 +148,7 @@ where
 
         let res2 = res?;
 
+        Kind::verify(&res2, self.inner(), data).await?;
         Kind::from_apub(res2, data).await
     }
 }

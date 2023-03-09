@@ -36,6 +36,10 @@ impl ActivityHandler for Follow {
     fn actor(&self) -> &Url {
         self.actor.inner()
     }
+    
+    async fn verify(&self,  _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+        Ok(())
+    }
 
     async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
         let actor = self.actor.dereference(data).await?;
