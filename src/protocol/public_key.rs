@@ -21,7 +21,7 @@ impl PublicKey {
     /// Create a new [PublicKey] struct for the `owner` with `public_key_pem`.
     ///
     /// It uses an standard key id of `{actor_id}#main-key`
-    pub fn new(owner: Url, public_key_pem: String) -> Self {
+    pub(crate) fn new(owner: Url, public_key_pem: String) -> Self {
         let id = main_key_id(&owner);
         PublicKey {
             id,

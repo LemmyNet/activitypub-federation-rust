@@ -5,9 +5,21 @@ use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
+    str::FromStr,
 };
 use url::Url;
 
+impl<T> FromStr for ObjectId<T>
+where
+    T: ApubObject + Send + 'static,
+    for<'de2> <T as ApubObject>::ApubType: Deserialize<'de2>,
+{
+    type Err = url::ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        ObjectId::parse(s)
+    }
+}
 /// Typed wrapper for Activitypub Object ID which helps with dereferencing and caching.
 ///
 /// It provides convenient methods for fetching the object from remote server or local database.
@@ -32,7 +44,7 @@ use url::Url;
 ///     .app_data(db_connection)
 ///     .build()?;
 /// let request_data = config.to_request_data();
-/// let object_id = ObjectId::<DbUser>::new("https://lemmy.ml/u/nutomic")?;
+/// let object_id = ObjectId::<DbUser>::parse("https://lemmy.ml/u/nutomic")?;
 /// // Attempt to fetch object from local database or fall back to remote server
 /// let user = object_id.dereference(&request_data).await;
 /// assert!(user.is_ok());
@@ -55,7 +67,7 @@ where
     for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
-    pub fn new<T>(url: T) -> Result<Self, url::ParseError>
+    pub fn parse<T>(url: T) -> Result<Self, url::ParseError>
     where
         T: TryInto<Url>,
         url::ParseError: From<<T as TryInto<Url>>::Error>,
@@ -238,7 +250,7 @@ pub mod tests {
 
     #[test]
     fn test_deserialize() {
-        let id = ObjectId::<DbUser>::new("http://test.com/").unwrap();
+        let id = ObjectId::<DbUser>::parse("http://test.com/").unwrap();
 
         let string = serde_json::to_string(&id).unwrap();
         assert_eq!("\"http://test.com/\"", string);

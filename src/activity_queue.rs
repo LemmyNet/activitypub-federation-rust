@@ -7,7 +7,7 @@ use crate::{
     error::Error,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
-    traits::ActivityHandler,
+    traits::{ActivityHandler, Actor},
     APUB_JSON_CONTENT_TYPE,
 };
 use anyhow::anyhow;
@@ -40,9 +40,9 @@ use url::Url;
 ///                  signature. Generated with [crate::http_signatures::generate_actor_keypair].
 /// - `inboxes`: List of actor inboxes that should receive the activity. Should be built by calling
 ///              [crate::traits::Actor::shared_inbox_or_inbox] for each target actor.
-pub async fn send_activity<Activity, Datatype>(
+pub async fn send_activity<Activity, Datatype, ActorType>(
     activity: Activity,
-    private_key: String,
+    actor: ActorType,
     inboxes: Vec<Url>,
     data: &RequestData<Datatype>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
@@ -50,11 +50,14 @@ where
     Activity: ActivityHandler + Serialize,
     <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     Datatype: Clone,
+    ActorType: Actor,
+    for<'de2> ActorType::ApubType: Deserialize<'de2>,
 {
     let config = &data.config;
     let actor_id = activity.actor();
     let activity_id = activity.id();
     let activity_serialized = serde_json::to_string_pretty(&activity)?;
+    let private_key = actor.private_key_pem().unwrap();
     let inboxes: Vec<Url> = inboxes
         .into_iter()
         .unique()

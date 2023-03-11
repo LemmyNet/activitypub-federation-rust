@@ -112,8 +112,8 @@ mod test {
         let request_builder =
             ClientWithMiddleware::from(Client::default()).post("https://example.com/inbox");
         let activity = Follow {
-            actor: ObjectId::new("http://localhost:123").unwrap(),
-            object: ObjectId::new("http://localhost:124").unwrap(),
+            actor: ObjectId::parse("http://localhost:123").unwrap(),
+            object: ObjectId::parse("http://localhost:124").unwrap(),
             kind: Default::default(),
             id: "http://localhost:123/1".try_into().unwrap(),
         };

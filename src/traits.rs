@@ -227,7 +227,7 @@ pub trait ActivityHandler {
 }
 
 /// Trait to allow retrieving common Actor data.
-pub trait Actor: ApubObject {
+pub trait Actor: ApubObject + Send + 'static {
     /// `id` field of the actor
     fn id(&self) -> &Url;
 
@@ -236,6 +236,12 @@ pub trait Actor: ApubObject {
     /// Use [generate_actor_keypair](crate::http_signatures::generate_actor_keypair) to create the
     /// actor keypair.
     fn public_key_pem(&self) -> &str;
+
+    /// The actor's private key for signing outgoing activities.
+    ///
+    /// Use [generate_actor_keypair](crate::http_signatures::generate_actor_keypair) to create the
+    /// actor keypair.
+    fn private_key_pem(&self) -> Option<String>;
 
     /// The inbox where activities for this user should be sent to
     fn inbox(&self) -> Url;
@@ -410,6 +416,10 @@ pub mod tests {
 
         fn public_key_pem(&self) -> &str {
             &self.public_key
+        }
+
+        fn private_key_pem(&self) -> Option<String> {
+            self.private_key.clone()
         }
 
         fn inbox(&self) -> Url {
