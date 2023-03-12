@@ -5,7 +5,7 @@ use crate::{
     objects::person::DbUser,
 };
 use activitypub_federation::{
-    config::RequestData,
+    config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::FollowType,
     traits::{ActivityHandler, Actor},
@@ -47,13 +47,13 @@ impl ActivityHandler for Follow {
         self.actor.inner()
     }
 
-    async fn verify(&self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(&self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
     // Ignore clippy false positive: https://github.com/rust-lang/rust-clippy/issues/6446
     #[allow(clippy::await_holding_lock)]
-    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         // add to followers
         let local_user = {
             let mut users = data.users.lock().unwrap();

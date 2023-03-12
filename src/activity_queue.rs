@@ -3,7 +3,7 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    config::RequestData,
+    config::Data,
     error::Error,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
@@ -42,16 +42,15 @@ use url::Url;
 ///              [crate::traits::Actor::shared_inbox_or_inbox] for each target actor.
 pub async fn send_activity<Activity, Datatype, ActorType>(
     activity: Activity,
-    actor: ActorType,
+    actor: &ActorType,
     inboxes: Vec<Url>,
-    data: &RequestData<Datatype>,
+    data: &Data<Datatype>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler + Serialize,
     <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     Datatype: Clone,
     ActorType: Actor,
-    for<'de2> ActorType::ApubType: Deserialize<'de2>,
 {
     let config = &data.config;
     let actor_id = activity.actor();

@@ -19,11 +19,7 @@
 //! Ok::<(), serde_json::error::Error>(())
 //! ```
 
-use crate::{
-    config::RequestData,
-    protocol::helpers::deserialize_one_or_many,
-    traits::ActivityHandler,
-};
+use crate::{config::Data, protocol::helpers::deserialize_one_or_many, traits::ActivityHandler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
@@ -75,11 +71,11 @@ where
         self.inner.actor()
     }
 
-    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         self.inner.verify(data).await
     }
 
-    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         self.inner.receive(data).await
     }
 }

@@ -11,7 +11,7 @@ Activitypub propagates actions across servers using `Activities`. For this each 
 # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 # use activitystreams_kinds::activity::FollowType;
 # use activitypub_federation::traits::ActivityHandler;
-# use activitypub_federation::config::RequestData;
+# use activitypub_federation::config::Data;
 # async fn send_accept() -> Result<(), Error> { Ok(()) }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -37,11 +37,11 @@ impl ActivityHandler for Follow {
         self.actor.inner()
     }
     
-    async fn verify(&self,  _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(&self,  _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         let actor = self.actor.dereference(data).await?;
         let followed = self.object.dereference(data).await?;
         data.add_follower(followed, actor).await?;
@@ -57,7 +57,7 @@ Next its time to setup the actual HTTP handler for the inbox. For this we first 
 ```
 # use axum::response::IntoResponse;
 # use activitypub_federation::axum::inbox::{ActivityData, receive_activity};
-# use activitypub_federation::config::RequestData;
+# use activitypub_federation::config::Data;
 # use activitypub_federation::protocol::context::WithContext;
 # use activitypub_federation::traits::ActivityHandler;
 # use activitypub_federation::traits::tests::{DbConnection, DbUser, Follow};
@@ -72,7 +72,7 @@ pub enum PersonAcceptedActivities {
 }
 
 async fn http_post_user_inbox(
-    data: RequestData<DbConnection>,
+    data: Data<DbConnection>,
     activity_data: ActivityData,
 ) -> impl IntoResponse {
     receive_activity::<WithContext<PersonAcceptedActivities>, DbUser, DbConnection>(

@@ -7,7 +7,7 @@ use crate::{
 };
 use activitypub_federation::{
     activity_queue::send_activity,
-    config::RequestData,
+    config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::{context::WithContext, helpers::deserialize_one_or_many},
@@ -29,11 +29,7 @@ pub struct CreatePost {
 }
 
 impl CreatePost {
-    pub async fn send(
-        note: Note,
-        inbox: Url,
-        data: &RequestData<DatabaseHandle>,
-    ) -> Result<(), Error> {
+    pub async fn send(note: Note, inbox: Url, data: &Data<DatabaseHandle>) -> Result<(), Error> {
         print!("Sending reply to {}", &note.attributed_to);
         let create = CreatePost {
             actor: note.attributed_to.clone(),
@@ -43,11 +39,7 @@ impl CreatePost {
             id: generate_object_id(data.domain())?,
         };
         let create_with_context = WithContext::new_default(create);
-        let private_key = data
-            .local_user()
-            .private_key
-            .expect("local user always has private key");
-        send_activity(create_with_context, private_key, vec![inbox], data).await?;
+        send_activity(create_with_context, &data.local_user(), vec![inbox], data).await?;
         Ok(())
     }
 }
@@ -65,12 +57,12 @@ impl ActivityHandler for CreatePost {
         self.actor.inner()
     }
 
-    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::verify(&self.object, &self.id, data).await?;
         Ok(())
     }
 
-    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::from_apub(self.object, data).await?;
         Ok(())
     }

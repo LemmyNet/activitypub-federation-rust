@@ -3,7 +3,7 @@
 #![doc = include_str!("../../docs/08_receiving_activities.md")]
 
 use crate::{
-    config::RequestData,
+    config::Data,
     error::Error,
     fetch::object_id::ObjectId,
     http_signatures::{verify_inbox_hash, verify_signature},
@@ -23,7 +23,7 @@ use tracing::debug;
 /// Handles incoming activities, verifying HTTP signatures and other checks
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     activity_data: ActivityData,
-    data: &RequestData<Datatype>,
+    data: &Data<Datatype>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,

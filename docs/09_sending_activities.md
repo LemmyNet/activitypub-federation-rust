@@ -17,17 +17,16 @@ To send an activity we need to initialize our previously defined struct, and pic
 #     .app_data(db_connection)
 #     .build()?;
 # let data = config.to_request_data();
+# let sender = DB_USER.clone();
 # let recipient = DB_USER.clone();
-// Each actor has a keypair. Generate it on signup and store it in the database.
-let keypair = generate_actor_keypair()?;
 let activity = Follow {
-    actor: ObjectId::new("https://lemmy.ml/u/nutomic")?,
+    actor: ObjectId::parse("https://lemmy.ml/u/nutomic")?,
     object: recipient.apub_id.clone().into(),
     kind: Default::default(),
     id: "https://lemmy.ml/activities/321".try_into()?
 };
 let inboxes = vec![recipient.shared_inbox_or_inbox()];
-send_activity(activity, keypair.private_key, inboxes, &data).await?;
+send_activity(activity, &sender, inboxes, &data).await?;
 # Ok::<(), anyhow::Error>(())
 # }).unwrap()
 ```

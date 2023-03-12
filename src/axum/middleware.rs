@@ -1,4 +1,4 @@
-use crate::config::{ApubMiddleware, FederationConfig, RequestData};
+use crate::config::{ApubMiddleware, Data, FederationConfig};
 use axum::{async_trait, body::Body, extract::FromRequestParts, http::Request, response::Response};
 use http::{request::Parts, StatusCode};
 use std::task::{Context, Poll};
@@ -15,7 +15,7 @@ impl<S, T: Clone> Layer<S> for ApubMiddleware<T> {
     }
 }
 
-/// Passes [FederationConfig] to HTTP handlers, converting it to [RequestData] in the process
+/// Passes [FederationConfig] to HTTP handlers, converting it to [Data] in the process
 #[doc(hidden)]
 #[derive(Clone)]
 pub struct ApubService<S, T: Clone> {
@@ -44,7 +44,7 @@ where
 }
 
 #[async_trait]
-impl<S, T: Clone + 'static> FromRequestParts<S> for RequestData<T>
+impl<S, T: Clone + 'static> FromRequestParts<S> for Data<T>
 where
     S: Send + Sync,
     T: Send + Sync,

@@ -6,7 +6,7 @@ use crate::{
     objects::person::DbUser,
 };
 use activitypub_federation::{
-    config::RequestData,
+    config::Data,
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
@@ -53,22 +53,19 @@ impl ApubObject for DbPost {
 
     async fn read_from_apub_id(
         _object_id: Url,
-        _data: &RequestData<Self::DataType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         Ok(None)
     }
 
-    async fn into_apub(
-        self,
-        _data: &RequestData<Self::DataType>,
-    ) -> Result<Self::ApubType, Self::Error> {
+    async fn into_apub(self, _data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
         unimplemented!()
     }
 
     async fn verify(
         apub: &Self::ApubType,
         expected_domain: &Url,
-        _data: &RequestData<Self::DataType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
         verify_domains_match(apub.id.inner(), expected_domain)?;
         Ok(())
@@ -76,7 +73,7 @@ impl ApubObject for DbPost {
 
     async fn from_apub(
         apub: Self::ApubType,
-        data: &RequestData<Self::DataType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         println!(
             "Received post with content {} and id {}",

@@ -5,7 +5,7 @@ use crate::{
 };
 use activitypub_federation::{
     actix_web::inbox::receive_activity,
-    config::{ApubMiddleware, FederationConfig, RequestData},
+    config::{ApubMiddleware, Data, FederationConfig},
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name},
     protocol::context::WithContext,
     traits::ApubObject,
@@ -36,7 +36,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
 /// Handles requests to fetch user json over HTTP
 pub async fn http_get_user(
     user_name: web::Path<String>,
-    data: RequestData<DatabaseHandle>,
+    data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
     let db_user = data.local_user();
     if user_name.into_inner() == db_user.name {
@@ -53,7 +53,7 @@ pub async fn http_get_user(
 pub async fn http_post_user_inbox(
     request: HttpRequest,
     body: Bytes,
-    data: RequestData<DatabaseHandle>,
+    data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
     receive_activity::<WithContext<PersonAcceptedActivities>, DbUser, DatabaseHandle>(
         request, body, &data,
@@ -68,7 +68,7 @@ pub struct WebfingerQuery {
 
 pub async fn webfinger(
     query: web::Query<WebfingerQuery>,
-    data: RequestData<DatabaseHandle>,
+    data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
     let db_user = data.read_user(&name)?;

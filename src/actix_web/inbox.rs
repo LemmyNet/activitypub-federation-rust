@@ -1,7 +1,7 @@
 //! Handles incoming activities, verifying HTTP signatures and other checks
 
 use crate::{
-    config::RequestData,
+    config::Data,
     error::Error,
     fetch::object_id::ObjectId,
     http_signatures::{verify_inbox_hash, verify_signature},
@@ -17,7 +17,7 @@ use tracing::debug;
 pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
-    data: &RequestData<Datatype>,
+    data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,

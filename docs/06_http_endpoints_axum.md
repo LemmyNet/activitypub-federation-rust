@@ -9,7 +9,7 @@ The next step is to allow other servers to fetch our actors and objects. For thi
 # use activitypub_federation::axum::json::ApubJson;
 # use anyhow::Error;
 # use activitypub_federation::traits::tests::Person;
-# use activitypub_federation::config::RequestData;
+# use activitypub_federation::config::Data;
 # use activitypub_federation::traits::tests::DbConnection;
 # use axum::extract::Path;
 # use activitypub_federation::config::ApubMiddleware;
@@ -20,7 +20,7 @@ The next step is to allow other servers to fetch our actors and objects. For thi
 # use axum::TypedHeader;
 # use axum::response::IntoResponse;
 # use http::HeaderMap;
-# async fn generate_user_html(_: String, _: RequestData<DbConnection>) -> axum::response::Response { todo!() }
+# async fn generate_user_html(_: String, _: Data<DbConnection>) -> axum::response::Response { todo!() }
 
 #[actix_rt::main]
 async fn main() -> Result<(), Error> {
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Error> {
 async fn http_get_user(
     header_map: HeaderMap,
     Path(name): Path<String>,
-    data: RequestData<DbConnection>,
+    data: Data<DbConnection>,
 ) -> impl IntoResponse {
     let accept = header_map.get("accept").map(|v| v.to_str().unwrap());
     if accept == Some(APUB_JSON_CONTENT_TYPE) {
@@ -71,7 +71,7 @@ To do this we can implement the following HTTP handler which must be bound to pa
 ```rust
 # use serde::Deserialize;
 # use axum::{extract::Query, Json};
-# use activitypub_federation::config::RequestData;
+# use activitypub_federation::config::Data;
 # use activitypub_federation::fetch::webfinger::Webfinger;
 # use anyhow::Error;
 # use activitypub_federation::traits::tests::DbConnection;
@@ -85,7 +85,7 @@ struct WebfingerQuery {
 
 async fn webfinger(
     Query(query): Query<WebfingerQuery>,
-    data: RequestData<DbConnection>,
+    data: Data<DbConnection>,
 ) -> Result<Json<Webfinger>, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
     let db_user = data.read_local_user(name).await?;

@@ -1,6 +1,6 @@
 use crate::{error::Error, generate_object_id, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
-    config::RequestData,
+    config::Data,
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
@@ -49,7 +49,7 @@ impl ApubObject for DbPost {
 
     async fn read_from_apub_id(
         object_id: Url,
-        data: &RequestData<Self::DataType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         let posts = data.posts.lock().unwrap();
         let res = posts
@@ -59,10 +59,7 @@ impl ApubObject for DbPost {
         Ok(res)
     }
 
-    async fn into_apub(
-        self,
-        data: &RequestData<Self::DataType>,
-    ) -> Result<Self::ApubType, Self::Error> {
+    async fn into_apub(self, data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
         let creator = self.creator.dereference_local(data).await?;
         Ok(Note {
             kind: Default::default(),
@@ -76,7 +73,7 @@ impl ApubObject for DbPost {
     async fn verify(
         apub: &Self::ApubType,
         expected_domain: &Url,
-        _data: &RequestData<Self::DataType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
         verify_domains_match(apub.id.inner(), expected_domain)?;
         Ok(())
@@ -84,7 +81,7 @@ impl ApubObject for DbPost {
 
     async fn from_apub(
         apub: Self::ApubType,
-        data: &RequestData<Self::DataType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         let post = DbPost {
             text: apub.content,
