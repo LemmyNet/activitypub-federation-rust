@@ -3,6 +3,7 @@
 use crate::{config::Data, protocol::public_key::PublicKey};
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
+use serde::Deserialize;
 use std::{fmt::Debug, ops::Deref};
 use url::Url;
 
@@ -151,8 +152,8 @@ pub trait ApubObject: Sized {
     /// Convert object from ActivityPub type to database type.
     ///
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
-    /// should do verification and write the received object to database. Note that there is no
-    /// distinction between create and update, so an `upsert` operation should be used.
+    /// should write the received object to database. Note that there is no distinction between
+    /// create and update, so an `upsert` operation should be used.
     async fn from_apub(
         apub: Self::ApubType,
         data: &Data<Self::DataType>,
@@ -252,7 +253,7 @@ pub trait Actor: ApubObject + Send + 'static {
 
     /// Generates a public key struct for use in the actor json representation
     fn public_key(&self) -> PublicKey {
-        PublicKey::new(self.id().clone(), self.public_key_pem().to_string())
+        PublicKey::new(self.id(), self.public_key_pem().to_string())
     }
 
     /// The actor's shared inbox, if any
@@ -301,17 +302,13 @@ pub trait ApubCollection: Sized {
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
     /// The type of protocol struct which gets sent over network to federate this database struct.
-    type ApubType;
+    type ApubType: for<'de2> Deserialize<'de2>;
     /// Error type returned by handler methods
     type Error;
 
-    /// Convert database type to Activitypub type.
-    ///
-    /// Called when a local object gets fetched by another instance over HTTP, or when an object
-    /// gets sent in an activity.
-    async fn into_apub(
-        self,
-        owner: Self::Owner,
+    /// Reads local collection from database and returns it as Activitypub JSON.
+    async fn read_local(
+        owner: &Self::Owner,
         data: &Data<Self::DataType>,
     ) -> Result<Self::ApubType, Self::Error>;
 
@@ -319,12 +316,8 @@ pub trait ApubCollection: Sized {
     ///
     /// You should check here that the domain of id matches `expected_domain`. Additionally you
     /// should perform any application specific checks.
-    ///
-    /// It is necessary to use a separate method for this, because it might be used for activities
-    /// like `Delete/Note`, which shouldn't perform any database write for the inner `Note`.
     async fn verify(
         apub: &Self::ApubType,
-        owner: Self::Owner,
         expected_domain: &Url,
         data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error>;
@@ -332,11 +325,11 @@ pub trait ApubCollection: Sized {
     /// Convert object from ActivityPub type to database type.
     ///
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
-    /// should do verification and write the received object to database. Note that there is no
-    /// distinction between create and update, so an `upsert` operation should be used.
+    /// should also write the received object to database. Note that there is no distinction
+    /// between create and update, so an `upsert` operation should be used.
     async fn from_apub(
         apub: Self::ApubType,
-        owner: Self::Owner,
+        owner: &Self::Owner,
         data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error>;
 }

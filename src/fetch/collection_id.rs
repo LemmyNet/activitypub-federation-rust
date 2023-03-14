@@ -1,4 +1,4 @@
-use crate::{error::Error, traits::ApubCollection};
+use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::ApubCollection};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -6,16 +6,19 @@ use std::{
 };
 use url::Url;
 
-/// TODO: implement and document this, update trait docs
-/// TODO: which handlers need to receive owner, and should it be simply an url or what?
-/// TODO: current trait impl without read_from_apub_id() method wont work for http handlers
-///       -> maybe remove method into_apub() and instead add read_local() (reads from db and
-///          directly returns serialized collection)
+/// Typed wrapper for Activitypub Collection ID which helps with dereferencing.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct CollectionId<Kind>(Box<Url>, PhantomData<Kind>);
+pub struct CollectionId<Kind>(Box<Url>, PhantomData<Kind>)
+where
+    Kind: ApubCollection,
+    for<'de2> <Kind as ApubCollection>::ApubType: Deserialize<'de2>;
 
-impl<Kind> CollectionId<Kind> {
+impl<Kind> CollectionId<Kind>
+where
+    Kind: ApubCollection,
+    for<'de2> <Kind as ApubCollection>::ApubType: Deserialize<'de2>,
+{
     /// Construct a new CollectionId instance
     pub fn parse<T>(url: T) -> Result<Self, url::ParseError>
     where
@@ -25,14 +28,30 @@ impl<Kind> CollectionId<Kind> {
         Ok(Self(Box::new(url.try_into()?), PhantomData::<Kind>))
     }
 
-    /// TODO
-    pub async fn dereference<T>(&self, _: T) -> Result<Kind, Error> {
-        todo!()
+    /// Fetches collection over HTTP
+    ///
+    /// Unlike [ObjectId::fetch](crate::fetch::object_id::ObjectId::fetch) this method doesn't do
+    /// any caching.
+    pub async fn dereference(
+        &self,
+        owner: &<Kind as ApubCollection>::Owner,
+        data: &Data<<Kind as ApubCollection>::DataType>,
+    ) -> Result<Kind, <Kind as ApubCollection>::Error>
+    where
+        <Kind as ApubCollection>::Error: From<Error>,
+    {
+        let apub = fetch_object_http(&self.0, data).await?;
+        Kind::verify(&apub, &self.0, data).await?;
+        Kind::from_apub(apub, owner, data).await
     }
 }
 
 /// Need to implement clone manually, to avoid requiring Kind to be Clone
-impl<Kind> Clone for CollectionId<Kind> {
+impl<Kind> Clone for CollectionId<Kind>
+where
+    Kind: ApubCollection,
+    for<'de2> <Kind as ApubCollection>::ApubType: serde::Deserialize<'de2>,
+{
     fn clone(&self) -> Self {
         CollectionId(self.0.clone(), self.1)
     }

@@ -79,3 +79,15 @@ where
         self.inner.receive(data).await
     }
 }
+
+impl<T> Clone for WithContext<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            context: self.context.clone(),
+            inner: self.inner.clone(),
+        }
+    }
+}

@@ -56,7 +56,9 @@ where
     let actor_id = activity.actor();
     let activity_id = activity.id();
     let activity_serialized = serde_json::to_string_pretty(&activity)?;
-    let private_key = actor.private_key_pem().unwrap();
+    let private_key = actor
+        .private_key_pem()
+        .expect("Actor for sending activity has private key");
     let inboxes: Vec<Url> = inboxes
         .into_iter()
         .unique()
