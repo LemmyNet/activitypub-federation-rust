@@ -30,13 +30,18 @@ where
     <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
     Datatype: Clone,
 {
+    dbg!(1);
     verify_inbox_hash(request.headers().get("Digest"), &body)?;
+    dbg!(2);
 
     let activity: Activity = serde_json::from_slice(&body)?;
+    dbg!(3);
     data.config.verify_url_and_domain(&activity).await?;
+    dbg!(4);
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)
         .await?;
+    dbg!(5);
 
     verify_signature(
         request.headers(),
@@ -44,6 +49,7 @@ where
         request.uri(),
         actor.public_key_pem(),
     )?;
+    dbg!(6);
 
     debug!("Receiving activity {}", activity.id().to_string());
     activity.verify(data).await?;
