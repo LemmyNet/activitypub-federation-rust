@@ -285,7 +285,7 @@ where
     }
 
     async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
-        (*self).verify(data).await
+        self.deref().verify(data).await
     }
 
     async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
