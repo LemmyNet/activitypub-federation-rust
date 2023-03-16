@@ -1,5 +1,5 @@
 use crate::{
-    config::RequestData,
+    config::Data,
     error::{Error, Error::WebfingerResolveFailed},
     fetch::{fetch_object_http, object_id::ObjectId},
     traits::{Actor, ApubObject},
@@ -19,7 +19,7 @@ use url::Url;
 /// is then fetched using [ObjectId::dereference], and the result returned.
 pub async fn webfinger_resolve_actor<T: Clone, Kind>(
     identifier: &str,
-    data: &RequestData<T>,
+    data: &Data<T>,
 ) -> Result<Kind, <Kind as ApubObject>::Error>
 where
     Kind: ApubObject + Actor + Send + 'static + ApubObject<DataType = T>,
@@ -66,7 +66,7 @@ where
 /// request. For a parameter of the form `acct:gargron@mastodon.social` it returns `gargron`.
 ///
 /// Returns an error if query doesn't match local domain.
-pub fn extract_webfinger_name<T>(query: &str, data: &RequestData<T>) -> Result<String, Error>
+pub fn extract_webfinger_name<T>(query: &str, data: &Data<T>) -> Result<String, Error>
 where
     T: Clone,
 {
@@ -118,7 +118,7 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
 }
 
 /// A webfinger response with information about a `Person` or other type of actor.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Webfinger {
     /// The actor which is described here, for example `acct:LemmyDev@mastodon.social`
     pub subject: String,
@@ -133,7 +133,7 @@ pub struct Webfinger {
 }
 
 /// A single link included as part of a [Webfinger] response.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 pub struct WebfingerLink {
     /// Relationship of the link, such as `self` or `http://webfinger.net/rel/profile-page`
     pub rel: Option<String>,

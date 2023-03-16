@@ -1,4 +1,4 @@
-use crate::config::{ApubMiddleware, FederationConfig, RequestData};
+use crate::config::{ApubMiddleware, Data, FederationConfig};
 use actix_web::{
     dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
@@ -29,7 +29,7 @@ where
     }
 }
 
-/// Passes [FederationConfig] to HTTP handlers, converting it to [RequestData] in the process
+/// Passes [FederationConfig] to HTTP handlers, converting it to [Data] in the process
 #[doc(hidden)]
 pub struct ApubService<S, T: Clone>
 where
@@ -61,7 +61,7 @@ where
     }
 }
 
-impl<T: Clone + 'static> FromRequest for RequestData<T> {
+impl<T: Clone + 'static> FromRequest for Data<T> {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 

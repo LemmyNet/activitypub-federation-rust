@@ -1,6 +1,6 @@
 use crate::{activities::follow::Follow, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
-    config::RequestData,
+    config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::AcceptType,
     traits::ActivityHandler,
@@ -42,11 +42,11 @@ impl ActivityHandler for Accept {
         self.actor.inner()
     }
 
-    async fn verify(&self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(&self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn receive(self, _data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 }

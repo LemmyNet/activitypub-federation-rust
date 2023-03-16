@@ -7,7 +7,7 @@ use crate::{
 };
 use activitypub_federation::{
     activity_queue::send_activity,
-    config::RequestData,
+    config::Data,
     fetch::{object_id::ObjectId, webfinger::webfinger_resolve_actor},
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
@@ -81,15 +81,7 @@ impl DbUser {
         Ok(Url::parse(&format!("{}/followers", self.ap_id.inner()))?)
     }
 
-    fn public_key(&self) -> PublicKey {
-        PublicKey::new(self.ap_id.clone().into_inner(), self.public_key.clone())
-    }
-
-    pub async fn follow(
-        &self,
-        other: &str,
-        data: &RequestData<DatabaseHandle>,
-    ) -> Result<(), Error> {
+    pub async fn follow(&self, other: &str, data: &Data<DatabaseHandle>) -> Result<(), Error> {
         let other: DbUser = webfinger_resolve_actor(other, data).await?;
         let id = generate_object_id(data.domain())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
@@ -98,11 +90,7 @@ impl DbUser {
         Ok(())
     }
 
-    pub async fn post(
-        &self,
-        post: DbPost,
-        data: &RequestData<DatabaseHandle>,
-    ) -> Result<(), Error> {
+    pub async fn post(&self, post: DbPost, data: &Data<DatabaseHandle>) -> Result<(), Error> {
         let id = generate_object_id(data.domain())?;
         let create = CreatePost::new(post.into_apub(data).await?, id.clone());
         let mut inboxes = vec![];
@@ -118,20 +106,14 @@ impl DbUser {
         &self,
         activity: Activity,
         recipients: Vec<Url>,
-        data: &RequestData<DatabaseHandle>,
+        data: &Data<DatabaseHandle>,
     ) -> Result<(), <Activity as ActivityHandler>::Error>
     where
         Activity: ActivityHandler + Serialize + Debug + Send + Sync,
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
-        send_activity(
-            activity,
-            self.private_key.clone().unwrap(),
-            recipients,
-            data,
-        )
-        .await?;
+        send_activity(activity, self, recipients, data).await?;
         Ok(())
     }
 }
@@ -148,7 +130,7 @@ impl ApubObject for DbUser {
 
     async fn read_from_apub_id(
         object_id: Url,
-        data: &RequestData<Self::DataType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         let users = data.users.lock().unwrap();
         let res = users
@@ -158,10 +140,7 @@ impl ApubObject for DbUser {
         Ok(res)
     }
 
-    async fn into_apub(
-        self,
-        _data: &RequestData<Self::DataType>,
-    ) -> Result<Self::ApubType, Self::Error> {
+    async fn into_apub(self, _data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
         Ok(Person {
             preferred_username: self.name.clone(),
             kind: Default::default(),
@@ -174,7 +153,7 @@ impl ApubObject for DbUser {
     async fn verify(
         apub: &Self::ApubType,
         expected_domain: &Url,
-        _data: &RequestData<Self::DataType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
         verify_domains_match(apub.id.inner(), expected_domain)?;
         Ok(())
@@ -182,7 +161,7 @@ impl ApubObject for DbUser {
 
     async fn from_apub(
         apub: Self::ApubType,
-        data: &RequestData<Self::DataType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         let user = DbUser {
             name: apub.preferred_username,
@@ -201,12 +180,16 @@ impl ApubObject for DbUser {
 }
 
 impl Actor for DbUser {
-    fn id(&self) -> &Url {
-        self.ap_id.inner()
+    fn id(&self) -> Url {
+        self.ap_id.inner().clone()
     }
 
     fn public_key_pem(&self) -> &str {
         &self.public_key
+    }
+
+    fn private_key_pem(&self) -> Option<String> {
+        self.private_key.clone()
     }
 
     fn inbox(&self) -> Url {

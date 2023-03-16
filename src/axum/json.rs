@@ -5,10 +5,10 @@
 //! # use axum::extract::Path;
 //! # use activitypub_federation::axum::json::ApubJson;
 //! # use activitypub_federation::protocol::context::WithContext;
-//! # use activitypub_federation::config::RequestData;
+//! # use activitypub_federation::config::Data;
 //! # use activitypub_federation::traits::ApubObject;
 //! # use activitypub_federation::traits::tests::{DbConnection, DbUser, Person};
-//! async fn http_get_user(Path(name): Path<String>, data: RequestData<DbConnection>) -> Result<ApubJson<WithContext<Person>>, Error> {
+//! async fn http_get_user(Path(name): Path<String>, data: Data<DbConnection>) -> Result<ApubJson<WithContext<Person>>, Error> {
 //!     let user: DbUser = data.read_local_user(name).await?;
 //!     let person = user.into_apub(&data).await?;
 //!

@@ -2,13 +2,15 @@
 //!
 #![doc = include_str!("../../docs/07_fetching_data.md")]
 
-use crate::{config::RequestData, error::Error, reqwest_shim::ResponseExt, APUB_JSON_CONTENT_TYPE};
+use crate::{config::Data, error::Error, reqwest_shim::ResponseExt, APUB_JSON_CONTENT_TYPE};
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
 use url::Url;
 
+/// Typed wrapper for collection IDs
+pub mod collection_id;
 /// Typed wrapper for Activitypub Object ID which helps with dereferencing and caching
 pub mod object_id;
 /// Resolves identifiers of the form `name@example.com`
@@ -24,9 +26,9 @@ pub mod webfinger;
 /// If the value exceeds [FederationSettings.http_fetch_limit], the request is aborted with
 /// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
 /// infinite, recursive fetching of data.
-async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
+pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
-    data: &RequestData<T>,
+    data: &Data<T>,
 ) -> Result<Kind, Error> {
     let config = &data.config;
     // dont fetch local objects this way

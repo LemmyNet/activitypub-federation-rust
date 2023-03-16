@@ -4,7 +4,7 @@ use crate::{
     DbPost,
 };
 use activitypub_federation::{
-    config::RequestData,
+    config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::helpers::deserialize_one_or_many,
@@ -50,12 +50,12 @@ impl ActivityHandler for CreatePost {
         self.actor.inner()
     }
 
-    async fn verify(&self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::verify(&self.object, &self.id, data).await?;
         Ok(())
     }
 
-    async fn receive(self, data: &RequestData<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::from_apub(self.object, data).await?;
         Ok(())
     }

@@ -28,7 +28,10 @@ use reqwest_middleware::ClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use std::{
     ops::Deref,
-    sync::{atomic::AtomicI32, Arc},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 use url::Url;
@@ -46,7 +49,7 @@ pub struct FederationConfig<T: Clone> {
     /// Maximum number of outgoing HTTP requests per incoming HTTP request. See
     /// [crate::fetch::object_id::ObjectId] for more details.
     #[builder(default = "20")]
-    pub(crate) http_fetch_limit: i32,
+    pub(crate) http_fetch_limit: u32,
     #[builder(default = "reqwest::Client::default().into()")]
     /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
     /// like log tracing or retry of failed requests.
@@ -102,9 +105,9 @@ impl<T: Clone> FederationConfig<T> {
         Ok(())
     }
 
-    /// Create new [RequestData] from this. You should prefer to use a middleware if possible.
-    pub fn to_request_data(&self) -> RequestData<T> {
-        RequestData {
+    /// Create new [Data] from this. You should prefer to use a middleware if possible.
+    pub fn to_request_data(&self) -> Data<T> {
+        Data {
             config: self.clone(),
             request_counter: Default::default(),
         }
@@ -127,6 +130,11 @@ impl<T: Clone> FederationConfig<T> {
             _ => return Err(Error::UrlVerificationError("Invalid url scheme")),
         };
 
+        // Urls which use our local domain are not a security risk, no further verification needed
+        if self.is_local_url(url) {
+            return Ok(());
+        }
+
         if url.domain().is_none() {
             return Err(Error::UrlVerificationError("Url must have a domain"));
         }
@@ -135,11 +143,6 @@ impl<T: Clone> FederationConfig<T> {
             return Err(Error::UrlVerificationError(
                 "Localhost is only allowed in debug mode",
             ));
-        }
-
-        // Urls which use our local domain are not a security risk, no further verification needed
-        if self.is_local_url(url) {
-            return Ok(());
         }
 
         self.url_verifier
@@ -253,24 +256,36 @@ clone_trait_object!(UrlVerifier);
 /// prevent denial of service attacks, where an attacker triggers fetching of recursive objects.
 ///
 /// <https://www.w3.org/TR/activitypub/#security-recursive-objects>
-pub struct RequestData<T: Clone> {
+pub struct Data<T: Clone> {
     pub(crate) config: FederationConfig<T>,
-    pub(crate) request_counter: AtomicI32,
+    pub(crate) request_counter: AtomicU32,
 }
 
-impl<T: Clone> RequestData<T> {
+impl<T: Clone> Data<T> {
     /// Returns the data which was stored in [FederationConfigBuilder::app_data]
     pub fn app_data(&self) -> &T {
         &self.config.app_data
     }
 
-    /// Returns the domain that was configured in [FederationConfig].
+    /// The domain that was configured in [FederationConfig].
     pub fn domain(&self) -> &str {
         &self.config.domain
     }
+
+    /// Returns a new instance of `Data` with request counter set to 0.
+    pub fn reset_request_count(&self) -> Self {
+        Data {
+            config: self.config.clone(),
+            request_counter: Default::default(),
+        }
+    }
+    /// Total number of outgoing HTTP requests made with this data.
+    pub fn request_count(&self) -> u32 {
+        self.request_counter.load(Ordering::Relaxed)
+    }
 }
 
-impl<T: Clone> Deref for RequestData<T> {
+impl<T: Clone> Deref for Data<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -278,7 +293,7 @@ impl<T: Clone> Deref for RequestData<T> {
     }
 }
 
-/// Middleware for HTTP handlers which provides access to [RequestData]
+/// Middleware for HTTP handlers which provides access to [Data]
 #[derive(Clone)]
 pub struct ApubMiddleware<T: Clone>(pub(crate) FederationConfig<T>);
 

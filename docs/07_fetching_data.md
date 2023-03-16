@@ -13,7 +13,7 @@ let config = FederationConfig::builder()
     .domain("example.com")
     .app_data(db_connection)
     .build()?;
-let user_id = ObjectId::<DbUser>::new("https://mastodon.social/@LemmyDev")?;
+let user_id = ObjectId::<DbUser>::parse("https://mastodon.social/@LemmyDev")?;
 let data = config.to_request_data();
 let user = user_id.dereference(&data).await;
 assert!(user.is_ok());
