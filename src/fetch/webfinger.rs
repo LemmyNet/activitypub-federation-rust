@@ -2,8 +2,8 @@ use crate::{
     config::Data,
     error::{Error, Error::WebfingerResolveFailed},
     fetch::{fetch_object_http, object_id::ObjectId},
-    traits::{Actor, ApubObject},
-    APUB_JSON_CONTENT_TYPE,
+    traits::{Actor, Object},
+    FEDERATION_CONTENT_TYPE,
 };
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -20,11 +20,11 @@ use url::Url;
 pub async fn webfinger_resolve_actor<T: Clone, Kind>(
     identifier: &str,
     data: &Data<T>,
-) -> Result<Kind, <Kind as ApubObject>::Error>
+) -> Result<Kind, <Kind as Object>::Error>
 where
-    Kind: ApubObject + Actor + Send + 'static + ApubObject<DataType = T>,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
-    <Kind as ApubObject>::Error:
+    Kind: Object + Actor + Send + 'static + Object<DataType = T>,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    <Kind as Object>::Error:
         From<crate::error::Error> + From<anyhow::Error> + From<url::ParseError> + Send + Sync,
 {
     let (_, domain) = identifier
@@ -107,7 +107,7 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
             },
             WebfingerLink {
                 rel: Some("self".to_string()),
-                kind: Some(APUB_JSON_CONTENT_TYPE.to_string()),
+                kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
                 href: Some(url),
                 properties: Default::default(),
             },

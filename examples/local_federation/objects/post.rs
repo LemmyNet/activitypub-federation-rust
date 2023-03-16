@@ -4,7 +4,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
-    traits::ApubObject,
+    traits::Object,
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -42,12 +42,12 @@ pub struct Note {
 }
 
 #[async_trait::async_trait]
-impl ApubObject for DbPost {
+impl Object for DbPost {
     type DataType = DatabaseHandle;
-    type ApubType = Note;
+    type Kind = Note;
     type Error = Error;
 
-    async fn read_from_apub_id(
+    async fn read_from_id(
         object_id: Url,
         data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
@@ -59,7 +59,7 @@ impl ApubObject for DbPost {
         Ok(res)
     }
 
-    async fn into_apub(self, data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
+    async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         let creator = self.creator.dereference_local(data).await?;
         Ok(Note {
             kind: Default::default(),
@@ -71,22 +71,19 @@ impl ApubObject for DbPost {
     }
 
     async fn verify(
-        apub: &Self::ApubType,
+        json: &Self::Kind,
         expected_domain: &Url,
         _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
-        verify_domains_match(apub.id.inner(), expected_domain)?;
+        verify_domains_match(json.id.inner(), expected_domain)?;
         Ok(())
     }
 
-    async fn from_apub(
-        apub: Self::ApubType,
-        data: &Data<Self::DataType>,
-    ) -> Result<Self, Self::Error> {
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
         let post = DbPost {
-            text: apub.content,
-            ap_id: apub.id,
-            creator: apub.attributed_to,
+            text: json.content,
+            ap_id: json.id,
+            creator: json.attributed_to,
             local: false,
         };
 

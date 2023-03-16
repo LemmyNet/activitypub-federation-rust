@@ -6,12 +6,12 @@ use crate::{
 use activitypub_federation::{
     axum::{
         inbox::{receive_activity, ActivityData},
-        json::ApubJson,
+        json::FederationJson,
     },
     config::Data,
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name, Webfinger},
     protocol::context::WithContext,
-    traits::ApubObject,
+    traits::Object,
 };
 use axum::{
     extract::{Path, Query},
@@ -32,10 +32,10 @@ impl IntoResponse for Error {
 pub async fn http_get_user(
     Path(name): Path<String>,
     data: Data<DatabaseHandle>,
-) -> Result<ApubJson<WithContext<Person>>, Error> {
+) -> Result<FederationJson<WithContext<Person>>, Error> {
     let db_user = data.read_user(&name)?;
-    let apub_user = db_user.into_apub(&data).await?;
-    Ok(ApubJson(WithContext::new_default(apub_user)))
+    let json_user = db_user.into_json(&data).await?;
+    Ok(FederationJson(WithContext::new_default(json_user)))
 }
 
 #[debug_handler]

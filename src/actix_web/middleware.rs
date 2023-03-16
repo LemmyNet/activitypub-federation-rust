@@ -1,4 +1,4 @@
-use crate::config::{ApubMiddleware, Data, FederationConfig};
+use crate::config::{Data, FederationConfig, FederationMiddleware};
 use actix_web::{
     dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
@@ -8,7 +8,7 @@ use actix_web::{
 };
 use std::future::{ready, Ready};
 
-impl<S, B, T> Transform<S, ServiceRequest> for ApubMiddleware<T>
+impl<S, B, T> Transform<S, ServiceRequest> for FederationMiddleware<T>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
@@ -17,12 +17,12 @@ where
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Transform = ApubService<S, T>;
+    type Transform = FederationService<S, T>;
     type InitError = ();
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(ApubService {
+        ready(Ok(FederationService {
             service,
             config: self.0.clone(),
         }))
@@ -31,7 +31,7 @@ where
 
 /// Passes [FederationConfig] to HTTP handlers, converting it to [Data] in the process
 #[doc(hidden)]
-pub struct ApubService<S, T: Clone>
+pub struct FederationService<S, T: Clone>
 where
     S: Service<ServiceRequest, Error = Error>,
     S::Future: 'static,
@@ -41,7 +41,7 @@ where
     config: FederationConfig<T>,
 }
 
-impl<S, B, T> Service<ServiceRequest> for ApubService<S, T>
+impl<S, B, T> Service<ServiceRequest> for FederationService<S, T>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
@@ -69,7 +69,7 @@ impl<T: Clone + 'static> FromRequest for Data<T> {
         ready(match req.extensions().get::<FederationConfig<T>>() {
             Some(c) => Ok(c.to_request_data()),
             None => Err(actix_web::error::ErrorBadRequest(
-                "Missing extension, did you register ApubMiddleware?",
+                "Missing extension, did you register FederationMiddleware?",
             )),
         })
     }

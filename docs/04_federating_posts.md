@@ -25,4 +25,4 @@ The most important fields are:
 - `attributedTo`: ID of the user who created this post
 - `to`, `cc`: Who the object is for. The special "public" URL indicates that everyone can view it.  It also gets delivered to followers of the LemmyDev account.
 
-Just like for `Person` before, we need to implement a protocol type and a database type, then implement trait `ApubObject`. See the example for details.
+Just like for `Person` before, we need to implement a protocol type and a database type, then implement trait `Object`. See the example for details.

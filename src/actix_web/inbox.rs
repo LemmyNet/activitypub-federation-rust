@@ -5,7 +5,7 @@ use crate::{
     error::Error,
     fetch::object_id::ObjectId,
     http_signatures::{verify_inbox_hash, verify_signature},
-    traits::{ActivityHandler, Actor, ApubObject},
+    traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
@@ -21,13 +21,13 @@ pub async fn receive_activity<Activity, ActorT, Datatype>(
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
-    ActorT: ApubObject<DataType = Datatype> + Actor + Send + 'static,
-    for<'de2> <ActorT as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
     <Activity as ActivityHandler>::Error: From<anyhow::Error>
         + From<Error>
-        + From<<ActorT as ApubObject>::Error>
+        + From<<ActorT as Object>::Error>
         + From<serde_json::Error>,
-    <ActorT as ApubObject>::Error: From<Error> + From<anyhow::Error>,
+    <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
     Datatype: Clone,
 {
     verify_inbox_hash(request.headers().get("Digest"), &body)?;

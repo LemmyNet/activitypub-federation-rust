@@ -4,7 +4,7 @@ use crate::{
     objects::{person::DbUser, post::DbPost},
     utils::generate_object_id,
 };
-use activitypub_federation::config::{ApubMiddleware, FederationConfig};
+use activitypub_federation::config::{FederationConfig, FederationMiddleware};
 use axum::{
     routing::{get, post},
     Router,
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Error> {
         .route("/:user", get(http_get_user))
         .route("/:user/inbox", post(http_post_user_inbox))
         .route("/.well-known/webfinger", get(webfinger))
-        .layer(ApubMiddleware::new(config));
+        .layer(FederationMiddleware::new(config));
 
     let addr = BIND_ADDRESS
         .to_socket_addrs()?

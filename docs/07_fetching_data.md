@@ -21,7 +21,7 @@ assert!(user.is_ok());
 }).unwrap()
 ```
 
-`dereference` retrieves the object JSON at the given URL, and uses serde to convert it to `Person`. It then calls your method `ApubObject::from_apub` which inserts it in the database and returns a `DbUser` struct. `request_data` contains the federation config as well as a counter of outgoing HTTP requests. If this counter exceeds the configured maximum, further requests are aborted in order to avoid recursive fetching which could allow for a denial of service attack.
+`dereference` retrieves the object JSON at the given URL, and uses serde to convert it to `Person`. It then calls your method `Object::from_json` which inserts it in the database and returns a `DbUser` struct. `request_data` contains the federation config as well as a counter of outgoing HTTP requests. If this counter exceeds the configured maximum, further requests are aborted in order to avoid recursive fetching which could allow for a denial of service attack.
 
 After dereferencing a remote object, it is stored in the local database and can be retrieved using [ObjectId::dereference_local](crate::fetch::object_id::ObjectId::dereference_local) without any network requests. This is important for performance reasons and for searching.
 

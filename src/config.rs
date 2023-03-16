@@ -295,11 +295,11 @@ impl<T: Clone> Deref for Data<T> {
 
 /// Middleware for HTTP handlers which provides access to [Data]
 #[derive(Clone)]
-pub struct ApubMiddleware<T: Clone>(pub(crate) FederationConfig<T>);
+pub struct FederationMiddleware<T: Clone>(pub(crate) FederationConfig<T>);
 
-impl<T: Clone> ApubMiddleware<T> {
+impl<T: Clone> FederationMiddleware<T> {
     /// Construct a new middleware instance
     pub fn new(config: FederationConfig<T>) -> Self {
-        ApubMiddleware(config)
+        FederationMiddleware(config)
     }
 }

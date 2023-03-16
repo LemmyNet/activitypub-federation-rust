@@ -73,7 +73,7 @@ pub struct DbUser {
     pub display_name: String,
     pub password_hash: Option<String>,
     pub email: Option<String>,
-    pub apub_id: Url,
+    pub federation_id: Url,
     pub inbox: Url,
     pub outbox: Url,
     pub local: bool,
@@ -83,8 +83,8 @@ pub struct DbUser {
 }
 ```
 
-Field names and other details of this type can be chosen freely according to your requirements. It only matters that the required data is being stored. Its important that this struct doesn't represent only local users who registered directly on our website, but also remote users that are registered on other instances and federated to us. The `local` column helps to easily distinguish both. It can also be distinguished from the domain of the `apub_id` URL, but that would be a much more expensive operation. All users have a `public_key`, but only local users have a `private_key`. On the other hand, `password_hash` and `email` are only present for local users. inbox` and `outbox` URLs need to be stored because each implementation is free to choose its own format for them, so they can't be regenerated on the fly.
+Field names and other details of this type can be chosen freely according to your requirements. It only matters that the required data is being stored. Its important that this struct doesn't represent only local users who registered directly on our website, but also remote users that are registered on other instances and federated to us. The `local` column helps to easily distinguish both. It can also be distinguished from the domain of the `federation_id` URL, but that would be a much more expensive operation. All users have a `public_key`, but only local users have a `private_key`. On the other hand, `password_hash` and `email` are only present for local users. inbox` and `outbox` URLs need to be stored because each implementation is free to choose its own format for them, so they can't be regenerated on the fly.
 
-In larger projects it makes sense to split this data in two. One for data relevant to local users (`password_hash`, `email` etc.) and one for data that is shared by both local and federated users (`apub_id`, `public_key` etc).
+In larger projects it makes sense to split this data in two. One for data relevant to local users (`password_hash`, `email` etc.) and one for data that is shared by both local and federated users (`federation_id`, `public_key` etc).
 
-Finally we need to implement the traits [ApubObject](crate::traits::ApubObject) and [Actor](crate::traits::Actor) for `DbUser`. These traits are used to convert between `Person` and `DbUser` types. [ApubObject::from_apub](crate::traits::ApubObject::from_apub) must store the received object in database, so that it can later be retrieved without network calls using [ApubObject::read_from_apub_id](crate::traits::ApubObject::read_from_apub_id). Refer to the documentation for more details.
+Finally we need to implement the traits [Object](crate::traits::Object) and [Actor](crate::traits::Actor) for `DbUser`. These traits are used to convert between `Person` and `DbUser` types. [Object::from_json](crate::traits::Object::from_json) must store the received object in database, so that it can later be retrieved without network calls using [Object::read_from_id](crate::traits::Object::read_from_id). Refer to the documentation for more details.

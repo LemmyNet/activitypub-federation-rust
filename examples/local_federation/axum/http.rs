@@ -6,12 +6,12 @@ use crate::{
 use activitypub_federation::{
     axum::{
         inbox::{receive_activity, ActivityData},
-        json::ApubJson,
+        json::FederationJson,
     },
-    config::{ApubMiddleware, Data, FederationConfig},
+    config::{Data, FederationConfig, FederationMiddleware},
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name, Webfinger},
     protocol::context::WithContext,
-    traits::ApubObject,
+    traits::Object,
 };
 use axum::{
     extract::{Path, Query},
@@ -33,7 +33,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
         .route("/:user/inbox", post(http_post_user_inbox))
         .route("/:user", get(http_get_user))
         .route("/.well-known/webfinger", get(webfinger))
-        .layer(ApubMiddleware::new(config));
+        .layer(FederationMiddleware::new(config));
 
     let addr = hostname
         .to_socket_addrs()?
@@ -49,10 +49,10 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
 async fn http_get_user(
     Path(name): Path<String>,
     data: Data<DatabaseHandle>,
-) -> Result<ApubJson<WithContext<Person>>, Error> {
+) -> Result<FederationJson<WithContext<Person>>, Error> {
     let db_user = data.read_user(&name)?;
-    let apub_user = db_user.into_apub(&data).await?;
-    Ok(ApubJson(WithContext::new_default(apub_user)))
+    let json_user = db_user.into_json(&data).await?;
+    Ok(FederationJson(WithContext::new_default(json_user)))
 }
 
 #[debug_handler]

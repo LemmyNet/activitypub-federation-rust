@@ -10,7 +10,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
-    traits::{Actor, ApubObject},
+    traits::{Actor, Object},
 };
 use activitystreams_kinds::link::MentionType;
 use serde::{Deserialize, Serialize};
@@ -46,44 +46,41 @@ pub struct Mention {
 }
 
 #[async_trait::async_trait]
-impl ApubObject for DbPost {
+impl Object for DbPost {
     type DataType = DatabaseHandle;
-    type ApubType = Note;
+    type Kind = Note;
     type Error = Error;
 
-    async fn read_from_apub_id(
+    async fn read_from_id(
         _object_id: Url,
         _data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         Ok(None)
     }
 
-    async fn into_apub(self, _data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
+    async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         unimplemented!()
     }
 
     async fn verify(
-        apub: &Self::ApubType,
+        json: &Self::Kind,
         expected_domain: &Url,
         _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
-        verify_domains_match(apub.id.inner(), expected_domain)?;
+        verify_domains_match(json.id.inner(), expected_domain)?;
         Ok(())
     }
 
-    async fn from_apub(
-        apub: Self::ApubType,
-        data: &Data<Self::DataType>,
-    ) -> Result<Self, Self::Error> {
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
         println!(
             "Received post with content {} and id {}",
-            &apub.content, &apub.id
+            &json.content, &json.id
         );
-        let creator = apub.attributed_to.dereference(data).await?;
+        let creator = json.attributed_to.dereference(data).await?;
         let post = DbPost {
-            text: apub.content,
-            ap_id: apub.id.clone(),
-            creator: apub.attributed_to.clone(),
+            text: json.content,
+            ap_id: json.id.clone(),
+            creator: json.attributed_to.clone(),
             local: false,
         };
 
@@ -97,7 +94,7 @@ impl ApubObject for DbPost {
             attributed_to: data.local_user().ap_id,
             to: vec![public()],
             content: format!("Hello {}", creator.name),
-            in_reply_to: Some(apub.id.clone()),
+            in_reply_to: Some(json.id.clone()),
             tag: vec![mention],
         };
         CreatePost::send(note, creator.shared_inbox_or_inbox(), data).await?;

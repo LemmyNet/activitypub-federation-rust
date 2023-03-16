@@ -1,4 +1,4 @@
-use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::ApubObject};
+use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object};
 use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -11,8 +11,8 @@ use url::Url;
 
 impl<T> FromStr for ObjectId<T>
 where
-    T: ApubObject + Send + 'static,
-    for<'de2> <T as ApubObject>::ApubType: Deserialize<'de2>,
+    T: Object + Send + 'static,
+    for<'de2> <T as Object>::Kind: Deserialize<'de2>,
 {
     type Err = url::ParseError;
 
@@ -58,13 +58,13 @@ where
 #[serde(transparent)]
 pub struct ObjectId<Kind>(Box<Url>, PhantomData<Kind>)
 where
-    Kind: ApubObject,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>;
+    Kind: Object,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>;
 
 impl<Kind> ObjectId<Kind>
 where
-    Kind: ApubObject + Send + 'static,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object + Send + 'static,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
     pub fn parse<T>(url: T) -> Result<Self, url::ParseError>
@@ -88,10 +88,10 @@ where
     /// Fetches an activitypub object, either from local database (if possible), or over http.
     pub async fn dereference(
         &self,
-        data: &Data<<Kind as ApubObject>::DataType>,
-    ) -> Result<Kind, <Kind as ApubObject>::Error>
+        data: &Data<<Kind as Object>::DataType>,
+    ) -> Result<Kind, <Kind as Object>::Error>
     where
-        <Kind as ApubObject>::Error: From<Error> + From<anyhow::Error>,
+        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
     {
         let db_object = self.dereference_from_db(data).await?;
 
@@ -123,10 +123,10 @@ where
     /// the object is not found in the database.
     pub async fn dereference_local(
         &self,
-        data: &Data<<Kind as ApubObject>::DataType>,
-    ) -> Result<Kind, <Kind as ApubObject>::Error>
+        data: &Data<<Kind as Object>::DataType>,
+    ) -> Result<Kind, <Kind as Object>::Error>
     where
-        <Kind as ApubObject>::Error: From<Error>,
+        <Kind as Object>::Error: From<Error>,
     {
         let object = self.dereference_from_db(data).await?;
         object.ok_or_else(|| Error::NotFound.into())
@@ -135,19 +135,19 @@ where
     /// returning none means the object was not found in local db
     async fn dereference_from_db(
         &self,
-        data: &Data<<Kind as ApubObject>::DataType>,
-    ) -> Result<Option<Kind>, <Kind as ApubObject>::Error> {
+        data: &Data<<Kind as Object>::DataType>,
+    ) -> Result<Option<Kind>, <Kind as Object>::Error> {
         let id = self.0.clone();
-        ApubObject::read_from_apub_id(*id, data).await
+        Object::read_from_id(*id, data).await
     }
 
     async fn dereference_from_http(
         &self,
-        data: &Data<<Kind as ApubObject>::DataType>,
+        data: &Data<<Kind as Object>::DataType>,
         db_object: Option<Kind>,
-    ) -> Result<Kind, <Kind as ApubObject>::Error>
+    ) -> Result<Kind, <Kind as Object>::Error>
     where
-        <Kind as ApubObject>::Error: From<Error> + From<anyhow::Error>,
+        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
     {
         let res = fetch_object_http(&self.0, data).await;
 
@@ -161,15 +161,15 @@ where
         let res2 = res?;
 
         Kind::verify(&res2, self.inner(), data).await?;
-        Kind::from_apub(res2, data).await
+        Kind::from_json(res2, data).await
     }
 }
 
 /// Need to implement clone manually, to avoid requiring Kind to be Clone
 impl<Kind> Clone for ObjectId<Kind>
 where
-    Kind: ApubObject,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     fn clone(&self) -> Self {
         ObjectId(self.0.clone(), self.1)
@@ -195,8 +195,8 @@ fn should_refetch_object(last_refreshed: NaiveDateTime) -> bool {
 
 impl<Kind> Display for ObjectId<Kind>
 where
-    Kind: ApubObject,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())
@@ -205,8 +205,8 @@ where
 
 impl<Kind> Debug for ObjectId<Kind>
 where
-    Kind: ApubObject,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())
@@ -215,8 +215,8 @@ where
 
 impl<Kind> From<ObjectId<Kind>> for Url
 where
-    Kind: ApubObject,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     fn from(id: ObjectId<Kind>) -> Self {
         *id.0
@@ -225,8 +225,8 @@ where
 
 impl<Kind> From<Url> for ObjectId<Kind>
 where
-    Kind: ApubObject + Send + 'static,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object + Send + 'static,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     fn from(url: Url) -> Self {
         ObjectId(Box::new(url), PhantomData::<Kind>)
@@ -235,8 +235,8 @@ where
 
 impl<Kind> PartialEq for ObjectId<Kind>
 where
-    Kind: ApubObject,
-    for<'de2> <Kind as ApubObject>::ApubType: serde::Deserialize<'de2>,
+    Kind: Object,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0) && self.1 == other.1

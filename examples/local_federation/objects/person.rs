@@ -12,7 +12,7 @@ use activitypub_federation::{
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
     protocol::{context::WithContext, public_key::PublicKey, verification::verify_domains_match},
-    traits::{ActivityHandler, Actor, ApubObject},
+    traits::{ActivityHandler, Actor, Object},
 };
 use chrono::{Local, NaiveDateTime};
 use serde::{Deserialize, Serialize};
@@ -92,7 +92,7 @@ impl DbUser {
 
     pub async fn post(&self, post: DbPost, data: &Data<DatabaseHandle>) -> Result<(), Error> {
         let id = generate_object_id(data.domain())?;
-        let create = CreatePost::new(post.into_apub(data).await?, id.clone());
+        let create = CreatePost::new(post.into_json(data).await?, id.clone());
         let mut inboxes = vec![];
         for f in self.followers.clone() {
             let user: DbUser = ObjectId::from(f).dereference(data).await?;
@@ -119,16 +119,16 @@ impl DbUser {
 }
 
 #[async_trait::async_trait]
-impl ApubObject for DbUser {
+impl Object for DbUser {
     type DataType = DatabaseHandle;
-    type ApubType = Person;
+    type Kind = Person;
     type Error = Error;
 
     fn last_refreshed_at(&self) -> Option<NaiveDateTime> {
         Some(self.last_refreshed_at)
     }
 
-    async fn read_from_apub_id(
+    async fn read_from_id(
         object_id: Url,
         data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
@@ -140,7 +140,7 @@ impl ApubObject for DbUser {
         Ok(res)
     }
 
-    async fn into_apub(self, _data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
+    async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         Ok(Person {
             preferred_username: self.name.clone(),
             kind: Default::default(),
@@ -151,23 +151,20 @@ impl ApubObject for DbUser {
     }
 
     async fn verify(
-        apub: &Self::ApubType,
+        json: &Self::Kind,
         expected_domain: &Url,
         _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
-        verify_domains_match(apub.id.inner(), expected_domain)?;
+        verify_domains_match(json.id.inner(), expected_domain)?;
         Ok(())
     }
 
-    async fn from_apub(
-        apub: Self::ApubType,
-        data: &Data<Self::DataType>,
-    ) -> Result<Self, Self::Error> {
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
         let user = DbUser {
-            name: apub.preferred_username,
-            ap_id: apub.id,
-            inbox: apub.inbox,
-            public_key: apub.public_key.public_key_pem,
+            name: json.preferred_username,
+            ap_id: json.id,
+            inbox: json.inbox,
+            public_key: json.public_key.public_key_pem,
             private_key: None,
             last_refreshed_at: Local::now().naive_local(),
             followers: vec![],

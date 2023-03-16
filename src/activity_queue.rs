@@ -8,7 +8,7 @@ use crate::{
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     traits::{ActivityHandler, Actor},
-    APUB_JSON_CONTENT_TYPE,
+    FEDERATION_CONTENT_TYPE,
 };
 use anyhow::anyhow;
 use background_jobs::{
@@ -203,7 +203,7 @@ fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     let mut headers = HeaderMap::new();
     headers.insert(
         HeaderName::from_static("content-type"),
-        HeaderValue::from_static(APUB_JSON_CONTENT_TYPE),
+        HeaderValue::from_static(FEDERATION_CONTENT_TYPE),
     );
     headers.insert(
         HeaderName::from_static("host"),

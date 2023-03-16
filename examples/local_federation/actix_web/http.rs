@@ -5,11 +5,11 @@ use crate::{
 };
 use activitypub_federation::{
     actix_web::inbox::receive_activity,
-    config::{ApubMiddleware, Data, FederationConfig},
+    config::{Data, FederationConfig, FederationMiddleware},
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name},
     protocol::context::WithContext,
-    traits::ApubObject,
-    APUB_JSON_CONTENT_TYPE,
+    traits::Object,
+    FEDERATION_CONTENT_TYPE,
 };
 use actix_web::{web, web::Bytes, App, HttpRequest, HttpResponse, HttpServer};
 use anyhow::anyhow;
@@ -22,7 +22,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     let config = config.clone();
     let server = HttpServer::new(move || {
         App::new()
-            .wrap(ApubMiddleware::new(config.clone()))
+            .wrap(FederationMiddleware::new(config.clone()))
             .route("/{user}", web::get().to(http_get_user))
             .route("/{user}/inbox", web::post().to(http_post_user_inbox))
             .route("/.well-known/webfinger", web::get().to(webfinger))
@@ -40,10 +40,10 @@ pub async fn http_get_user(
 ) -> Result<HttpResponse, Error> {
     let db_user = data.local_user();
     if user_name.into_inner() == db_user.name {
-        let apub_user = db_user.into_apub(&data).await?;
+        let json_user = db_user.into_json(&data).await?;
         Ok(HttpResponse::Ok()
-            .content_type(APUB_JSON_CONTENT_TYPE)
-            .json(WithContext::new_default(apub_user)))
+            .content_type(FEDERATION_CONTENT_TYPE)
+            .json(WithContext::new_default(json_user)))
     } else {
         Err(anyhow!("Invalid user").into())
     }

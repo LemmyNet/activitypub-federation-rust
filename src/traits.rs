@@ -18,7 +18,7 @@ use url::Url;
 /// # use activitypub_federation::config::Data;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::protocol::verification::verify_domains_match;
-/// # use activitypub_federation::traits::{Actor, ApubObject};
+/// # use activitypub_federation::traits::{Actor, Object};
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 /// #
 /// /// How the post is read/written in the local database
@@ -43,18 +43,18 @@ use url::Url;
 /// }
 ///
 /// #[async_trait::async_trait]
-/// impl ApubObject for DbPost {
+/// impl Object for DbPost {
 ///     type DataType = DbConnection;
-///     type ApubType = Note;
+///     type Kind = Note;
 ///     type Error = anyhow::Error;
 ///
-/// async fn read_from_apub_id(object_id: Url, data: &Data<Self::DataType>) -> Result<Option<Self>, Self::Error> {
+/// async fn read_from_id(object_id: Url, data: &Data<Self::DataType>) -> Result<Option<Self>, Self::Error> {
 ///         // Attempt to read object from local database. Return Ok(None) if not found.
-///         let post: Option<DbPost> = data.read_post_from_apub_id(object_id).await?;
+///         let post: Option<DbPost> = data.read_post_from_json_id(object_id).await?;
 ///         Ok(post)
 ///     }
 ///
-/// async fn into_apub(self, data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
+/// async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
 ///         // Called when a local object gets sent out over Activitypub. Simply convert it to the
 ///         // protocol struct
 ///         Ok(Note {
@@ -66,20 +66,20 @@ use url::Url;
 ///         })
 ///     }
 ///
-///     async fn verify(apub: &Self::ApubType, expected_domain: &Url, data: &Data<Self::DataType>,) -> Result<(), Self::Error> {
-///         verify_domains_match(apub.id.inner(), expected_domain)?;
+///     async fn verify(json: &Self::Kind, expected_domain: &Url, data: &Data<Self::DataType>,) -> Result<(), Self::Error> {
+///         verify_domains_match(json.id.inner(), expected_domain)?;
 ///         // additional application specific checks
 ///         Ok(())
 ///     }
 ///
-///     async fn from_apub(apub: Self::ApubType, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
+///     async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
 ///         // Called when a remote object gets received over Activitypub. Validate and insert it
 ///         // into the database.
 ///
 ///         let post = DbPost {
-///             text: apub.content,
-///             ap_id: apub.id,
-///             creator: apub.attributed_to,
+///             text: json.content,
+///             ap_id: json.id,
+///             creator: json.attributed_to,
 ///             local: false,
 ///         };
 ///
@@ -93,12 +93,12 @@ use url::Url;
 ///
 /// }
 #[async_trait]
-pub trait ApubObject: Sized {
+pub trait Object: Sized {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
     /// The type of protocol struct which gets sent over network to federate this database struct.
-    type ApubType;
+    type Kind;
     /// Error type returned by handler methods
     type Error;
 
@@ -118,7 +118,7 @@ pub trait ApubObject: Sized {
     /// Try to read the object with given `id` from local database.
     ///
     /// Should return `Ok(None)` if not found.
-    async fn read_from_apub_id(
+    async fn read_from_id(
         object_id: Url,
         data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error>;
@@ -134,7 +134,7 @@ pub trait ApubObject: Sized {
     ///
     /// Called when a local object gets fetched by another instance over HTTP, or when an object
     /// gets sent in an activity.
-    async fn into_apub(self, data: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error>;
+    async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error>;
 
     /// Verifies that the received object is valid.
     ///
@@ -144,7 +144,7 @@ pub trait ApubObject: Sized {
     /// It is necessary to use a separate method for this, because it might be used for activities
     /// like `Delete/Note`, which shouldn't perform any database write for the inner `Note`.
     async fn verify(
-        apub: &Self::ApubType,
+        json: &Self::Kind,
         expected_domain: &Url,
         data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error>;
@@ -154,10 +154,7 @@ pub trait ApubObject: Sized {
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
     /// should write the received object to database. Note that there is no distinction between
     /// create and update, so an `upsert` operation should be used.
-    async fn from_apub(
-        apub: Self::ApubType,
-        data: &Data<Self::DataType>,
-    ) -> Result<Self, Self::Error>;
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error>;
 }
 
 /// Handler for receiving incoming activities.
@@ -227,12 +224,12 @@ pub trait ActivityHandler {
     /// Called when an activity is received.
     ///
     /// Should perform validation and possibly write action to the database. In case the activity
-    /// has a nested `object` field, must call `object.from_apub` handler.
+    /// has a nested `object` field, must call `object.from_json` handler.
     async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error>;
 }
 
 /// Trait to allow retrieving common Actor data.
-pub trait Actor: ApubObject + Send + 'static {
+pub trait Actor: Object + Send + 'static {
     /// `id` field of the actor
     fn id(&self) -> Url;
 
@@ -295,14 +292,14 @@ where
 
 /// Trait for federating collections
 #[async_trait]
-pub trait ApubCollection: Sized {
+pub trait Collection: Sized {
     /// Actor or object that this collection belongs to
     type Owner;
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
     /// The type of protocol struct which gets sent over network to federate this database struct.
-    type ApubType: for<'de2> Deserialize<'de2>;
+    type Kind: for<'de2> Deserialize<'de2>;
     /// Error type returned by handler methods
     type Error;
 
@@ -310,14 +307,14 @@ pub trait ApubCollection: Sized {
     async fn read_local(
         owner: &Self::Owner,
         data: &Data<Self::DataType>,
-    ) -> Result<Self::ApubType, Self::Error>;
+    ) -> Result<Self::Kind, Self::Error>;
 
     /// Verifies that the received object is valid.
     ///
     /// You should check here that the domain of id matches `expected_domain`. Additionally you
     /// should perform any application specific checks.
     async fn verify(
-        apub: &Self::ApubType,
+        json: &Self::Kind,
         expected_domain: &Url,
         data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error>;
@@ -327,8 +324,8 @@ pub trait ApubCollection: Sized {
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
     /// should also write the received object to database. Note that there is no distinction
     /// between create and update, so an `upsert` operation should be used.
-    async fn from_apub(
-        apub: Self::ApubType,
+    async fn from_json(
+        json: Self::Kind,
         owner: &Self::Owner,
         data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error>;
@@ -355,7 +352,7 @@ pub mod tests {
     pub struct DbConnection;
 
     impl DbConnection {
-        pub async fn read_post_from_apub_id<T>(&self, _: Url) -> Result<Option<T>, Error> {
+        pub async fn read_post_from_json_id<T>(&self, _: Url) -> Result<Option<T>, Error> {
             Ok(None)
         }
         pub async fn read_local_user(&self, _: String) -> Result<DbUser, Error> {
@@ -382,7 +379,7 @@ pub mod tests {
     #[derive(Debug, Clone)]
     pub struct DbUser {
         pub name: String,
-        pub apub_id: Url,
+        pub federation_id: Url,
         pub inbox: Url,
         pub public_key: String,
         #[allow(dead_code)]
@@ -395,7 +392,7 @@ pub mod tests {
 
     pub static DB_USER: Lazy<DbUser> = Lazy::new(|| DbUser {
         name: String::new(),
-        apub_id: "https://localhost/123".parse().unwrap(),
+        federation_id: "https://localhost/123".parse().unwrap(),
         inbox: "https://localhost/123/inbox".parse().unwrap(),
         public_key: DB_USER_KEYPAIR.public_key.clone(),
         private_key: Some(DB_USER_KEYPAIR.private_key.clone()),
@@ -404,49 +401,46 @@ pub mod tests {
     });
 
     #[async_trait]
-    impl ApubObject for DbUser {
+    impl Object for DbUser {
         type DataType = DbConnection;
-        type ApubType = Person;
+        type Kind = Person;
         type Error = Error;
 
-        async fn read_from_apub_id(
+        async fn read_from_id(
             _object_id: Url,
             _data: &Data<Self::DataType>,
         ) -> Result<Option<Self>, Self::Error> {
             Ok(Some(DB_USER.clone()))
         }
 
-        async fn into_apub(
-            self,
-            _data: &Data<Self::DataType>,
-        ) -> Result<Self::ApubType, Self::Error> {
+        async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
             Ok(Person {
                 preferred_username: self.name.clone(),
                 kind: Default::default(),
-                id: self.apub_id.clone().into(),
+                id: self.federation_id.clone().into(),
                 inbox: self.inbox.clone(),
                 public_key: self.public_key(),
             })
         }
 
         async fn verify(
-            apub: &Self::ApubType,
+            json: &Self::Kind,
             expected_domain: &Url,
             _data: &Data<Self::DataType>,
         ) -> Result<(), Self::Error> {
-            verify_domains_match(apub.id.inner(), expected_domain)?;
+            verify_domains_match(json.id.inner(), expected_domain)?;
             Ok(())
         }
 
-        async fn from_apub(
-            apub: Self::ApubType,
+        async fn from_json(
+            json: Self::Kind,
             _data: &Data<Self::DataType>,
         ) -> Result<Self, Self::Error> {
             Ok(DbUser {
-                name: apub.preferred_username,
-                apub_id: apub.id.into(),
-                inbox: apub.inbox,
-                public_key: apub.public_key.public_key_pem,
+                name: json.preferred_username,
+                federation_id: json.id.into(),
+                inbox: json.inbox,
+                public_key: json.public_key.public_key_pem,
                 private_key: None,
                 followers: vec![],
                 local: false,
@@ -456,7 +450,7 @@ pub mod tests {
 
     impl Actor for DbUser {
         fn id(&self) -> Url {
-            self.apub_id.clone()
+            self.federation_id.clone()
         }
 
         fn public_key_pem(&self) -> &str {
@@ -511,34 +505,31 @@ pub mod tests {
     pub struct DbPost {}
 
     #[async_trait]
-    impl ApubObject for DbPost {
+    impl Object for DbPost {
         type DataType = DbConnection;
-        type ApubType = Note;
+        type Kind = Note;
         type Error = Error;
 
-        async fn read_from_apub_id(
+        async fn read_from_id(
             _: Url,
             _: &Data<Self::DataType>,
         ) -> Result<Option<Self>, Self::Error> {
             todo!()
         }
 
-        async fn into_apub(self, _: &Data<Self::DataType>) -> Result<Self::ApubType, Self::Error> {
+        async fn into_json(self, _: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
             todo!()
         }
 
         async fn verify(
-            _: &Self::ApubType,
+            _: &Self::Kind,
             _: &Url,
             _: &Data<Self::DataType>,
         ) -> Result<(), Self::Error> {
             todo!()
         }
 
-        async fn from_apub(
-            _: Self::ApubType,
-            _: &Data<Self::DataType>,
-        ) -> Result<Self, Self::Error> {
+        async fn from_json(_: Self::Kind, _: &Data<Self::DataType>) -> Result<Self, Self::Error> {
             todo!()
         }
     }

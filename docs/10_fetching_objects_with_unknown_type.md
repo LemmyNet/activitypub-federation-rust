@@ -5,7 +5,7 @@ It is sometimes necessary to fetch from a URL, but we don't know the exact type 
 ```no_run
 # use activitypub_federation::traits::tests::{DbUser, DbPost};
 # use activitypub_federation::fetch::object_id::ObjectId;
-# use activitypub_federation::traits::ApubObject;
+# use activitypub_federation::traits::Object;
 # use activitypub_federation::config::FederationConfig;
 # use serde::{Deserialize, Serialize};
 # use activitypub_federation::traits::tests::DbConnection;
@@ -20,43 +20,43 @@ pub enum SearchableDbObjects {
 
 #[derive(Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum SearchableApubObjects {
+pub enum SearchableObjects {
     Person(Person),
     Note(Note)
 }
 
 #[async_trait::async_trait]
-impl ApubObject for SearchableDbObjects {
+impl Object for SearchableDbObjects {
     type DataType = DbConnection;
-    type ApubType = SearchableApubObjects;
+    type Kind = SearchableObjects;
     type Error = anyhow::Error;
 
-    async fn read_from_apub_id(
+    async fn read_from_id(
         object_id: Url,
         data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         Ok(None)
     }
 
-    async fn into_apub(
+    async fn into_json(
         self,
         data: &Data<Self::DataType>,
-    ) -> Result<Self::ApubType, Self::Error> {
+    ) -> Result<Self::Kind, Self::Error> {
         unimplemented!();
     }
     
-    async fn verify(apub: &Self::ApubType, expected_domain: &Url, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(json: &Self::Kind, expected_domain: &Url, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn from_apub(
-        apub: Self::ApubType,
+    async fn from_json(
+        json: Self::Kind,
         data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         use SearchableDbObjects::*;
-        match apub {
-            SearchableApubObjects::Person(p) => Ok(User(DbUser::from_apub(p, data).await?)),
-            SearchableApubObjects::Note(n) => Ok(Post(DbPost::from_apub(n, data).await?)),
+        match json {
+            SearchableObjects::Person(p) => Ok(User(DbUser::from_json(p, data).await?)),
+            SearchableObjects::Note(n) => Ok(Post(DbPost::from_json(n, data).await?)),
         }
     }
 }

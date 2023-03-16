@@ -21,7 +21,7 @@ To send an activity we need to initialize our previously defined struct, and pic
 # let recipient = DB_USER.clone();
 let activity = Follow {
     actor: ObjectId::parse("https://lemmy.ml/u/nutomic")?,
-    object: recipient.apub_id.clone().into(),
+    object: recipient.federation_id.clone().into(),
     kind: Default::default(),
     id: "https://lemmy.ml/activities/321".try_into()?
 };

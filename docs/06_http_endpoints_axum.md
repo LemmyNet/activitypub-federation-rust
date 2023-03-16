@@ -6,17 +6,17 @@ The next step is to allow other servers to fetch our actors and objects. For thi
 # use std::net::SocketAddr;
 # use activitypub_federation::config::FederationConfig;
 # use activitypub_federation::protocol::context::WithContext;
-# use activitypub_federation::axum::json::ApubJson;
+# use activitypub_federation::axum::json::FederationJson;
 # use anyhow::Error;
 # use activitypub_federation::traits::tests::Person;
 # use activitypub_federation::config::Data;
 # use activitypub_federation::traits::tests::DbConnection;
 # use axum::extract::Path;
-# use activitypub_federation::config::ApubMiddleware;
+# use activitypub_federation::config::FederationMiddleware;
 # use axum::routing::get;
-# use crate::activitypub_federation::traits::ApubObject;
+# use crate::activitypub_federation::traits::Object;
 # use axum::headers::ContentType;
-# use activitypub_federation::APUB_JSON_CONTENT_TYPE;
+# use activitypub_federation::FEDERATION_CONTENT_TYPE;
 # use axum::TypedHeader;
 # use axum::response::IntoResponse;
 # use http::HeaderMap;
@@ -31,7 +31,7 @@ async fn main() -> Result<(), Error> {
         
     let app = axum::Router::new()
         .route("/user/:name", get(http_get_user))
-        .layer(ApubMiddleware::new(data));
+        .layer(FederationMiddleware::new(data));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
@@ -47,10 +47,10 @@ async fn http_get_user(
     data: Data<DbConnection>,
 ) -> impl IntoResponse {
     let accept = header_map.get("accept").map(|v| v.to_str().unwrap());
-    if accept == Some(APUB_JSON_CONTENT_TYPE) {
+    if accept == Some(FEDERATION_CONTENT_TYPE) {
         let db_user = data.read_local_user(name).await.unwrap();
-        let apub_user = db_user.into_apub(&data).await.unwrap();
-        ApubJson(WithContext::new_default(apub_user)).into_response()
+        let json_user = db_user.into_json(&data).await.unwrap();
+        FederationJson(WithContext::new_default(json_user)).into_response()
     }
     else {
         generate_user_html(name, data).await
@@ -60,7 +60,7 @@ async fn http_get_user(
 
 There are a couple of things going on here. Like before we are constructing the federation config with our domain and application data. We pass this to a middleware to make it available in request handlers, then listening on a port with the axum webserver.
 
-The `http_get_user` method allows retrieving a user profile from `/user/:name`. It checks the `accept` header, and compares it to the one used by Activitypub (`application/activity+json`). If it matches, the user is read from database and converted to Activitypub json format. The `context` field is added (`WithContext` for `json-ld` compliance), and it is converted to a JSON response with header `content-type: application/activity+json` using `ApubJson`. It can now be retrieved with the command `curl -H 'Accept: application/activity+json' ...` introduced earlier, or with `ObjectId`.
+The `http_get_user` method allows retrieving a user profile from `/user/:name`. It checks the `accept` header, and compares it to the one used by Activitypub (`application/activity+json`). If it matches, the user is read from database and converted to Activitypub json format. The `context` field is added (`WithContext` for `json-ld` compliance), and it is converted to a JSON response with header `content-type: application/activity+json` using `FederationJson`. It can now be retrieved with the command `curl -H 'Accept: application/activity+json' ...` introduced earlier, or with `ObjectId`.
 
 If the `accept` header doesn't match, it renders the user profile as HTML for viewing in a web browser.
 
@@ -89,6 +89,6 @@ async fn webfinger(
 ) -> Result<Json<Webfinger>, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
     let db_user = data.read_local_user(name).await?;
-    Ok(Json(build_webfinger_response(query.resource, db_user.apub_id)))
+    Ok(Json(build_webfinger_response(query.resource, db_user.federation_id)))
 }
 ```

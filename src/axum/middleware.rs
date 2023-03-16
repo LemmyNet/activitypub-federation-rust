@@ -1,14 +1,14 @@
-use crate::config::{ApubMiddleware, Data, FederationConfig};
+use crate::config::{Data, FederationConfig, FederationMiddleware};
 use axum::{async_trait, body::Body, extract::FromRequestParts, http::Request, response::Response};
 use http::{request::Parts, StatusCode};
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-impl<S, T: Clone> Layer<S> for ApubMiddleware<T> {
-    type Service = ApubService<S, T>;
+impl<S, T: Clone> Layer<S> for FederationMiddleware<T> {
+    type Service = FederationService<S, T>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        ApubService {
+        FederationService {
             inner,
             config: self.0.clone(),
         }
@@ -18,12 +18,12 @@ impl<S, T: Clone> Layer<S> for ApubMiddleware<T> {
 /// Passes [FederationConfig] to HTTP handlers, converting it to [Data] in the process
 #[doc(hidden)]
 #[derive(Clone)]
-pub struct ApubService<S, T: Clone> {
+pub struct FederationService<S, T: Clone> {
     inner: S,
     config: FederationConfig<T>,
 }
 
-impl<S, T> Service<Request<Body>> for ApubService<S, T>
+impl<S, T> Service<Request<Body>> for FederationService<S, T>
 where
     S: Service<Request<Body>, Response = Response> + Send + 'static,
     S::Future: Send + 'static,
@@ -56,7 +56,7 @@ where
             Some(c) => Ok(c.to_request_data()),
             None => Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Missing extension, did you register ApubMiddleware?",
+                "Missing extension, did you register FederationMiddleware?",
             )),
         }
     }

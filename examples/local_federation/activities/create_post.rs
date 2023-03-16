@@ -8,7 +8,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::helpers::deserialize_one_or_many,
-    traits::{ActivityHandler, ApubObject},
+    traits::{ActivityHandler, Object},
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -56,7 +56,7 @@ impl ActivityHandler for CreatePost {
     }
 
     async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
-        DbPost::from_apub(self.object, data).await?;
+        DbPost::from_json(self.object, data).await?;
         Ok(())
     }
 }

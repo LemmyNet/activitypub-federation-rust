@@ -2,7 +2,7 @@
 //!
 #![doc = include_str!("../../docs/07_fetching_data.md")]
 
-use crate::{config::Data, error::Error, reqwest_shim::ResponseExt, APUB_JSON_CONTENT_TYPE};
+use crate::{config::Data, error::Error, reqwest_shim::ResponseExt, FEDERATION_CONTENT_TYPE};
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
@@ -44,7 +44,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     let res = config
         .client
         .get(url.as_str())
-        .header("Accept", APUB_JSON_CONTENT_TYPE)
+        .header("Accept", FEDERATION_CONTENT_TYPE)
         .timeout(config.request_timeout)
         .send()
         .await
