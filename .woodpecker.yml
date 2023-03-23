@@ -1,26 +1,17 @@
----
-kind: pipeline
-name: amd64
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-
-  - name: cargo fmt
+pipeline:
+  cargo_fmt:
     image: rustdocker/rust:nightly
     commands:
       - /root/.cargo/bin/cargo fmt -- --check
 
-  - name: cargo check
+  cargo_check:
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo check --all-features --all-targets
 
-  - name: cargo clippy
+  cargo_clippy:
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
@@ -34,28 +25,28 @@ steps:
         -D clippy::manual_string_new -D clippy::redundant_closure_for_method_calls
       - cargo clippy --all-features -- -D clippy::unwrap_used
 
-  - name: cargo test
+  cargo_test:
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo test --all-features --no-fail-fast
 
-  - name: cargo doc
+  cargo_doc:
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo doc --all-features
 
-  - name: cargo run actix example
+  cargo_run_actix_example:
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo run --example local_federation actix-web
 
-  - name: cargo run axum example
+  cargo_run_axum_example:
     image: rust:1.65-bullseye
     environment:
       CARGO_HOME: .cargo
