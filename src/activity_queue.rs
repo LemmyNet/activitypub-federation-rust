@@ -194,7 +194,7 @@ async fn do_send(
     }
 }
 
-fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
+pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     let mut host = inbox_url.domain().expect("read inbox domain").to_string();
     if let Some(port) = inbox_url.port() {
         host = format!("{}:{}", host, port);

@@ -55,6 +55,7 @@ where
 mod test {
     use super::*;
     use crate::{
+        activity_queue::generate_request_headers,
         config::FederationConfig,
         http_signatures::sign_request,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},
@@ -62,6 +63,7 @@ mod test {
     use actix_web::test::TestRequest;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
+    use url::Url;
 
     #[actix_rt::test]
     async fn test_receive_activity() {
@@ -109,8 +111,11 @@ mod test {
     }
 
     async fn setup_receive_test() -> (String, TestRequest, FederationConfig<DbConnection>) {
-        let request_builder =
-            ClientWithMiddleware::from(Client::default()).post("https://example.com/inbox");
+        let inbox = "https://example.com/inbox";
+        let headers = generate_request_headers(&Url::parse(inbox).unwrap());
+        let request_builder = ClientWithMiddleware::from(Client::default())
+            .post(inbox)
+            .headers(headers);
         let activity = Follow {
             actor: ObjectId::parse("http://localhost:123").unwrap(),
             object: ObjectId::parse("http://localhost:124").unwrap(),
