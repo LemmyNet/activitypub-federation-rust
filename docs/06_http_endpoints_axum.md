@@ -89,6 +89,6 @@ async fn webfinger(
 ) -> Result<Json<Webfinger>, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
     let db_user = data.read_local_user(name).await?;
-    Ok(Json(build_webfinger_response(query.resource, db_user.federation_id)))
+    Ok(Json(build_webfinger_response(query.resource, vec![(db_user.federation_id, None)])))
 }
 ```

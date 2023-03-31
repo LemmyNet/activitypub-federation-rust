@@ -74,6 +74,6 @@ pub async fn webfinger(
     let db_user = data.read_user(&name)?;
     Ok(HttpResponse::Ok().json(build_webfinger_response(
         query.resource.clone(),
-        db_user.ap_id.into_inner(),
+        vec![(db_user.ap_id.into_inner(), None)],
     )))
 }
