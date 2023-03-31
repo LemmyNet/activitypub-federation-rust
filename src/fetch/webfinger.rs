@@ -81,18 +81,39 @@ where
         .to_string())
 }
 
-/// Builds a basic webfinger response for the actor.
+/// Builds a basic webfinger response for the actors with optional type.
 ///
 /// It assumes that the given URL is valid both to the view the actor in a browser as HTML, and
 /// for fetching it over Activitypub with `activity+json`. This setup is commonly used for ease
 /// of discovery.
+///
+/// `url` takes a vector of tuples. The first item of the tuple is the URL while the second
+/// item is the type, such as `"Person"` or `"Group"`. If `None` is passed for the type, the field
+/// will be empty.
 ///
 /// ```
 /// # use url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
 /// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
-/// build_webfinger_response(subject, url);
+/// build_webfinger_response(subject, vec![(url, None)]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+///
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
+/// let subject = "acct:nutomic@lemmy.ml".to_string();
+/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// build_webfinger_response(subject, vec![(url, Some("Person"))]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
+/// let subject = "acct:asklemmy@lemmy.ml".to_string();
+/// let url = Url::parse("https://lemmy.ml/c/asklemmy")?;
+/// build_webfinger_response(subject, vec![(url, Some("Group"))]);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn build_webfinger_response(subject: String, url: Vec<(Url, Option<&str>)>) -> Webfinger {
