@@ -17,7 +17,8 @@ use axum::{
     extract::{Path, Query},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Json,
+    Router,
 };
 use axum_macros::debug_handler;
 use serde::Deserialize;
