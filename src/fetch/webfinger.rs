@@ -95,23 +95,35 @@ where
 /// build_webfinger_response(subject, url);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
-pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
+pub fn build_webfinger_response(subject: String, url: Vec<(Url, Option<&str>)>) -> Webfinger {
     Webfinger {
         subject,
-        links: vec![
-            WebfingerLink {
-                rel: Some("http://webfinger.net/rel/profile-page".to_string()),
-                kind: Some("text/html".to_string()),
-                href: Some(url.clone()),
-                properties: Default::default(),
-            },
-            WebfingerLink {
-                rel: Some("self".to_string()),
-                kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
-                href: Some(url),
-                properties: Default::default(),
-            },
-        ],
+        links: url.iter().fold(vec![], |mut acc, (url, kind)| {
+            acc.extend(vec![
+                WebfingerLink {
+                    rel: Some("http://webfinger.net/rel/profile-page".to_string()),
+                    kind: Some("text/html".to_string()),
+                    href: Some(url.clone()),
+                    properties: Default::default(),
+                },
+                WebfingerLink {
+                    rel: Some("self".to_string()),
+                    kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
+                    href: Some(url.clone()),
+                    properties: kind
+                        .map(|kind| {
+                            HashMap::from([(
+                                "https://www.w3.org/ns/activitystreams#type"
+                                    .parse::<Url>()
+                                    .expect("parse url"),
+                                kind.to_string(),
+                            )])
+                        })
+                        .unwrap_or_default(),
+                },
+            ]);
+            acc
+        }),
         aliases: vec![],
         properties: Default::default(),
     }
