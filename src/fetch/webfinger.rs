@@ -71,8 +71,13 @@ where
     T: Clone,
 {
     // TODO: would be nice if we could implement this without regex and remove the dependency
-    let regex = Regex::new(&format!("^acct:([a-zA-Z0-9_]{{3,}})@{}$", data.domain()))
-        .map_err(Error::other)?;
+    // Regex taken from Mastodon -
+    // https://github.com/mastodon/mastodon/blob/2b113764117c9ab98875141bcf1758ba8be58173/app/models/account.rb#L65
+    let regex = Regex::new(&format!(
+        "^acct:((?i)[a-z0-9_]+([a-z0-9_\\.-]+[a-z0-9_]+)?)@{}$",
+        data.domain()
+    ))
+    .map_err(Error::other)?;
     Ok(regex
         .captures(query)
         .and_then(|c| c.get(1))
