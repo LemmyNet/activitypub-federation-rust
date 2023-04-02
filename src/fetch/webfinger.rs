@@ -117,6 +117,75 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
     }
 }
 
+/// Builds a webfinger response similar to `build_webfinger_response` that can have multiple
+/// actors and an optional type.
+///
+/// `urls` takes a vector of tuples. The first item of the tuple is the URL while the second
+/// item is the type, such as `"Person"` or `"Group"`. If `None` is passed for the type, the field
+/// will be empty.
+///
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
+/// let subject = "acct:nutomic@lemmy.ml".to_string();
+/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// build_webfinger_response_with_type(subject, vec![(url, None)]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+///
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
+/// let subject = "acct:nutomic@lemmy.ml".to_string();
+/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// build_webfinger_response_with_type(subject, vec![(url, Some("Person"))]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
+/// let subject = "acct:asklemmy@lemmy.ml".to_string();
+/// let url = Url::parse("https://lemmy.ml/c/asklemmy")?;
+/// build_webfinger_response_with_type(subject, vec![(url, Some("Group"))]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+pub fn build_webfinger_response_with_type(
+    subject: String,
+    urls: Vec<(Url, Option<&str>)>,
+) -> Webfinger {
+    Webfinger {
+        subject,
+        links: urls.iter().fold(vec![], |mut acc, (url, kind)| {
+            acc.extend(vec![
+                WebfingerLink {
+                    rel: Some("http://webfinger.net/rel/profile-page".to_string()),
+                    kind: Some("text/html".to_string()),
+                    href: Some(url.clone()),
+                    properties: Default::default(),
+                },
+                WebfingerLink {
+                    rel: Some("self".to_string()),
+                    kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
+                    href: Some(url.clone()),
+                    properties: kind
+                        .map(|kind| {
+                            HashMap::from([(
+                                "https://www.w3.org/ns/activitystreams#type"
+                                    .parse::<Url>()
+                                    .expect("parse url"),
+                                kind.to_string(),
+                            )])
+                        })
+                        .unwrap_or_default(),
+                },
+            ]);
+            acc
+        }),
+        aliases: vec![],
+        properties: Default::default(),
+    }
+}
+
 /// A webfinger response with information about a `Person` or other type of actor.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Webfinger {
