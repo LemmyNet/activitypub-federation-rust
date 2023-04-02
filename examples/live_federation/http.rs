@@ -64,6 +64,6 @@ pub async fn webfinger(
     let db_user = data.read_user(&name)?;
     Ok(Json(build_webfinger_response(
         query.resource,
-        vec![(db_user.ap_id.into_inner(), None)],
+        db_user.ap_id.into_inner(),
     )))
 }

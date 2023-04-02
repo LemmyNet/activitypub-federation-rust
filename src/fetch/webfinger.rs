@@ -81,70 +81,37 @@ where
         .to_string())
 }
 
-/// Builds a basic webfinger response for the actors with optional type.
+/// Builds a basic webfinger response for the actor.
 ///
 /// It assumes that the given URL is valid both to the view the actor in a browser as HTML, and
 /// for fetching it over Activitypub with `activity+json`. This setup is commonly used for ease
 /// of discovery.
 ///
-/// `url` takes a vector of tuples. The first item of the tuple is the URL while the second
-/// item is the type, such as `"Person"` or `"Group"`. If `None` is passed for the type, the field
-/// will be empty.
-///
 /// ```
 /// # use url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
 /// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
-/// build_webfinger_response(subject, vec![(url, None)]);
+/// build_webfinger_response(subject, url);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
-///
-/// ```
-/// # use url::Url;
-/// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
-/// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
-/// build_webfinger_response(subject, vec![(url, Some("Person"))]);
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-/// ```
-/// # use url::Url;
-/// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
-/// let subject = "acct:asklemmy@lemmy.ml".to_string();
-/// let url = Url::parse("https://lemmy.ml/c/asklemmy")?;
-/// build_webfinger_response(subject, vec![(url, Some("Group"))]);
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-pub fn build_webfinger_response(subject: String, url: Vec<(Url, Option<&str>)>) -> Webfinger {
+pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
     Webfinger {
         subject,
-        links: url.iter().fold(vec![], |mut acc, (url, kind)| {
-            acc.extend(vec![
-                WebfingerLink {
-                    rel: Some("http://webfinger.net/rel/profile-page".to_string()),
-                    kind: Some("text/html".to_string()),
-                    href: Some(url.clone()),
-                    properties: Default::default(),
-                },
-                WebfingerLink {
-                    rel: Some("self".to_string()),
-                    kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
-                    href: Some(url.clone()),
-                    properties: kind
-                        .map(|kind| {
-                            HashMap::from([(
-                                "https://www.w3.org/ns/activitystreams#type"
-                                    .parse::<Url>()
-                                    .expect("parse url"),
-                                kind.to_string(),
-                            )])
-                        })
-                        .unwrap_or_default(),
-                },
-            ]);
-            acc
-        }),
+        links: vec![
+            WebfingerLink {
+                rel: Some("http://webfinger.net/rel/profile-page".to_string()),
+                kind: Some("text/html".to_string()),
+                href: Some(url.clone()),
+                properties: Default::default(),
+            },
+            WebfingerLink {
+                rel: Some("self".to_string()),
+                kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
+                href: Some(url),
+                properties: Default::default(),
+            },
+        ],
         aliases: vec![],
         properties: Default::default(),
     }
