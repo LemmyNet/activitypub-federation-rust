@@ -71,6 +71,8 @@ where
     T: Clone,
 {
     // TODO: would be nice if we could implement this without regex and remove the dependency
+    // Regex taken from Mastodon -
+    // https://github.com/mastodon/mastodon/blob/2b113764117c9ab98875141bcf1758ba8be58173/app/models/account.rb#L65
     let regex = Regex::new(&format!(
         "^acct:((?i)[a-z0-9_]+([a-z0-9_\\.-]+[a-z0-9_]+)?)@{}$",
         data.domain()
