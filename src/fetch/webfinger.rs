@@ -96,29 +96,11 @@ where
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
-    Webfinger {
-        subject,
-        links: vec![
-            WebfingerLink {
-                rel: Some("http://webfinger.net/rel/profile-page".to_string()),
-                kind: Some("text/html".to_string()),
-                href: Some(url.clone()),
-                properties: Default::default(),
-            },
-            WebfingerLink {
-                rel: Some("self".to_string()),
-                kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
-                href: Some(url),
-                properties: Default::default(),
-            },
-        ],
-        aliases: vec![],
-        properties: Default::default(),
-    }
+    build_webfinger_response_with_type(subject, vec![(url, None)])
 }
 
-/// Builds a webfinger response similar to `build_webfinger_response` that can have multiple
-/// actors and an optional type.
+/// Builds a webfinger response similar to `build_webfinger_response`. Use this when you want to
+/// return multiple actors who share the same namespace and to specify the type of the actor.
 ///
 /// `urls` takes a vector of tuples. The first item of the tuple is the URL while the second
 /// item is the type, such as `"Person"` or `"Group"`. If `None` is passed for the type, the field
@@ -128,25 +110,13 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
 /// # use url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
-/// build_webfinger_response_with_type(subject, vec![(url, None)]);
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-///
-/// ```
-/// # use url::Url;
-/// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
-/// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
-/// build_webfinger_response_with_type(subject, vec![(url, Some("Person"))]);
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-/// ```
-/// # use url::Url;
-/// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
-/// let subject = "acct:asklemmy@lemmy.ml".to_string();
-/// let url = Url::parse("https://lemmy.ml/c/asklemmy")?;
-/// build_webfinger_response_with_type(subject, vec![(url, Some("Group"))]);
+/// let user = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// let group = Url::parse("https://lemmy.ml/c/asklemmy")?;
+/// let other = Url::parse("https://lemmy.ml/c/memes")?;
+/// build_webfinger_response_with_type(subject, vec![
+///     (user, Some("Person")),
+///     (group, Some("Group")),
+///     (other, None)]);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn build_webfinger_response_with_type(
@@ -156,7 +126,7 @@ pub fn build_webfinger_response_with_type(
     Webfinger {
         subject,
         links: urls.iter().fold(vec![], |mut acc, (url, kind)| {
-            acc.extend(vec![
+            let mut links = vec![
                 WebfingerLink {
                     rel: Some("http://webfinger.net/rel/profile-page".to_string()),
                     kind: Some("text/html".to_string()),
@@ -178,7 +148,8 @@ pub fn build_webfinger_response_with_type(
                         })
                         .unwrap_or_default(),
                 },
-            ]);
+            ];
+            acc.append(&mut links);
             acc
         }),
         aliases: vec![],
