@@ -126,6 +126,16 @@ pub fn build_webfinger_response_with_type(
     Webfinger {
         subject,
         links: urls.iter().fold(vec![], |mut acc, (url, kind)| {
+            let properties: HashMap<Url, String> = kind
+                .map(|kind| {
+                    HashMap::from([(
+                        "https://www.w3.org/ns/activitystreams#type"
+                            .parse()
+                            .expect("parse url"),
+                        kind.to_string(),
+                    )])
+                })
+                .unwrap_or_default();
             let mut links = vec![
                 WebfingerLink {
                     rel: Some("http://webfinger.net/rel/profile-page".to_string()),
@@ -137,16 +147,7 @@ pub fn build_webfinger_response_with_type(
                     rel: Some("self".to_string()),
                     kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
                     href: Some(url.clone()),
-                    properties: kind
-                        .map(|kind| {
-                            HashMap::from([(
-                                "https://www.w3.org/ns/activitystreams#type"
-                                    .parse::<Url>()
-                                    .expect("parse url"),
-                                kind.to_string(),
-                            )])
-                        })
-                        .unwrap_or_default(),
+                    properties,
                 },
             ];
             acc.append(&mut links);
