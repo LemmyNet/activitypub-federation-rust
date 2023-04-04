@@ -101,22 +101,61 @@ where
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
+    build_webfinger_response_with_type(subject, vec![(url, None)])
+}
+
+/// Builds a webfinger response similar to `build_webfinger_response`. Use this when you want to
+/// return multiple actors who share the same namespace and to specify the type of the actor.
+///
+/// `urls` takes a vector of tuples. The first item of the tuple is the URL while the second
+/// item is the type, such as `"Person"` or `"Group"`. If `None` is passed for the type, the field
+/// will be empty.
+///
+/// ```
+/// # use url::Url;
+/// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
+/// let subject = "acct:nutomic@lemmy.ml".to_string();
+/// let user = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// let group = Url::parse("https://lemmy.ml/c/asklemmy")?;
+/// build_webfinger_response_with_type(subject, vec![
+///     (user, Some("Person")),
+///     (group, Some("Group"))]);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+pub fn build_webfinger_response_with_type(
+    subject: String,
+    urls: Vec<(Url, Option<&str>)>,
+) -> Webfinger {
     Webfinger {
         subject,
-        links: vec![
-            WebfingerLink {
-                rel: Some("http://webfinger.net/rel/profile-page".to_string()),
-                kind: Some("text/html".to_string()),
-                href: Some(url.clone()),
-                properties: Default::default(),
-            },
-            WebfingerLink {
-                rel: Some("self".to_string()),
-                kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
-                href: Some(url),
-                properties: Default::default(),
-            },
-        ],
+        links: urls.iter().fold(vec![], |mut acc, (url, kind)| {
+            let properties: HashMap<Url, String> = kind
+                .map(|kind| {
+                    HashMap::from([(
+                        "https://www.w3.org/ns/activitystreams#type"
+                            .parse()
+                            .expect("parse url"),
+                        kind.to_string(),
+                    )])
+                })
+                .unwrap_or_default();
+            let mut links = vec![
+                WebfingerLink {
+                    rel: Some("http://webfinger.net/rel/profile-page".to_string()),
+                    kind: Some("text/html".to_string()),
+                    href: Some(url.clone()),
+                    properties: Default::default(),
+                },
+                WebfingerLink {
+                    rel: Some("self".to_string()),
+                    kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
+                    href: Some(url.clone()),
+                    properties,
+                },
+            ];
+            acc.append(&mut links);
+            acc
+        }),
         aliases: vec![],
         properties: Default::default(),
     }
