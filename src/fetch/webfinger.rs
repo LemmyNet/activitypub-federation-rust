@@ -112,11 +112,9 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
 /// let user = Url::parse("https://lemmy.ml/u/nutomic")?;
 /// let group = Url::parse("https://lemmy.ml/c/asklemmy")?;
-/// let other = Url::parse("https://lemmy.ml/c/memes")?;
 /// build_webfinger_response_with_type(subject, vec![
 ///     (user, Some("Person")),
-///     (group, Some("Group")),
-///     (other, None)]);
+///     (group, Some("Group"))]);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn build_webfinger_response_with_type(
