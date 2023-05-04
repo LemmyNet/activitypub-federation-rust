@@ -94,7 +94,7 @@ where
         } else {
             activity_queue.queue(message).await?;
             let stats = activity_queue.get_stats().await?;
-            info!(
+            let stats_fmt = format!(
                 "Activity queue stats: pending: {}, running: {}, dead (this hour): {}, complete (this hour): {}",
                 stats.pending,
                 stats.running,
@@ -102,7 +102,10 @@ where
                 stats.complete.this_hour()
             );
             if stats.running as u64 == config.worker_count {
-                warn!("Maximum number of activitypub workers reached. Consider increasing worker count to avoid federation delays");
+                warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
+                warn!(stats_fmt);
+            } else {
+                info!(stats_fmt);
             }
         }
     }
