@@ -156,7 +156,7 @@ impl<T: Clone> FederationConfig<T> {
     /// Returns true if the url refers to this instance. Handles hostnames like `localhost:8540` for
     /// local debugging.
     pub(crate) fn is_local_url(&self, url: &Url) -> bool {
-        let mut domain = url.domain().expect("id has domain").to_string();
+        let mut domain = url.host_str().expect("id has domain").to_string();
         if let Some(port) = url.port() {
             domain = format!("{}:{}", domain, port);
         }
