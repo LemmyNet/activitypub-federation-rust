@@ -32,7 +32,6 @@ enum_delegate = "0.2.0"
 httpdate = "1.0.2"
 http-signature-normalization-reqwest = { version = "0.8.0", default-features = false, features = ["sha-2", "middleware"] }
 http-signature-normalization = "0.7.0"
-actix-rt = "2.8.0"
 bytes = "1.4.0"
 futures-core = { version = "0.3.27", default-features = false }
 pin-project-lite = "0.2.9"
@@ -59,6 +58,7 @@ env_logger = "0.10.0"
 tower-http = { version = "0.4.0", features = ["map-request-body", "util"] }
 axum = { version = "0.6.12", features = ["http1", "tokio", "query"], default-features = false }
 axum-macros = "0.3.7"
+actix-rt = "2.8.0"
 
 [profile.dev]
 strip = "symbols"
