@@ -4,7 +4,7 @@ use crate::{
     config::Data,
     error::Error,
     fetch::object_id::ObjectId,
-    http_signatures::{verify_inbox_hash, verify_signature},
+    http_signatures::{verify_body_hash, verify_signature},
     traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
@@ -30,7 +30,7 @@ where
     <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
     Datatype: Clone,
 {
-    verify_inbox_hash(request.headers().get("Digest"), &body)?;
+    verify_body_hash(request.headers().get("Digest"), &body)?;
 
     let activity: Activity = serde_json::from_slice(&body)?;
     data.config.verify_url_and_domain(&activity).await?;

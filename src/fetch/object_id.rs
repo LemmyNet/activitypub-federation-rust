@@ -1,4 +1,9 @@
-use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object};
+use crate::{
+    config::Data,
+    error::Error,
+    fetch::{fetch_object_http, fetch_object_http_signed},
+    traits::{Actor, Object},
+};
 use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -119,6 +124,44 @@ where
         }
     }
 
+    /// Fetches an activitypub object, either from local database (if possible), or over http.
+    pub async fn dereference_signed<A>(
+        &self,
+        data: &Data<<Kind as Object>::DataType>,
+        actor: &A,
+    ) -> Result<Kind, <Kind as Object>::Error>
+    where
+        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
+        A: Actor,
+    {
+        let db_object = self.dereference_from_db(data).await?;
+
+        // if its a local object, only fetch it from the database and not over http
+        if data.config.is_local_url(&self.0) {
+            return match db_object {
+                None => Err(Error::NotFound.into()),
+                Some(o) => Ok(o),
+            };
+        }
+
+        // object found in database
+        if let Some(object) = db_object {
+            // object is old and should be refetched
+            if let Some(last_refreshed_at) = object.last_refreshed_at() {
+                if should_refetch_object(last_refreshed_at) {
+                    return self
+                        .dereference_from_http_signed(data, Some(object), actor)
+                        .await;
+                }
+            }
+            Ok(object)
+        }
+        // object not found, need to fetch over http
+        else {
+            self.dereference_from_http_signed(data, None, actor).await
+        }
+    }
+
     /// Fetch an object from the local db. Instead of falling back to http, this throws an error if
     /// the object is not found in the database.
     pub async fn dereference_local(
@@ -150,6 +193,31 @@ where
         <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
     {
         let res = fetch_object_http(&self.0, data).await;
+
+        if let Err(Error::ObjectDeleted) = &res {
+            if let Some(db_object) = db_object {
+                db_object.delete(data).await?;
+            }
+            return Err(anyhow!("Fetched remote object {} which was deleted", self).into());
+        }
+
+        let res2 = res?;
+
+        Kind::verify(&res2, self.inner(), data).await?;
+        Kind::from_json(res2, data).await
+    }
+
+    async fn dereference_from_http_signed<A>(
+        &self,
+        data: &Data<<Kind as Object>::DataType>,
+        db_object: Option<Kind>,
+        actor: &A,
+    ) -> Result<Kind, <Kind as Object>::Error>
+    where
+        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
+        A: Actor,
+    {
+        let res = fetch_object_http_signed(&self.0, data, actor).await;
 
         if let Err(Error::ObjectDeleted) = &res {
             if let Some(db_object) = db_object {
