@@ -95,7 +95,11 @@ pub(crate) async fn sign_request(
 static CONFIG2: Lazy<http_signature_normalization::Config> =
     Lazy::new(http_signature_normalization::Config::new);
 
-/// Verifies the HTTP signature on an incoming inbox request.
+/// Verifies the HTTP signature on an incoming federation request
+/// for a given actor's public key.
+///
+/// Internally, this just converts the headers to a BTreeMap and passes to
+/// `verify_signature_inner` for actual signature verification.
 pub(crate) fn verify_signature<'a, H>(
     headers: H,
     method: &Method,
@@ -115,6 +119,10 @@ where
     verify_signature_inner(header_map, method, uri, public_key)
 }
 
+/// Checks whether the given federation request has a valid signature,
+/// from any actor of type A, and returns that actor if a valid signature is found.
+/// This function will return an `Err` variant when no signature is found
+/// or if the signature could not be verified.
 pub(crate) async fn signing_actor<'a, A, H>(
     headers: H,
     method: &Method,
@@ -153,6 +161,8 @@ where
     Ok(actor)
 }
 
+/// Verifies that the signature present in the request is valid for
+/// the specified actor's public key.
 fn verify_signature_inner(
     header_map: BTreeMap<String, String>,
     method: &Method,

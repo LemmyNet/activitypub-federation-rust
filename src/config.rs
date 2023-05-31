@@ -18,7 +18,7 @@ use crate::{
     activity_queue::create_activity_queue,
     error::Error,
     protocol::verification::verify_domains_match,
-    traits::ActivityHandler,
+    traits::{ActivityHandler, Actor},
 };
 use async_trait::async_trait;
 use background_jobs::Manager;
@@ -75,6 +75,11 @@ pub struct FederationConfig<T: Clone> {
     /// <https://git.pleroma.social/pleroma/pleroma/-/issues/2939>
     #[builder(default = "false")]
     pub(crate) http_signature_compat: bool,
+    /// Actor Id and private key to use to sign all federated fetch requests.
+    /// This can be used to implement secure mode federation.
+    /// <https://docs.joinmastodon.org/spec/activitypub/#secure-mode>
+    #[builder(default = "None", setter(custom))]
+    pub(crate) signed_fetch_actor: Option<Arc<(Url, String)>>,
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
@@ -170,6 +175,13 @@ impl<T: Clone> FederationConfig<T> {
 }
 
 impl<T: Clone> FederationConfigBuilder<T> {
+    /// Sets an actor to use to sign all federated fetch requests
+    pub fn signed_fetch_actor<A: Actor>(&mut self, actor: &A) -> &mut Self {
+        let private_key_pem = actor.private_key_pem().unwrap();
+        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key_pem))));
+        self
+    }
+
     /// Constructs a new config instance with the values supplied to builder.
     ///
     /// Values which are not explicitly specified use the defaults. Also initializes the

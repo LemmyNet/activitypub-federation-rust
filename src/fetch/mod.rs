@@ -7,10 +7,8 @@ use crate::{
     error::Error,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
-    traits::Actor,
     FEDERATION_CONTENT_TYPE,
 };
-use anyhow::anyhow;
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
@@ -49,60 +47,25 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
         return Err(Error::RequestLimit);
     }
 
-    let res = config
-        .client
-        .get(url.as_str())
-        .header("Accept", FEDERATION_CONTENT_TYPE)
-        .timeout(config.request_timeout)
-        .send()
-        .await
-        .map_err(Error::other)?;
-
-    if res.status() == StatusCode::GONE {
-        return Err(Error::ObjectDeleted);
-    }
-
-    res.json_limited().await
-}
-
-/// Signed version of `fetch_object_http_signed`. This will sign the GET request
-/// using the private key of the given actor, which allows to implement secure
-/// federation mode.
-pub async fn fetch_object_http_signed<T: Clone, Kind: DeserializeOwned, A: Actor>(
-    url: &Url,
-    data: &Data<T>,
-    actor: &A,
-) -> Result<Kind, Error> {
-    let config = &data.config;
-    // dont fetch local objects this way
-    debug_assert!(url.domain() != Some(&config.domain));
-    config.verify_url_valid(url).await?;
-    info!("Fetching remote object {}", url.to_string());
-
-    let counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
-    if counter > config.http_fetch_limit {
-        return Err(Error::RequestLimit);
-    }
-
     let req = config
         .client
         .get(url.as_str())
         .header("Accept", FEDERATION_CONTENT_TYPE)
         .timeout(config.request_timeout);
 
-    let private_key_pem = actor
-        .private_key_pem()
-        .ok_or(anyhow!("Actor does not have a private key to sign with"))?;
-    let req = sign_request(
-        req,
-        actor.id(),
-        String::new(),
-        private_key_pem,
-        data.config.http_signature_compat,
-    )
-    .await?;
-
-    let res = config.client.execute(req).await.map_err(Error::other)?;
+    let res = if let Some((actor_id, private_key_pem)) = config.signed_fetch_actor.as_deref() {
+        let req = sign_request(
+            req,
+            actor_id.clone(),
+            String::new(),
+            private_key_pem.clone(),
+            data.config.http_signature_compat,
+        )
+        .await?;
+        config.client.execute(req).await.map_err(Error::other)?
+    } else {
+        req.send().await.map_err(Error::other)?
+    };
 
     if res.status() == StatusCode::GONE {
         return Err(Error::ObjectDeleted);
