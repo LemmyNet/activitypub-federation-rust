@@ -16,7 +16,7 @@ use serde::Deserialize;
 /// Checks whether the request is signed by an actor of type A, and returns
 /// the actor in question if a valid signature is found.
 pub async fn signing_actor<A>(
-    request: HttpRequest,
+    request: &HttpRequest,
     body: Option<Bytes>,
     data: &Data<<A as Object>::DataType>,
 ) -> Result<A, <A as Object>::Error>
