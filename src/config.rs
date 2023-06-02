@@ -177,7 +177,9 @@ impl<T: Clone> FederationConfig<T> {
 impl<T: Clone> FederationConfigBuilder<T> {
     /// Sets an actor to use to sign all federated fetch requests
     pub fn signed_fetch_actor<A: Actor>(&mut self, actor: &A) -> &mut Self {
-        let private_key_pem = actor.private_key_pem().unwrap();
+        let private_key_pem = actor
+            .private_key_pem()
+            .expect("actor does not have a private key to sign with");
         self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key_pem))));
         self
     }

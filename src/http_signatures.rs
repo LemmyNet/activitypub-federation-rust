@@ -145,10 +145,10 @@ where
         .get("signature")
         .ok_or(Error::ActivitySignatureInvalid)?;
 
-    let actor_id_re = regex::Regex::new("keyId=\"([^\"]+)#([^\"]+)\"").unwrap();
+    let actor_id_re = regex::Regex::new("keyId=\"([^\"]+)#([^\"]+)\"").expect("regex error");
     let actor_id = match actor_id_re.captures(signature) {
         None => return Err(Error::ActivitySignatureInvalid.into()),
-        Some(caps) => caps.get(1).unwrap().as_str(),
+        Some(caps) => caps.get(1).expect("regex error").as_str(),
     };
     let actor_url = Url::parse(actor_id).map_err(|_| Error::ActivitySignatureInvalid)?;
     let actor_id: ObjectId<A> = actor_url.into();
