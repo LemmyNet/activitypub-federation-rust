@@ -15,13 +15,18 @@ pub fn new_instance(
     hostname: &str,
     name: String,
 ) -> Result<FederationConfig<DatabaseHandle>, Error> {
+    let mut system_user = DbUser::new(hostname, "system".into())?;
+    system_user.ap_id = Url::parse(&format!("http://{}/", hostname))?.into();
+
     let local_user = DbUser::new(hostname, name)?;
     let database = Arc::new(Database {
+        system_user: system_user.clone(),
         users: Mutex::new(vec![local_user]),
         posts: Mutex::new(vec![]),
     });
     let config = FederationConfig::builder()
         .domain(hostname)
+        .signed_fetch_actor(&system_user)
         .app_data(database)
         .debug(true)
         .build()?;
@@ -32,6 +37,7 @@ pub type DatabaseHandle = Arc<Database>;
 
 /// Our "database" which contains all known posts and users (local and federated)
 pub struct Database {
+    pub system_user: DbUser,
     pub users: Mutex<Vec<DbUser>>,
     pub posts: Mutex<Vec<DbPost>>,
 }

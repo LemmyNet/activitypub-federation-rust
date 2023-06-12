@@ -6,8 +6,11 @@
 //! [receive_activity (axum)](crate::axum::inbox::receive_activity).
 
 use crate::{
+    config::Data,
     error::{Error, Error::ActivitySignatureInvalid},
+    fetch::object_id::ObjectId,
     protocol::public_key::main_key_id,
+    traits::{Actor, Object},
 };
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
 use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
@@ -21,6 +24,7 @@ use openssl::{
 };
 use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fmt::Debug, io::ErrorKind};
 use tracing::debug;
@@ -91,7 +95,11 @@ pub(crate) async fn sign_request(
 static CONFIG2: Lazy<http_signature_normalization::Config> =
     Lazy::new(http_signature_normalization::Config::new);
 
-/// Verifies the HTTP signature on an incoming inbox request.
+/// Verifies the HTTP signature on an incoming federation request
+/// for a given actor's public key.
+///
+/// Internally, this just converts the headers to a BTreeMap and passes to
+/// `verify_signature_inner` for actual signature verification.
 pub(crate) fn verify_signature<'a, H>(
     headers: H,
     method: &Method,
@@ -107,6 +115,60 @@ where
             header_map.insert(name.to_string(), value.to_string());
         }
     }
+
+    verify_signature_inner(header_map, method, uri, public_key)
+}
+
+/// Checks whether the given federation request has a valid signature,
+/// from any actor of type A, and returns that actor if a valid signature is found.
+/// This function will return an `Err` variant when no signature is found
+/// or if the signature could not be verified.
+pub(crate) async fn signing_actor<'a, A, H>(
+    headers: H,
+    method: &Method,
+    uri: &Uri,
+    data: &Data<<A as Object>::DataType>,
+) -> Result<A, <A as Object>::Error>
+where
+    A: Object + Actor,
+    <A as Object>::Error: From<Error> + From<anyhow::Error>,
+    for<'de2> <A as Object>::Kind: Deserialize<'de2>,
+    H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,
+{
+    let mut header_map = BTreeMap::<String, String>::new();
+    for (name, value) in headers {
+        if let Ok(value) = value.to_str() {
+            header_map.insert(name.to_string(), value.to_string());
+        }
+    }
+    let signature = header_map
+        .get("signature")
+        .ok_or(Error::ActivitySignatureInvalid)?;
+
+    let actor_id_re = regex::Regex::new("keyId=\"([^\"]+)#([^\"]+)\"").expect("regex error");
+    let actor_id = match actor_id_re.captures(signature) {
+        None => return Err(Error::ActivitySignatureInvalid.into()),
+        Some(caps) => caps.get(1).expect("regex error").as_str(),
+    };
+    let actor_url = Url::parse(actor_id).map_err(|_| Error::ActivitySignatureInvalid)?;
+    let actor_id: ObjectId<A> = actor_url.into();
+
+    let actor = actor_id.dereference(data).await?;
+    let public_key = actor.public_key_pem();
+
+    verify_signature_inner(header_map, method, uri, public_key)?;
+
+    Ok(actor)
+}
+
+/// Verifies that the signature present in the request is valid for
+/// the specified actor's public key.
+fn verify_signature_inner(
+    header_map: BTreeMap<String, String>,
+    method: &Method,
+    uri: &Uri,
+    public_key: &str,
+) -> Result<(), Error> {
     let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
     let verified = CONFIG2
@@ -166,7 +228,7 @@ impl DigestPart {
 }
 
 /// Verify body of an inbox request against the hash provided in `Digest` header.
-pub(crate) fn verify_inbox_hash(
+pub(crate) fn verify_body_hash(
     digest_header: Option<&HeaderValue>,
     body: &[u8],
 ) -> Result<(), Error> {
@@ -266,21 +328,21 @@ pub mod test {
     }
 
     #[test]
-    fn test_verify_inbox_hash_valid() {
+    fn test_verify_body_hash_valid() {
         let digest_header =
             HeaderValue::from_static("SHA-256=lzFT+G7C2hdI5j8M+FuJg1tC+O6AGMVJhooTCKGfbKM=");
         let body = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
-        let valid = verify_inbox_hash(Some(&digest_header), body.as_bytes());
+        let valid = verify_body_hash(Some(&digest_header), body.as_bytes());
         println!("{:?}", &valid);
         assert!(valid.is_ok());
     }
 
     #[test]
-    fn test_verify_inbox_hash_not_valid() {
+    fn test_verify_body_hash_not_valid() {
         let digest_header =
             HeaderValue::from_static("SHA-256=Z9h7DJfYWjffXw2XftmWCnpEaK/yqOHKvzCIzIaqgbU=");
         let body = "lorem ipsum";
-        let invalid = verify_inbox_hash(Some(&digest_header), body.as_bytes());
+        let invalid = verify_body_hash(Some(&digest_header), body.as_bytes());
         assert_eq!(invalid, Err(Error::ActivityBodyDigestInvalid));
     }
 

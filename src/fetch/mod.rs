@@ -2,7 +2,13 @@
 //!
 #![doc = include_str!("../../docs/07_fetching_data.md")]
 
-use crate::{config::Data, error::Error, reqwest_shim::ResponseExt, FEDERATION_CONTENT_TYPE};
+use crate::{
+    config::Data,
+    error::Error,
+    http_signatures::sign_request,
+    reqwest_shim::ResponseExt,
+    FEDERATION_CONTENT_TYPE,
+};
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
@@ -41,14 +47,25 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
         return Err(Error::RequestLimit);
     }
 
-    let res = config
+    let req = config
         .client
         .get(url.as_str())
         .header("Accept", FEDERATION_CONTENT_TYPE)
-        .timeout(config.request_timeout)
-        .send()
-        .await
-        .map_err(Error::other)?;
+        .timeout(config.request_timeout);
+
+    let res = if let Some((actor_id, private_key_pem)) = config.signed_fetch_actor.as_deref() {
+        let req = sign_request(
+            req,
+            actor_id.clone(),
+            String::new(),
+            private_key_pem.clone(),
+            data.config.http_signature_compat,
+        )
+        .await?;
+        config.client.execute(req).await.map_err(Error::other)?
+    } else {
+        req.send().await.map_err(Error::other)?
+    };
 
     if res.status() == StatusCode::GONE {
         return Err(Error::ObjectDeleted);
