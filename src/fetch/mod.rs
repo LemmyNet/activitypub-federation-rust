@@ -56,7 +56,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     let res = if let Some((actor_id, private_key_pem)) = config.signed_fetch_actor.as_deref() {
         let req = sign_request(
             req,
-            actor_id.clone(),
+            actor_id,
             String::new(),
             private_key_pem.clone(),
             data.config.http_signature_compat,

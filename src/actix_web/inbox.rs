@@ -65,7 +65,7 @@ mod test {
     use reqwest_middleware::ClientWithMiddleware;
     use url::Url;
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_receive_activity() {
         let (body, incoming_request, config) = setup_receive_test().await;
         receive_activity::<Follow, DbUser, DbConnection>(
@@ -77,7 +77,7 @@ mod test {
         .unwrap();
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_receive_activity_invalid_body_signature() {
         let (_, incoming_request, config) = setup_receive_test().await;
         let err = receive_activity::<Follow, DbUser, DbConnection>(
@@ -93,7 +93,7 @@ mod test {
         assert_eq!(e, &Error::ActivityBodyDigestInvalid)
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_receive_activity_invalid_path() {
         let (body, incoming_request, config) = setup_receive_test().await;
         let incoming_request = incoming_request.uri("/wrong");
@@ -125,7 +125,7 @@ mod test {
         let body = serde_json::to_string(&activity).unwrap();
         let outgoing_request = sign_request(
             request_builder,
-            activity.actor.into_inner(),
+            &activity.actor.into_inner(),
             body.to_string(),
             DB_USER_KEYPAIR.private_key.clone(),
             false,
@@ -142,6 +142,7 @@ mod test {
             .app_data(DbConnection)
             .debug(true)
             .build()
+            .await
             .unwrap();
         (body, incoming_request, config)
     }

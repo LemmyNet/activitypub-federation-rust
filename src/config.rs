@@ -4,24 +4,24 @@
 //!
 //! ```
 //! # use activitypub_federation::config::FederationConfig;
-//! # let _ = actix_rt::System::new();
+//! # tokio::runtime::Runtime::new().unwrap().block_on(async {
 //! let settings = FederationConfig::builder()
 //!     .domain("example.com")
 //!     .app_data(())
 //!     .http_fetch_limit(50)
 //!     .worker_count(16)
-//!     .build()?;
+//!     .build().await?;
 //! # Ok::<(), anyhow::Error>(())
+//! # }).unwrap()
 //! ```
 
 use crate::{
-    activity_queue::create_activity_queue,
+    activity_queue::{create_activity_queue, ActivityQueue},
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
 use async_trait::async_trait;
-use background_jobs::Manager;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use reqwest_middleware::ClientWithMiddleware;
@@ -56,7 +56,7 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) client: ClientWithMiddleware,
     /// Number of worker threads for sending outgoing activities
     #[builder(default = "64")]
-    pub(crate) worker_count: u64,
+    pub(crate) worker_count: usize,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
     /// more consistent. Do not use for production.
@@ -83,7 +83,7 @@ pub struct FederationConfig<T: Clone> {
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
-    pub(crate) activity_queue: Option<Arc<Manager>>,
+    pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
 }
 
 impl<T: Clone> FederationConfig<T> {
@@ -188,7 +188,8 @@ impl<T: Clone> FederationConfigBuilder<T> {
     ///
     /// Values which are not explicitly specified use the defaults. Also initializes the
     /// queue for outgoing activities, which is stored internally in the config struct.
-    pub fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
+    /// Requires a tokio runtime for the background queue.
+    pub async fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
         let mut config = self.partial_build()?;
         let queue = create_activity_queue(
             config.client.clone(),

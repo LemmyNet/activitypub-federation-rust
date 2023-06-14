@@ -22,12 +22,12 @@ The next step is to allow other servers to fetch our actors and objects. For thi
 # use http::HeaderMap;
 # async fn generate_user_html(_: String, _: Data<DbConnection>) -> axum::response::Response { todo!() }
 
-#[actix_rt::main]
+#[tokio::main]
 async fn main() -> Result<(), Error> {
     let data = FederationConfig::builder()
         .domain("example.com")
         .app_data(DbConnection)
-        .build()?;
+        .build().await?;
         
     let app = axum::Router::new()
         .route("/user/:name", get(http_get_user))

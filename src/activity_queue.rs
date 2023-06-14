@@ -11,25 +11,22 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use anyhow::anyhow;
-use background_jobs::{
-    memory_storage::{ActixTimer, Storage},
-    ActixJob,
-    Backoff,
-    Manager,
-    MaxRetries,
-    WorkerConfig,
-};
+
+use futures_core::Future;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use httpdate::fmt_http_date;
 use itertools::Itertools;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt::Debug,
-    future::Future,
-    pin::Pin,
+    fmt::{Debug, Display},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::{Duration, SystemTime},
 };
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tracing::{debug, info, warn};
 use url::Url;
 
@@ -85,7 +82,7 @@ where
             http_signature_compat: config.http_signature_compat,
         };
         if config.debug {
-            let res = do_send(message, &config.client, config.request_timeout).await;
+            let res = do_send(&message, &config.client, config.request_timeout).await;
             // Don't fail on error, as we intentionally do some invalid actions in tests, to verify that
             // they are rejected on the receiving side. These errors shouldn't bubble up to make the API
             // call fail. This matches the behaviour in production.
@@ -94,15 +91,16 @@ where
             }
         } else {
             activity_queue.queue(message).await?;
-            let stats = activity_queue.get_stats().await?;
+            let stats = activity_queue.get_stats();
+            let running = stats.running.load(Ordering::Relaxed);
             let stats_fmt = format!(
-                "Activity queue stats: pending: {}, running: {}, dead (this hour): {}, complete (this hour): {}",
-                stats.pending,
-                stats.running,
-                stats.dead.this_hour(),
-                stats.complete.this_hour()
+                "Activity queue stats: pending: {}, running: {}, dead: {}, complete: {}",
+                stats.pending.load(Ordering::Relaxed),
+                running,
+                stats.dead.load(Ordering::Relaxed),
+                stats.complete.load(Ordering::Relaxed),
             );
-            if stats.running as u64 == config.worker_count {
+            if running == config.worker_count {
                 warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
                 warn!(stats_fmt);
             } else {
@@ -124,25 +122,8 @@ struct SendActivityTask {
     http_signature_compat: bool,
 }
 
-impl ActixJob for SendActivityTask {
-    type State = QueueState;
-    type Future = Pin<Box<dyn Future<Output = Result<(), anyhow::Error>>>>;
-    const NAME: &'static str = "SendActivityTask";
-
-    const MAX_RETRIES: MaxRetries = MaxRetries::Count(3);
-    /// This gives the following retry intervals:
-    /// - 60s (one minute, for service restart)
-    /// - 60min (one hour, for instance maintenance)
-    /// - 60h (2.5 days, for major incident with rebuild from backup)
-    const BACKOFF: Backoff = Backoff::Exponential(60);
-
-    fn run(self, state: Self::State) -> Self::Future {
-        Box::pin(async move { do_send(self, &state.client, state.timeout).await })
-    }
-}
-
 async fn do_send(
-    task: SendActivityTask,
+    task: &SendActivityTask,
     client: &ClientWithMiddleware,
     timeout: Duration,
 ) -> Result<(), anyhow::Error> {
@@ -153,9 +134,9 @@ async fn do_send(
         .headers(generate_request_headers(&task.inbox));
     let request = sign_request(
         request_builder,
-        task.actor_id,
-        task.activity,
-        task.private_key,
+        &task.actor_id,
+        task.activity.clone(),
+        task.private_key.clone(),
         task.http_signature_compat,
     )
     .await?;
@@ -220,27 +201,145 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     headers
 }
 
+/// A simple activity queue which spawns tokio workers to send out requests
+/// When creating a queue, it will spawn a task per worker thread
+/// Uses an unbounded mpsc queue for communication (i.e, all messages are in memory)
+pub(crate) struct ActivityQueue {
+    // Our "background" tasks
+    senders: Vec<UnboundedSender<SendActivityTask>>,
+    // Round robin of the sender list
+    last_sender_idx: AtomicUsize,
+    // Stats shared between the queue and workers
+    stats: Arc<Stats>,
+}
+
+/// Simple stat counter to show where we're up to with sending messages
+/// This is a lock-free way to share things between tasks
+/// When reading these values it's possible (but extremely unlikely) to get stale data if a worker task is in the middle of transitioning
+#[derive(Default)]
+struct Stats {
+    pending: AtomicUsize,
+    running: AtomicUsize,
+    dead: AtomicUsize,
+    complete: AtomicUsize,
+}
+
+/// We need to retry activity sending in case the target instances is temporarily unreachable.
+/// In this case, the task is stored and resent when the instance is hopefully back up. This
+/// list shows the retry intervals, and which events of the target instance can be covered:
+/// - 60s (one minute, service restart)
+/// - 60min (one hour, instance maintenance)
+/// - 60h (2.5 days, major incident with rebuild from backup)
+/// TODO: make the intervals configurable
+const MAX_RETRIES: usize = 3;
+const BACKOFF: usize = 60;
+
+/// A tokio spawned worker which is responsible for submitting requests to federated servers
+async fn worker(
+    client: ClientWithMiddleware,
+    timeout: Duration,
+    mut receiver: UnboundedReceiver<SendActivityTask>,
+    stats: Arc<Stats>,
+) {
+    while let Some(message) = receiver.recv().await {
+        // Update our counters as we're now "running" and not "pending"
+        stats.pending.fetch_sub(1, Ordering::Relaxed);
+        stats.running.fetch_add(1, Ordering::Relaxed);
+
+        // This will use the retry helper method below, with an exponential backoff
+        // If the task is sleeping, tokio will use work-stealing to keep it busy with something else
+        let outcome = retry(|| do_send(&message, &client, timeout), MAX_RETRIES, BACKOFF).await;
+
+        // "Running" has finished, check the outcome
+        stats.running.fetch_sub(1, Ordering::Relaxed);
+
+        match outcome {
+            Ok(_) => {
+                stats.complete.fetch_add(1, Ordering::Relaxed);
+            }
+            // We might want to do something here
+            Err(_err) => {
+                stats.dead.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+}
+
+impl ActivityQueue {
+    fn new(client: ClientWithMiddleware, timeout: Duration, worker_count: usize) -> Self {
+        // Keep a vec of senders to send our messages to
+        let mut senders = Vec::with_capacity(worker_count);
+
+        let stats: Arc<Stats> = Default::default();
+
+        // Spawn our workers
+        for _ in 0..worker_count {
+            let (sender, receiver) = unbounded_channel();
+            tokio::spawn(worker(client.clone(), timeout, receiver, stats.clone()));
+            senders.push(sender);
+        }
+
+        Self {
+            senders,
+            last_sender_idx: AtomicUsize::new(0),
+            stats,
+        }
+    }
+    async fn queue(&self, message: SendActivityTask) -> Result<(), anyhow::Error> {
+        // really basic round-robin to our workers, we just do mod on the len of senders
+        let idx_to_send = self.last_sender_idx.fetch_add(1, Ordering::Relaxed) % self.senders.len();
+
+        // Set a queue to pending
+        self.stats.pending.fetch_add(1, Ordering::Relaxed);
+
+        // Send to one of our workers
+        self.senders[idx_to_send].send(message)?;
+
+        Ok(())
+    }
+
+    fn get_stats(&self) -> &Stats {
+        &self.stats
+    }
+}
+
+/// Creates an activity queue using tokio spawned tasks
+/// Note: requires a tokio runtime
 pub(crate) fn create_activity_queue(
     client: ClientWithMiddleware,
-    worker_count: u64,
+    worker_count: usize,
     request_timeout: Duration,
     debug: bool,
-) -> Manager {
+) -> ActivityQueue {
     // queue is not used in debug mod, so dont create any workers to avoid log spam
     let worker_count = if debug { 0 } else { worker_count };
 
-    // Configure and start our workers
-    WorkerConfig::new_managed(Storage::new(ActixTimer), move |_| QueueState {
-        client: client.clone(),
-        timeout: request_timeout,
-    })
-    .register::<SendActivityTask>()
-    .set_worker_count("default", worker_count)
-    .start()
+    ActivityQueue::new(client, request_timeout, worker_count)
 }
 
-#[derive(Clone)]
-struct QueueState {
-    client: ClientWithMiddleware,
-    timeout: Duration,
+/// Retries a future action factory function up to `amount` times with an exponential backoff timer between tries
+async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>(
+    mut action: A,
+    amount: usize,
+    sleep_seconds: usize,
+) -> Result<T, E> {
+    let mut count = 0;
+
+    loop {
+        match action().await {
+            Ok(val) => return Ok(val),
+            Err(err) => {
+                if count < amount {
+                    count += 1;
+
+                    warn!("{err}");
+                    let sleep_amt = sleep_seconds.pow(count as u32) as u64;
+                    tokio::time::sleep(Duration::from_secs(sleep_amt)).await;
+                    continue;
+                } else {
+                    return Err(err);
+                }
+            }
+        }
+    }
 }

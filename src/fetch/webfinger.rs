@@ -199,12 +199,13 @@ mod tests {
         traits::tests::{DbConnection, DbUser},
     };
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_webfinger() {
         let config = FederationConfig::builder()
             .domain("example.com")
             .app_data(DbConnection)
             .build()
+            .await
             .unwrap();
         let data = config.to_request_data();
         let res =

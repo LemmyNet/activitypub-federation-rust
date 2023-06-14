@@ -62,7 +62,7 @@ pub fn generate_actor_keypair() -> Result<Keypair, std::io::Error> {
 /// `activity` as request body. The request is signed with `private_key` and then sent.
 pub(crate) async fn sign_request(
     request_builder: RequestBuilder,
-    actor_id: Url,
+    actor_id: &Url,
     activity: String,
     private_key: String,
     http_signature_compat: bool,
@@ -70,7 +70,7 @@ pub(crate) async fn sign_request(
     static CONFIG: Lazy<Config> = Lazy::new(Config::new);
     static CONFIG_COMPAT: Lazy<Config> = Lazy::new(|| Config::new().mastodon_compat());
 
-    let key_id = main_key_id(&actor_id);
+    let key_id = main_key_id(actor_id);
     let sig_conf = match http_signature_compat {
         false => CONFIG.clone(),
         true => CONFIG_COMPAT.clone(),
@@ -80,7 +80,7 @@ pub(crate) async fn sign_request(
             sig_conf.clone(),
             key_id,
             Sha256::new(),
-            activity,
+            activity.clone(),
             move |signing_string| {
                 let private_key = PKey::private_key_from_pem(private_key.as_bytes())?;
                 let mut signer = Signer::new(MessageDigest::sha256(), &private_key)?;
@@ -259,7 +259,7 @@ pub mod test {
     static INBOX_URL: Lazy<Url> =
         Lazy::new(|| Url::parse("https://example.com/u/alice/inbox").unwrap());
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_sign() {
         let mut headers = generate_request_headers(&INBOX_URL);
         // use hardcoded date in order to test against hardcoded signature
@@ -273,8 +273,8 @@ pub mod test {
             .headers(headers);
         let request = sign_request(
             request_builder,
-            ACTOR_ID.clone(),
-            "my activity".to_string(),
+            &ACTOR_ID,
+            "my activity".into(),
             test_keypair().private_key,
             // set this to prevent created/expires headers to be generated and inserted
             // automatically from current time
@@ -301,7 +301,7 @@ pub mod test {
         assert_eq!(signature, expected_signature);
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_verify() {
         let headers = generate_request_headers(&INBOX_URL);
         let request_builder = ClientWithMiddleware::from(Client::new())
@@ -309,7 +309,7 @@ pub mod test {
             .headers(headers);
         let request = sign_request(
             request_builder,
-            ACTOR_ID.clone(),
+            &ACTOR_ID,
             "my activity".to_string(),
             test_keypair().private_key,
             false,

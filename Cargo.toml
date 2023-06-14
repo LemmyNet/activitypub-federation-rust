@@ -23,7 +23,6 @@ openssl = "0.10.54"
 once_cell = "1.18.0"
 http = "0.2.9"
 sha2 = "0.10.6"
-background-jobs = "0.13.0"
 thiserror = "1.0.40"
 derive_builder = "0.12.0"
 itertools = "0.10.5"
@@ -37,6 +36,7 @@ futures-core = { version = "0.3.28", default-features = false }
 pin-project-lite = "0.2.9"
 activitystreams-kinds = "0.3.0"
 regex = { version = "1.8.4", default-features = false, features = ["std"] }
+tokio = { version = "1.21.2", features = ["sync", "rt", "time"]}
 
 # Actix-web
 actix-web = { version = "4.3.1", default-features = false, optional = true }
@@ -58,7 +58,7 @@ env_logger = "0.10.0"
 tower-http = { version = "0.4.0", features = ["map-request-body", "util"] }
 axum = { version = "0.6.18", features = ["http1", "tokio", "query"], default-features = false }
 axum-macros = "0.3.7"
-actix-rt = "2.8.0"
+tokio = { version = "1.21.2", features = ["full"]}
 
 [profile.dev]
 strip = "symbols"

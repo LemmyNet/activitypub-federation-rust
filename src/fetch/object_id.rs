@@ -36,13 +36,12 @@ where
 /// # use activitypub_federation::config::FederationConfig;
 /// # use activitypub_federation::error::Error::NotFound;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
-/// # let _ = actix_rt::System::new();
-/// # actix_rt::Runtime::new().unwrap().block_on(async {
+/// # tokio::runtime::Runtime::new().unwrap().block_on(async {
 /// # let db_connection = DbConnection;
 /// let config = FederationConfig::builder()
 ///     .domain("example.com")
 ///     .app_data(db_connection)
-///     .build()?;
+///     .build().await?;
 /// let request_data = config.to_request_data();
 /// let object_id = ObjectId::<DbUser>::parse("https://lemmy.ml/u/nutomic")?;
 /// // Attempt to fetch object from local database or fall back to remote server
