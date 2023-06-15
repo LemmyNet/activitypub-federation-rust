@@ -26,7 +26,10 @@ use std::{
     },
     time::{Duration, SystemTime},
 };
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::{
+    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    task::JoinHandle,
+};
 use tracing::{debug, info, warn};
 use url::Url;
 
@@ -81,31 +84,22 @@ where
             private_key: private_key.clone(),
             http_signature_compat: config.http_signature_compat,
         };
-        if config.debug {
-            let res = do_send(&message, &config.client, config.request_timeout).await;
-            // Don't fail on error, as we intentionally do some invalid actions in tests, to verify that
-            // they are rejected on the receiving side. These errors shouldn't bubble up to make the API
-            // call fail. This matches the behaviour in production.
-            if let Err(e) = res {
-                warn!("{}", e);
-            }
+
+        activity_queue.queue(message).await?;
+        let stats = activity_queue.get_stats();
+        let running = stats.running.load(Ordering::Relaxed);
+        let stats_fmt = format!(
+            "Activity queue stats: pending: {}, running: {}, dead: {}, complete: {}",
+            stats.pending.load(Ordering::Relaxed),
+            running,
+            stats.dead_last_hour.load(Ordering::Relaxed),
+            stats.completed_last_hour.load(Ordering::Relaxed),
+        );
+        if running == config.worker_count {
+            warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
+            warn!(stats_fmt);
         } else {
-            activity_queue.queue(message).await?;
-            let stats = activity_queue.get_stats();
-            let running = stats.running.load(Ordering::Relaxed);
-            let stats_fmt = format!(
-                "Activity queue stats: pending: {}, running: {}, dead: {}, complete: {}",
-                stats.pending.load(Ordering::Relaxed),
-                running,
-                stats.dead.load(Ordering::Relaxed),
-                stats.complete.load(Ordering::Relaxed),
-            );
-            if running == config.worker_count {
-                warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
-                warn!(stats_fmt);
-            } else {
-                info!(stats_fmt);
-            }
+            info!(stats_fmt);
         }
     }
 
@@ -144,7 +138,7 @@ async fn do_send(
 
     match response {
         Ok(o) if o.status().is_success() => {
-            info!(
+            debug!(
                 "Activity {} delivered successfully to {}",
                 task.activity_id, task.inbox
             );
@@ -152,7 +146,7 @@ async fn do_send(
         }
         Ok(o) if o.status().is_client_error() => {
             let text = o.text_limited().await.map_err(Error::other)?;
-            info!(
+            debug!(
                 "Activity {} was rejected by {}, aborting: {}",
                 task.activity_id, task.inbox, text,
             );
@@ -170,7 +164,7 @@ async fn do_send(
             ))
         }
         Err(e) => {
-            info!(
+            warn!(
                 "Unable to connect to {}, aborting task {}: {}",
                 task.inbox, task.activity_id, e
             );
@@ -207,6 +201,8 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 pub(crate) struct ActivityQueue {
     // Our "background" tasks
     senders: Vec<UnboundedSender<SendActivityTask>>,
+    handles: Vec<JoinHandle<()>>,
+    reset_handle: JoinHandle<()>,
     // Round robin of the sender list
     last_sender_idx: AtomicUsize,
     // Stats shared between the queue and workers
@@ -220,8 +216,8 @@ pub(crate) struct ActivityQueue {
 struct Stats {
     pending: AtomicUsize,
     running: AtomicUsize,
-    dead: AtomicUsize,
-    complete: AtomicUsize,
+    dead_last_hour: AtomicUsize,
+    completed_last_hour: AtomicUsize,
 }
 
 /// We need to retry activity sending in case the target instances is temporarily unreachable.
@@ -230,7 +226,6 @@ struct Stats {
 /// - 60s (one minute, service restart)
 /// - 60min (one hour, instance maintenance)
 /// - 60h (2.5 days, major incident with rebuild from backup)
-/// TODO: make the intervals configurable
 const MAX_RETRIES: usize = 3;
 const BACKOFF: usize = 60;
 
@@ -255,11 +250,11 @@ async fn worker(
 
         match outcome {
             Ok(_) => {
-                stats.complete.fetch_add(1, Ordering::Relaxed);
+                stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
             }
             // We might want to do something here
             Err(_err) => {
-                stats.dead.fetch_add(1, Ordering::Relaxed);
+                stats.dead_last_hour.fetch_add(1, Ordering::Relaxed);
             }
         }
     }
@@ -269,18 +264,37 @@ impl ActivityQueue {
     fn new(client: ClientWithMiddleware, timeout: Duration, worker_count: usize) -> Self {
         // Keep a vec of senders to send our messages to
         let mut senders = Vec::with_capacity(worker_count);
+        let mut handles = Vec::with_capacity(worker_count);
 
         let stats: Arc<Stats> = Default::default();
+
+        // This task clears the dead/completed stats every hour
+        let hour_stats = stats.clone();
+        let reset_handle = tokio::spawn(async move {
+            let duration = Duration::from_secs(3600);
+            loop {
+                tokio::time::sleep(duration).await;
+                hour_stats.completed_last_hour.store(0, Ordering::Relaxed);
+                hour_stats.dead_last_hour.store(0, Ordering::Relaxed);
+            }
+        });
 
         // Spawn our workers
         for _ in 0..worker_count {
             let (sender, receiver) = unbounded_channel();
-            tokio::spawn(worker(client.clone(), timeout, receiver, stats.clone()));
+            handles.push(tokio::spawn(worker(
+                client.clone(),
+                timeout,
+                receiver,
+                stats.clone(),
+            )));
             senders.push(sender);
         }
 
         Self {
             senders,
+            handles,
+            reset_handle,
             last_sender_idx: AtomicUsize::new(0),
             stats,
         }
@@ -301,6 +315,22 @@ impl ActivityQueue {
     fn get_stats(&self) -> &Stats {
         &self.stats
     }
+
+    #[allow(unused)]
+    // Drops all the senders and shuts down the workers
+    async fn shutdown(self) -> Result<Stats, anyhow::Error> {
+        drop(self.senders);
+
+        // stop the reset counter task
+        self.reset_handle.abort();
+        self.reset_handle.await.ok();
+
+        for handle in self.handles {
+            handle.await?;
+        }
+
+        Arc::into_inner(self.stats).ok_or_else(|| anyhow!("Could not retrieve stats"))
+    }
 }
 
 /// Creates an activity queue using tokio spawned tasks
@@ -309,10 +339,11 @@ pub(crate) fn create_activity_queue(
     client: ClientWithMiddleware,
     worker_count: usize,
     request_timeout: Duration,
-    debug: bool,
 ) -> ActivityQueue {
-    // queue is not used in debug mod, so dont create any workers to avoid log spam
-    let worker_count = if debug { 0 } else { worker_count };
+    assert!(
+        worker_count > 0,
+        "worker count needs to be greater than zero"
+    );
 
     ActivityQueue::new(client, request_timeout, worker_count)
 }
@@ -341,5 +372,90 @@ async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use std::{thread::available_parallelism, time::Instant};
+
+    use crate::http_signatures::generate_actor_keypair;
+
+    use super::*;
+
+    async fn test_server() {
+        use axum::{routing::post, Router};
+        let app = Router::new().route(
+            "/",
+            post(|headers: HeaderMap, body: Bytes| async move {
+                debug!("Headers:{:?}", headers);
+                debug!("Body len:{}", body.len());
+            }),
+        );
+        // run it with hyper on localhost:3000
+        axum::Server::bind(&"0.0.0.0:8001".parse().unwrap())
+            .serve(app.into_make_service())
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    // Queues 10_000 messages and then asserts that the worker runs them
+    async fn test_activity_queue_workers() {
+        let num_workers = available_parallelism().unwrap().get();
+        let num_messages: usize = 10_000;
+
+        tokio::spawn(test_server());
+
+        /*
+        // uncomment for debug logs & stats
+        use tracing::log::LevelFilter;
+
+        env_logger::builder()
+            .filter_level(LevelFilter::Warn)
+            .filter_module("activitypub_federation", LevelFilter::Info)
+            .format_timestamp(None)
+            .init();
+        */
+
+        let activity_queue = create_activity_queue(
+            reqwest::Client::default().into(),
+            num_workers,
+            Duration::from_secs(10),
+        );
+
+        let keypair = generate_actor_keypair().unwrap();
+
+        let message = SendActivityTask {
+            actor_id: "http://localhost:8001".parse().unwrap(),
+            activity_id: "http://localhost:8001/activity".parse().unwrap(),
+            activity: "{}".into(),
+            inbox: "http://localhost:8001".parse().unwrap(),
+            private_key: keypair.private_key.clone(),
+            http_signature_compat: true,
+        };
+
+        let start = Instant::now();
+
+        for _ in 0..num_messages {
+            activity_queue.queue(message.clone()).await.unwrap();
+        }
+
+        info!("Queue Sent: {:?}", start.elapsed());
+
+        let stats = activity_queue.shutdown().await.unwrap();
+
+        info!(
+            "Queue Finished.  Num msgs: {}, Time {:?}, msg/s: {:0.0}",
+            num_messages,
+            start.elapsed(),
+            num_messages as f64 / start.elapsed().as_secs_f64()
+        );
+
+        assert_eq!(
+            stats.completed_last_hour.load(Ordering::Relaxed),
+            num_messages
+        );
     }
 }

@@ -195,7 +195,6 @@ impl<T: Clone> FederationConfigBuilder<T> {
             config.client.clone(),
             config.worker_count,
             config.request_timeout,
-            config.debug,
         );
         config.activity_queue = Some(Arc::new(queue));
         Ok(config)
