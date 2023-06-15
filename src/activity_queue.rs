@@ -329,7 +329,7 @@ impl ActivityQueue {
             handle.await?;
         }
 
-        Arc::into_inner(self.stats).ok_or_else(|| anyhow!("Could not retrieve stats"))
+        Arc::try_unwrap(self.stats).map_err(|_| anyhow!("Could not retrieve stats"))
     }
 }
 
