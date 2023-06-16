@@ -70,7 +70,7 @@ mod test {
         let (body, incoming_request, config) = setup_receive_test().await;
         receive_activity::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
-            body.into(),
+            body,
             &config.to_request_data(),
         )
         .await
@@ -99,7 +99,7 @@ mod test {
         let incoming_request = incoming_request.uri("/wrong");
         let err = receive_activity::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
-            body.into(),
+            body,
             &config.to_request_data(),
         )
         .await
@@ -110,7 +110,7 @@ mod test {
         assert_eq!(e, &Error::ActivitySignatureInvalid)
     }
 
-    async fn setup_receive_test() -> (String, TestRequest, FederationConfig<DbConnection>) {
+    async fn setup_receive_test() -> (Bytes, TestRequest, FederationConfig<DbConnection>) {
         let inbox = "https://example.com/inbox";
         let headers = generate_request_headers(&Url::parse(inbox).unwrap());
         let request_builder = ClientWithMiddleware::from(Client::default())
@@ -122,12 +122,12 @@ mod test {
             kind: Default::default(),
             id: "http://localhost:123/1".try_into().unwrap(),
         };
-        let body = serde_json::to_string(&activity).unwrap();
+        let body: Bytes = serde_json::to_vec(&activity).unwrap().into();
         let outgoing_request = sign_request(
             request_builder,
             &activity.actor.into_inner(),
-            body.to_string(),
-            DB_USER_KEYPAIR.private_key.clone(),
+            body.clone(),
+            DB_USER_KEYPAIR.private_key().unwrap(),
             false,
         )
         .await

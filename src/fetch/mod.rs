@@ -9,6 +9,7 @@ use crate::{
     reqwest_shim::ResponseExt,
     FEDERATION_CONTENT_TYPE,
 };
+use bytes::Bytes;
 use http::StatusCode;
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
@@ -57,7 +58,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
         let req = sign_request(
             req,
             actor_id,
-            String::new(),
+            Bytes::new(),
             private_key_pem.clone(),
             data.config.http_signature_compat,
         )

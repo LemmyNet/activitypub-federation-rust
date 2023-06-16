@@ -24,6 +24,7 @@ use crate::{
 use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
+use openssl::pkey::{PKey, Private};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use std::{
@@ -54,7 +55,8 @@ pub struct FederationConfig<T: Clone> {
     /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
     /// like log tracing or retry of failed requests.
     pub(crate) client: ClientWithMiddleware,
-    /// Number of worker threads for sending outgoing activities
+    /// Number of worker tasks for sending outgoing activities
+    /// Should be a multiplier of the number of threads
     #[builder(default = "64")]
     pub(crate) worker_count: usize,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
@@ -79,7 +81,7 @@ pub struct FederationConfig<T: Clone> {
     /// This can be used to implement secure mode federation.
     /// <https://docs.joinmastodon.org/spec/activitypub/#secure-mode>
     #[builder(default = "None", setter(custom))]
-    pub(crate) signed_fetch_actor: Option<Arc<(Url, String)>>,
+    pub(crate) signed_fetch_actor: Option<Arc<(Url, PKey<Private>)>>,
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
@@ -180,7 +182,10 @@ impl<T: Clone> FederationConfigBuilder<T> {
         let private_key_pem = actor
             .private_key_pem()
             .expect("actor does not have a private key to sign with");
-        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key_pem))));
+
+        let private_key = PKey::private_key_from_pem(private_key_pem.as_bytes())
+            .expect("Could not decode PEM data");
+        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
         self
     }
 

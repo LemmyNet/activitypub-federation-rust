@@ -12,12 +12,15 @@ use crate::{
 };
 use anyhow::anyhow;
 
+use bytes::Bytes;
 use futures_core::Future;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use httpdate::fmt_http_date;
 use itertools::Itertools;
+use openssl::pkey::{PKey, Private};
+use reqwest::Request;
 use reqwest_middleware::ClientWithMiddleware;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     fmt::{Debug, Display},
     sync::{
@@ -56,10 +59,17 @@ where
     let config = &data.config;
     let actor_id = activity.actor();
     let activity_id = activity.id();
-    let activity_serialized = serde_json::to_string_pretty(&activity)?;
-    let private_key = actor
+    let activity_serialized: Bytes = serde_json::to_vec(&activity)?.into();
+    let private_key_pem = actor
         .private_key_pem()
-        .expect("Actor for sending activity has private key");
+        .ok_or_else(|| anyhow!("Actor {actor_id} does not contain a private key for signing"))?;
+
+    // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
+    let private_key = tokio::task::block_in_place(|| {
+        PKey::private_key_from_pem(private_key_pem.as_bytes())
+            .map_err(|err| anyhow!("Could not create private key from PEM data:{err}"))
+    })?;
+
     let inboxes: Vec<Url> = inboxes
         .into_iter()
         .unique()
@@ -106,17 +116,17 @@ where
     Ok(())
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 struct SendActivityTask {
     actor_id: Url,
     activity_id: Url,
-    activity: String,
+    activity: Bytes,
     inbox: Url,
-    private_key: String,
+    private_key: PKey<Private>,
     http_signature_compat: bool,
 }
 
-async fn do_send(
+async fn sign_and_send(
     task: &SendActivityTask,
     client: &ClientWithMiddleware,
     timeout: Duration,
@@ -134,6 +144,15 @@ async fn do_send(
         task.http_signature_compat,
     )
     .await?;
+
+    send(task, client, request).await
+}
+
+async fn send(
+    task: &SendActivityTask,
+    client: &ClientWithMiddleware,
+    request: Request,
+) -> Result<(), anyhow::Error> {
     let response = client.execute(request).await;
 
     match response {
@@ -220,14 +239,13 @@ struct Stats {
     completed_last_hour: AtomicUsize,
 }
 
-/// We need to retry activity sending in case the target instances is temporarily unreachable.
-/// In this case, the task is stored and resent when the instance is hopefully back up. This
-/// list shows the retry intervals, and which events of the target instance can be covered:
-/// - 60s (one minute, service restart)
-/// - 60min (one hour, instance maintenance)
-/// - 60h (2.5 days, major incident with rebuild from backup)
-const MAX_RETRIES: usize = 3;
-const BACKOFF: usize = 60;
+#[derive(Clone, Copy)]
+struct RetryStrategy {
+    /// Amount of time in seconds to back off
+    backoff: usize,
+    /// Amount of times to retry
+    retries: usize,
+}
 
 /// A tokio spawned worker which is responsible for submitting requests to federated servers
 async fn worker(
@@ -235,15 +253,13 @@ async fn worker(
     timeout: Duration,
     mut receiver: UnboundedReceiver<SendActivityTask>,
     stats: Arc<Stats>,
+    strategy: RetryStrategy,
 ) {
     while let Some(message) = receiver.recv().await {
-        // Update our counters as we're now "running" and not "pending"
         stats.pending.fetch_sub(1, Ordering::Relaxed);
         stats.running.fetch_add(1, Ordering::Relaxed);
 
-        // This will use the retry helper method below, with an exponential backoff
-        // If the task is sleeping, tokio will use work-stealing to keep it busy with something else
-        let outcome = retry(|| do_send(&message, &client, timeout), MAX_RETRIES, BACKOFF).await;
+        let outcome = retry(|| sign_and_send(&message, &client, timeout), strategy).await;
 
         // "Running" has finished, check the outcome
         stats.running.fetch_sub(1, Ordering::Relaxed);
@@ -252,7 +268,6 @@ async fn worker(
             Ok(_) => {
                 stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
             }
-            // We might want to do something here
             Err(_err) => {
                 stats.dead_last_hour.fetch_add(1, Ordering::Relaxed);
             }
@@ -261,7 +276,12 @@ async fn worker(
 }
 
 impl ActivityQueue {
-    fn new(client: ClientWithMiddleware, timeout: Duration, worker_count: usize) -> Self {
+    fn new(
+        client: ClientWithMiddleware,
+        worker_count: usize,
+        timeout: Duration,
+        strategy: RetryStrategy,
+    ) -> Self {
         // Keep a vec of senders to send our messages to
         let mut senders = Vec::with_capacity(worker_count);
         let mut handles = Vec::with_capacity(worker_count);
@@ -287,6 +307,7 @@ impl ActivityQueue {
                 timeout,
                 receiver,
                 stats.clone(),
+                strategy,
             )));
             senders.push(sender);
         }
@@ -344,15 +365,30 @@ pub(crate) fn create_activity_queue(
         worker_count > 0,
         "worker count needs to be greater than zero"
     );
+    /// We need to retry activity sending in case the target instances is temporarily unreachable.
+    /// In this case, the task is stored and resent when the instance is hopefully back up. This
+    /// list shows the retry intervals, and which events of the target instance can be covered:
+    /// - 60s (one minute, service restart)
+    /// - 60min (one hour, instance maintenance)
+    /// - 60h (2.5 days, major incident with rebuild from backup)
+    const MAX_RETRIES: usize = 3;
+    const BACKOFF: usize = 60;
 
-    ActivityQueue::new(client, request_timeout, worker_count)
+    ActivityQueue::new(
+        client,
+        worker_count,
+        request_timeout,
+        RetryStrategy {
+            backoff: BACKOFF,
+            retries: MAX_RETRIES,
+        },
+    )
 }
 
 /// Retries a future action factory function up to `amount` times with an exponential backoff timer between tries
 async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>(
     mut action: A,
-    amount: usize,
-    sleep_seconds: usize,
+    strategy: RetryStrategy,
 ) -> Result<T, E> {
     let mut count = 0;
 
@@ -360,12 +396,13 @@ async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>
         match action().await {
             Ok(val) => return Ok(val),
             Err(err) => {
-                if count < amount {
+                if count < strategy.retries {
                     count += 1;
 
-                    warn!("{err}");
-                    let sleep_amt = sleep_seconds.pow(count as u32) as u64;
-                    tokio::time::sleep(Duration::from_secs(sleep_amt)).await;
+                    let sleep_amt = strategy.backoff.pow(count as u32) as u64;
+                    let sleep_dur = Duration::from_secs(sleep_amt);
+                    warn!("{err}.  Sleeping for {sleep_dur:?} and trying again");
+                    tokio::time::sleep(sleep_dur).await;
                     continue;
                 } else {
                     return Err(err);
@@ -377,23 +414,41 @@ async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>
 
 #[cfg(test)]
 mod tests {
+    use axum::extract::State;
     use bytes::Bytes;
-    use std::{thread::available_parallelism, time::Instant};
+    use http::StatusCode;
+    use std::time::Instant;
 
     use crate::http_signatures::generate_actor_keypair;
 
     use super::*;
 
+    #[allow(unused)]
+    // This will periodically send back internal errors to test the retry
+    async fn dodgy_handler(
+        State(state): State<Arc<AtomicUsize>>,
+        headers: HeaderMap,
+        body: Bytes,
+    ) -> Result<(), StatusCode> {
+        debug!("Headers:{:?}", headers);
+        debug!("Body len:{}", body.len());
+
+        if state.fetch_add(1, Ordering::Relaxed) % 20 == 0 {
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+        Ok(())
+    }
+
     async fn test_server() {
         use axum::{routing::post, Router};
-        let app = Router::new().route(
-            "/",
-            post(|headers: HeaderMap, body: Bytes| async move {
-                debug!("Headers:{:?}", headers);
-                debug!("Body len:{}", body.len());
-            }),
-        );
-        // run it with hyper on localhost:3000
+
+        // We should break every now and then ;)
+        let state = Arc::new(AtomicUsize::new(0));
+
+        let app = Router::new()
+            .route("/", post(dodgy_handler))
+            .with_state(state);
+
         axum::Server::bind(&"0.0.0.0:8001".parse().unwrap())
             .serve(app.into_make_service())
             .await
@@ -403,8 +458,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     // Queues 10_000 messages and then asserts that the worker runs them
     async fn test_activity_queue_workers() {
-        let num_workers = available_parallelism().unwrap().get();
-        let num_messages: usize = 10_000;
+        let num_workers = 64;
+        let num_messages: usize = 100;
 
         tokio::spawn(test_server());
 
@@ -419,10 +474,14 @@ mod tests {
             .init();
         */
 
-        let activity_queue = create_activity_queue(
+        let activity_queue = ActivityQueue::new(
             reqwest::Client::default().into(),
             num_workers,
             Duration::from_secs(10),
+            RetryStrategy {
+                backoff: 1,
+                retries: 3,
+            },
         );
 
         let keypair = generate_actor_keypair().unwrap();
@@ -432,7 +491,7 @@ mod tests {
             activity_id: "http://localhost:8001/activity".parse().unwrap(),
             activity: "{}".into(),
             inbox: "http://localhost:8001".parse().unwrap(),
-            private_key: keypair.private_key.clone(),
+            private_key: keypair.private_key().unwrap(),
             http_signature_compat: true,
         };
 
