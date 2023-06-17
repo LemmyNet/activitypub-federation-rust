@@ -30,8 +30,12 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    task::JoinHandle,
+    sync::{
+        mpsc::{unbounded_channel, UnboundedSender},
+        OwnedSemaphorePermit,
+        Semaphore,
+    },
+    task::{JoinHandle, JoinSet},
 };
 use tracing::{debug, info, warn};
 use url::Url;
@@ -65,10 +69,12 @@ where
         .ok_or_else(|| anyhow!("Actor {actor_id} does not contain a private key for signing"))?;
 
     // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
-    let private_key = tokio::task::block_in_place(|| {
+    let private_key = tokio::task::spawn_blocking(move || {
         PKey::private_key_from_pem(private_key_pem.as_bytes())
             .map_err(|err| anyhow!("Could not create private key from PEM data:{err}"))
-    })?;
+    })
+    .await
+    .map_err(|err| anyhow!("Error joining:{err}"))??;
 
     let inboxes: Vec<Url> = inboxes
         .into_iter()
@@ -95,13 +101,28 @@ where
             http_signature_compat: config.http_signature_compat,
         };
 
+        // Don't use the activity queue if this is in debug mode, send and wait directly
+        if config.debug {
+            if let Err(err) = sign_and_send(
+                &message,
+                &config.client,
+                config.request_timeout,
+                Default::default(),
+            )
+            .await
+            {
+                warn!("{err}");
+            }
+            return Ok(());
+        }
         activity_queue.queue(message).await?;
         let stats = activity_queue.get_stats();
         let running = stats.running.load(Ordering::Relaxed);
         let stats_fmt = format!(
-            "Activity queue stats: pending: {}, running: {}, dead: {}, complete: {}",
+            "Activity queue stats: pending: {}, running: {}, retries: {}, dead: {}, complete: {}",
             stats.pending.load(Ordering::Relaxed),
             running,
+            stats.retries.load(Ordering::Relaxed),
             stats.dead_last_hour.load(Ordering::Relaxed),
             stats.completed_last_hour.load(Ordering::Relaxed),
         );
@@ -130,6 +151,7 @@ async fn sign_and_send(
     task: &SendActivityTask,
     client: &ClientWithMiddleware,
     timeout: Duration,
+    retry_strategy: RetryStrategy,
 ) -> Result<(), anyhow::Error> {
     debug!("Sending {} to {}", task.activity_id, task.inbox);
     let request_builder = client
@@ -145,7 +167,19 @@ async fn sign_and_send(
     )
     .await?;
 
-    send(task, client, request).await
+    retry(
+        || {
+            send(
+                task,
+                client,
+                request
+                    .try_clone()
+                    .expect("The body of the request is not cloneable"),
+            )
+        },
+        retry_strategy,
+    )
+    .await
 }
 
 async fn send(
@@ -183,7 +217,7 @@ async fn send(
             ))
         }
         Err(e) => {
-            warn!(
+            debug!(
                 "Unable to connect to {}, aborting task {}: {}",
                 task.inbox, task.activity_id, e
             );
@@ -218,14 +252,11 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 /// When creating a queue, it will spawn a task per worker thread
 /// Uses an unbounded mpsc queue for communication (i.e, all messages are in memory)
 pub(crate) struct ActivityQueue {
-    // Our "background" tasks
-    senders: Vec<UnboundedSender<SendActivityTask>>,
-    handles: Vec<JoinHandle<()>>,
-    reset_handle: JoinHandle<()>,
-    // Round robin of the sender list
-    last_sender_idx: AtomicUsize,
     // Stats shared between the queue and workers
     stats: Arc<Stats>,
+    sender: UnboundedSender<SendActivityTask>,
+    sender_task: JoinHandle<()>,
+    retry_sender_task: JoinHandle<()>,
 }
 
 /// Simple stat counter to show where we're up to with sending messages
@@ -235,62 +266,120 @@ pub(crate) struct ActivityQueue {
 struct Stats {
     pending: AtomicUsize,
     running: AtomicUsize,
+    retries: AtomicUsize,
     dead_last_hour: AtomicUsize,
     completed_last_hour: AtomicUsize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct RetryStrategy {
     /// Amount of time in seconds to back off
     backoff: usize,
     /// Amount of times to retry
     retries: usize,
+    /// If this particular request has already been retried, you can add an offset here to increment the count to start
+    offset: usize,
+    /// Number of seconds to sleep before trying
+    initial_sleep: usize,
 }
 
 /// A tokio spawned worker which is responsible for submitting requests to federated servers
+/// This will retry up to one time with the same signature, and if it fails, will move it to the retry queue.
+/// We need to retry activity sending in case the target instances is temporarily unreachable.
+/// In this case, the task is stored and resent when the instance is hopefully back up. This
+/// list shows the retry intervals, and which events of the target instance can be covered:
+/// - 60s (one minute, service restart) -- happens in the worker w/ same signature
+/// - 60min (one hour, instance maintenance) --- happens in the retry worker
+/// - 60h (2.5 days, major incident with rebuild from backup) --- happens in the retry worker
 async fn worker(
     client: ClientWithMiddleware,
     timeout: Duration,
-    mut receiver: UnboundedReceiver<SendActivityTask>,
+    message: SendActivityTask,
+    permit: OwnedSemaphorePermit,
+    retry_queue: UnboundedSender<SendActivityTask>,
     stats: Arc<Stats>,
     strategy: RetryStrategy,
 ) {
-    while let Some(message) = receiver.recv().await {
-        stats.pending.fetch_sub(1, Ordering::Relaxed);
-        stats.running.fetch_add(1, Ordering::Relaxed);
+    stats.pending.fetch_sub(1, Ordering::Relaxed);
+    stats.running.fetch_add(1, Ordering::Relaxed);
 
-        let outcome = retry(|| sign_and_send(&message, &client, timeout), strategy).await;
+    let outcome = sign_and_send(&message, &client, timeout, strategy).await;
 
-        // "Running" has finished, check the outcome
-        stats.running.fetch_sub(1, Ordering::Relaxed);
+    // "Running" has finished, check the outcome
+    stats.running.fetch_sub(1, Ordering::Relaxed);
 
-        match outcome {
-            Ok(_) => {
-                stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
-            }
-            Err(_err) => {
-                stats.dead_last_hour.fetch_add(1, Ordering::Relaxed);
-            }
+    match outcome {
+        Ok(_) => {
+            stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(_err) => {
+            stats.retries.fetch_add(1, Ordering::Relaxed);
+            warn!(
+                "Sending activity {} to {} to the retry queue to be tried again later",
+                message.activity_id, message.inbox
+            );
+            // Send to the retry queue.  Ignoring whether it succeeds or not
+            retry_queue.send(message).ok();
         }
     }
+
+    drop(permit);
+}
+
+async fn retry_worker(
+    client: ClientWithMiddleware,
+    timeout: Duration,
+    message: SendActivityTask,
+    permit: OwnedSemaphorePermit,
+    stats: Arc<Stats>,
+    strategy: RetryStrategy,
+) {
+    // Because the times are pretty extravagant between retries, we have to re-sign each time
+    let outcome = retry(
+        || {
+            sign_and_send(
+                &message,
+                &client,
+                timeout,
+                RetryStrategy {
+                    backoff: 0,
+                    retries: 0,
+                    offset: 0,
+                    initial_sleep: 0,
+                },
+            )
+        },
+        strategy,
+    )
+    .await;
+
+    stats.retries.fetch_sub(1, Ordering::Relaxed);
+
+    match outcome {
+        Ok(_) => {
+            stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(_err) => {
+            stats.dead_last_hour.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    drop(permit)
 }
 
 impl ActivityQueue {
     fn new(
         client: ClientWithMiddleware,
         worker_count: usize,
+        retry_count: usize,
         timeout: Duration,
-        strategy: RetryStrategy,
+        backoff: usize, // This should be 60 seconds by default or 1 second in tests
     ) -> Self {
-        // Keep a vec of senders to send our messages to
-        let mut senders = Vec::with_capacity(worker_count);
-        let mut handles = Vec::with_capacity(worker_count);
-
         let stats: Arc<Stats> = Default::default();
 
         // This task clears the dead/completed stats every hour
         let hour_stats = stats.clone();
-        let reset_handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             let duration = Duration::from_secs(3600);
             loop {
                 tokio::time::sleep(duration).await;
@@ -299,36 +388,99 @@ impl ActivityQueue {
             }
         });
 
-        // Spawn our workers
-        for _ in 0..worker_count {
-            let (sender, receiver) = unbounded_channel();
-            handles.push(tokio::spawn(worker(
-                client.clone(),
-                timeout,
-                receiver,
-                stats.clone(),
-                strategy,
-            )));
-            senders.push(sender);
-        }
+        let (retry_sender, mut retry_receiver) = unbounded_channel();
+        let retry_stats = stats.clone();
+        let retry_client = client.clone();
+
+        // The "fast path" retry
+        // The backoff should be < 5 mins for this to work otherwise signatures may expire
+        // This strategy is the one that is used with the *same* signature
+        let strategy = RetryStrategy {
+            backoff,
+            retries: 1,
+            offset: 0,
+            initial_sleep: 0,
+        };
+
+        // The "retry path" strategy
+        // After the fast path fails, a task will sleep up to backoff ^ 2 and then retry again
+        let retry_strategy = RetryStrategy {
+            backoff,
+            retries: 3,
+            offset: 2,
+            initial_sleep: backoff.pow(2), // wait 60 mins before even trying
+        };
+
+        let retry_sender_task = tokio::spawn(async move {
+            let semaphore = Arc::new(Semaphore::new(retry_count));
+            let mut join_set = JoinSet::new();
+
+            while let Some(message) = retry_receiver.recv().await {
+                let permit = semaphore
+                    .clone()
+                    .acquire_owned()
+                    .await
+                    .expect("should never be closed");
+
+                join_set.spawn(retry_worker(
+                    retry_client.clone(),
+                    timeout,
+                    message,
+                    permit,
+                    retry_stats.clone(),
+                    retry_strategy,
+                ));
+            }
+
+            while !join_set.is_empty() {
+                join_set.join_next().await;
+            }
+        });
+
+        let (sender, mut receiver) = unbounded_channel();
+
+        let sender_stats = stats.clone();
+
+        let sender_task = tokio::spawn(async move {
+            let semaphore = Arc::new(Semaphore::new(worker_count));
+            let mut join_set = JoinSet::new();
+
+            while let Some(message) = receiver.recv().await {
+                let permit = semaphore
+                    .clone()
+                    .acquire_owned()
+                    .await
+                    .expect("should never be closed");
+
+                join_set.spawn(worker(
+                    client.clone(),
+                    timeout,
+                    message,
+                    permit,
+                    retry_sender.clone(),
+                    sender_stats.clone(),
+                    strategy,
+                ));
+            }
+
+            drop(retry_sender);
+
+            while !join_set.is_empty() {
+                join_set.join_next().await;
+            }
+        });
 
         Self {
-            senders,
-            handles,
-            reset_handle,
-            last_sender_idx: AtomicUsize::new(0),
             stats,
+            sender,
+            sender_task,
+            retry_sender_task,
         }
     }
+
     async fn queue(&self, message: SendActivityTask) -> Result<(), anyhow::Error> {
-        // really basic round-robin to our workers, we just do mod on the len of senders
-        let idx_to_send = self.last_sender_idx.fetch_add(1, Ordering::Relaxed) % self.senders.len();
-
-        // Set a queue to pending
         self.stats.pending.fetch_add(1, Ordering::Relaxed);
-
-        // Send to one of our workers
-        self.senders[idx_to_send].send(message)?;
+        self.sender.send(message)?;
 
         Ok(())
     }
@@ -339,18 +491,16 @@ impl ActivityQueue {
 
     #[allow(unused)]
     // Drops all the senders and shuts down the workers
-    async fn shutdown(self) -> Result<Stats, anyhow::Error> {
-        drop(self.senders);
+    async fn shutdown(self, wait_for_retries: bool) -> Result<Arc<Stats>, anyhow::Error> {
+        drop(self.sender);
 
-        // stop the reset counter task
-        self.reset_handle.abort();
-        self.reset_handle.await.ok();
+        self.sender_task.await?;
 
-        for handle in self.handles {
-            handle.await?;
+        if wait_for_retries {
+            self.retry_sender_task.await?;
         }
 
-        Arc::try_unwrap(self.stats).map_err(|_| anyhow!("Could not retrieve stats"))
+        Ok(self.stats)
     }
 }
 
@@ -359,38 +509,29 @@ impl ActivityQueue {
 pub(crate) fn create_activity_queue(
     client: ClientWithMiddleware,
     worker_count: usize,
+    retry_count: usize,
     request_timeout: Duration,
 ) -> ActivityQueue {
     assert!(
         worker_count > 0,
         "worker count needs to be greater than zero"
     );
-    /// We need to retry activity sending in case the target instances is temporarily unreachable.
-    /// In this case, the task is stored and resent when the instance is hopefully back up. This
-    /// list shows the retry intervals, and which events of the target instance can be covered:
-    /// - 60s (one minute, service restart)
-    /// - 60min (one hour, instance maintenance)
-    /// - 60h (2.5 days, major incident with rebuild from backup)
-    const MAX_RETRIES: usize = 3;
-    const BACKOFF: usize = 60;
 
-    ActivityQueue::new(
-        client,
-        worker_count,
-        request_timeout,
-        RetryStrategy {
-            backoff: BACKOFF,
-            retries: MAX_RETRIES,
-        },
-    )
+    ActivityQueue::new(client, worker_count, retry_count, request_timeout, 60)
 }
 
 /// Retries a future action factory function up to `amount` times with an exponential backoff timer between tries
-async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>(
+async fn retry<T, E: Display + Debug, F: Future<Output = Result<T, E>>, A: FnMut() -> F>(
     mut action: A,
     strategy: RetryStrategy,
 ) -> Result<T, E> {
-    let mut count = 0;
+    let mut count = strategy.offset;
+
+    // Do an initial sleep if it's called for
+    if strategy.initial_sleep > 0 {
+        let sleep_dur = Duration::from_secs(strategy.initial_sleep as u64);
+        tokio::time::sleep(sleep_dur).await;
+    }
 
     loop {
         match action().await {
@@ -401,7 +542,7 @@ async fn retry<T, E: Display, F: Future<Output = Result<T, E>>, A: FnMut() -> F>
 
                     let sleep_amt = strategy.backoff.pow(count as u32) as u64;
                     let sleep_dur = Duration::from_secs(sleep_amt);
-                    warn!("{err}.  Sleeping for {sleep_dur:?} and trying again");
+                    warn!("{err:?}.  Sleeping for {sleep_dur:?} and trying again");
                     tokio::time::sleep(sleep_dur).await;
                     continue;
                 } else {
@@ -456,7 +597,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    // Queues 10_000 messages and then asserts that the worker runs them
+    // Queues 100 messages and then asserts that the worker runs them
     async fn test_activity_queue_workers() {
         let num_workers = 64;
         let num_messages: usize = 100;
@@ -472,16 +613,15 @@ mod tests {
             .filter_module("activitypub_federation", LevelFilter::Info)
             .format_timestamp(None)
             .init();
+
         */
 
         let activity_queue = ActivityQueue::new(
             reqwest::Client::default().into(),
             num_workers,
+            num_workers,
             Duration::from_secs(10),
-            RetryStrategy {
-                backoff: 1,
-                retries: 3,
-            },
+            1,
         );
 
         let keypair = generate_actor_keypair().unwrap();
@@ -503,7 +643,7 @@ mod tests {
 
         info!("Queue Sent: {:?}", start.elapsed());
 
-        let stats = activity_queue.shutdown().await.unwrap();
+        let stats = activity_queue.shutdown(true).await.unwrap();
 
         info!(
             "Queue Finished.  Num msgs: {}, Time {:?}, msg/s: {:0.0}",

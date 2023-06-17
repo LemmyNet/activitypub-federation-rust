@@ -55,10 +55,14 @@ pub struct FederationConfig<T: Clone> {
     /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
     /// like log tracing or retry of failed requests.
     pub(crate) client: ClientWithMiddleware,
-    /// Number of worker tasks for sending outgoing activities
-    /// Should be a multiplier of the number of threads
-    #[builder(default = "64")]
+    /// Number of tasks that can be in-flight concurrently.
+    /// Tasks are retried once after a minute, then put into the retry queue
+    #[builder(default = "1024")]
     pub(crate) worker_count: usize,
+    /// Number of concurrent tasks that are being retried in-flight concurrently.
+    /// Tasks are retried after an hour, then again in 60 hours.
+    #[builder(default = "128")]
+    pub(crate) retry_count: usize,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
     /// more consistent. Do not use for production.
@@ -199,6 +203,7 @@ impl<T: Clone> FederationConfigBuilder<T> {
         let queue = create_activity_queue(
             config.client.clone(),
             config.worker_count,
+            config.retry_count,
             config.request_timeout,
         );
         config.activity_queue = Some(Arc::new(queue));
