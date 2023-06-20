@@ -109,12 +109,11 @@ where
             {
                 warn!("{err}");
             }
-            return Ok(());
-        }
-        activity_queue.queue(message).await?;
-        let stats = activity_queue.get_stats();
-        let running = stats.running.load(Ordering::Relaxed);
-        let stats_fmt = format!(
+        } else {
+            activity_queue.queue(message).await?;
+            let stats = activity_queue.get_stats();
+            let running = stats.running.load(Ordering::Relaxed);
+            let stats_fmt = format!(
             "Activity queue stats: pending: {}, running: {}, retries: {}, dead: {}, complete: {}",
             stats.pending.load(Ordering::Relaxed),
             running,
@@ -122,11 +121,12 @@ where
             stats.dead_last_hour.load(Ordering::Relaxed),
             stats.completed_last_hour.load(Ordering::Relaxed),
         );
-        if running == config.worker_count {
-            warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
-            warn!(stats_fmt);
-        } else {
-            info!(stats_fmt);
+            if running == config.worker_count {
+                warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
+                warn!(stats_fmt);
+            } else {
+                info!(stats_fmt);
+            }
         }
     }
 
@@ -149,7 +149,12 @@ async fn sign_and_send(
     timeout: Duration,
     retry_strategy: RetryStrategy,
 ) -> Result<(), anyhow::Error> {
-    debug!("Sending {} to {}", task.activity_id, task.inbox);
+    debug!(
+        "Sending {} to {}, contents:\n {}",
+        task.activity_id,
+        task.inbox,
+        serde_json::from_slice::<serde_json::Value>(&task.activity)?
+    );
     let request_builder = client
         .post(task.inbox.to_string())
         .timeout(timeout)
