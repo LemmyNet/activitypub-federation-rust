@@ -10,3 +10,12 @@ There are two examples included to see how the library altogether:
 - `live_federation`: A minimal application which can be deployed on a server and federate with other platforms such as Mastodon. For this it needs run at the root of a (sub)domain which is available over HTTPS. Edit `main.rs` to configure the server domain and your Fediverse handle. Once started, it will automatically send a message to you and log any incoming messages.
 
 To see how this library is used in production, have a look at the [Lemmy federation code](https://github.com/LemmyNet/lemmy/tree/main/crates/apub).
+
+### Security
+This framework does not inherently perform data sanitization upon receiving federated activity data. 
+
+Please, never place implicit trust in the security of data received from the Fediverse. Always keep in mind that malicious entities can be easily created through anonymous fediverse handles.
+
+When implementing our crate in your application, ensure to incorporate data sanitization and validation measures before storing the received data in your database and using it in your user interface. This would significantly reduce the risk of malicious data or actions affecting your application's security and performance.
+
+This framework is designed to simplify your development process, but it's your responsibility to ensure the security of your application. Always follow best practices for data handling, sanitization, and security. 
