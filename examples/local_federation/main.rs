@@ -17,7 +17,7 @@ mod instance;
 mod objects;
 mod utils;
 
-#[actix_rt::main]
+#[tokio::main]
 async fn main() -> Result<(), Error> {
     env_logger::builder()
         .filter_level(LevelFilter::Warn)
@@ -32,8 +32,8 @@ async fn main() -> Result<(), Error> {
         .map(|arg| Webserver::from_str(&arg).unwrap())
         .unwrap_or(Webserver::Axum);
 
-    let alpha = new_instance("localhost:8001", "alpha".to_string())?;
-    let beta = new_instance("localhost:8002", "beta".to_string())?;
+    let alpha = new_instance("localhost:8001", "alpha".to_string()).await?;
+    let beta = new_instance("localhost:8002", "beta".to_string()).await?;
     listen(&alpha, &webserver)?;
     listen(&beta, &webserver)?;
     info!("Local instances started");

@@ -61,9 +61,9 @@ impl Object for SearchableDbObjects {
     }
 }
 
-#[actix_rt::main]
+#[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    # let config = FederationConfig::builder().domain("example.com").app_data(DbConnection).build().unwrap();
+    # let config = FederationConfig::builder().domain("example.com").app_data(DbConnection).build().await.unwrap();
     # let data = config.to_request_data();
     let query = "https://example.com/id/413";
     let query_result = ObjectId::<SearchableDbObjects>::parse(query)?

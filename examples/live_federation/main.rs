@@ -28,7 +28,7 @@ const DOMAIN: &str = "example.com";
 const LOCAL_USER_NAME: &str = "alison";
 const BIND_ADDRESS: &str = "localhost:8003";
 
-#[actix_rt::main]
+#[tokio::main]
 async fn main() -> Result<(), Error> {
     env_logger::builder()
         .filter_level(LevelFilter::Warn)
@@ -47,7 +47,8 @@ async fn main() -> Result<(), Error> {
     let config = FederationConfig::builder()
         .domain(DOMAIN)
         .app_data(database)
-        .build()?;
+        .build()
+        .await?;
 
     info!("Listen with HTTP server on {BIND_ADDRESS}");
     let config = config.clone();

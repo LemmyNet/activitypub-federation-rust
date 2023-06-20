@@ -11,7 +11,7 @@ use std::{
 };
 use url::Url;
 
-pub fn new_instance(
+pub async fn new_instance(
     hostname: &str,
     name: String,
 ) -> Result<FederationConfig<DatabaseHandle>, Error> {
@@ -29,7 +29,8 @@ pub fn new_instance(
         .signed_fetch_actor(&system_user)
         .app_data(database)
         .debug(true)
-        .build()?;
+        .build()
+        .await?;
     Ok(config)
 }
 

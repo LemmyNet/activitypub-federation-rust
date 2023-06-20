@@ -4,26 +4,27 @@
 //!
 //! ```
 //! # use activitypub_federation::config::FederationConfig;
-//! # let _ = actix_rt::System::new();
+//! # tokio::runtime::Runtime::new().unwrap().block_on(async {
 //! let settings = FederationConfig::builder()
 //!     .domain("example.com")
 //!     .app_data(())
 //!     .http_fetch_limit(50)
 //!     .worker_count(16)
-//!     .build()?;
+//!     .build().await?;
 //! # Ok::<(), anyhow::Error>(())
+//! # }).unwrap()
 //! ```
 
 use crate::{
-    activity_queue::create_activity_queue,
+    activity_queue::{create_activity_queue, ActivityQueue},
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
 use async_trait::async_trait;
-use background_jobs::Manager;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
+use openssl::pkey::{PKey, Private};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::de::DeserializeOwned;
 use std::{
@@ -54,9 +55,14 @@ pub struct FederationConfig<T: Clone> {
     /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
     /// like log tracing or retry of failed requests.
     pub(crate) client: ClientWithMiddleware,
-    /// Number of worker threads for sending outgoing activities
-    #[builder(default = "64")]
-    pub(crate) worker_count: u64,
+    /// Number of tasks that can be in-flight concurrently.
+    /// Tasks are retried once after a minute, then put into the retry queue
+    #[builder(default = "1024")]
+    pub(crate) worker_count: usize,
+    /// Number of concurrent tasks that are being retried in-flight concurrently.
+    /// Tasks are retried after an hour, then again in 60 hours.
+    #[builder(default = "128")]
+    pub(crate) retry_count: usize,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
     /// more consistent. Do not use for production.
@@ -79,11 +85,11 @@ pub struct FederationConfig<T: Clone> {
     /// This can be used to implement secure mode federation.
     /// <https://docs.joinmastodon.org/spec/activitypub/#secure-mode>
     #[builder(default = "None", setter(custom))]
-    pub(crate) signed_fetch_actor: Option<Arc<(Url, String)>>,
+    pub(crate) signed_fetch_actor: Option<Arc<(Url, PKey<Private>)>>,
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
-    pub(crate) activity_queue: Option<Arc<Manager>>,
+    pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
 }
 
 impl<T: Clone> FederationConfig<T> {
@@ -180,7 +186,10 @@ impl<T: Clone> FederationConfigBuilder<T> {
         let private_key_pem = actor
             .private_key_pem()
             .expect("actor does not have a private key to sign with");
-        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key_pem))));
+
+        let private_key = PKey::private_key_from_pem(private_key_pem.as_bytes())
+            .expect("Could not decode PEM data");
+        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
         self
     }
 
@@ -188,13 +197,14 @@ impl<T: Clone> FederationConfigBuilder<T> {
     ///
     /// Values which are not explicitly specified use the defaults. Also initializes the
     /// queue for outgoing activities, which is stored internally in the config struct.
-    pub fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
+    /// Requires a tokio runtime for the background queue.
+    pub async fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
         let mut config = self.partial_build()?;
         let queue = create_activity_queue(
             config.client.clone(),
             config.worker_count,
+            config.retry_count,
             config.request_timeout,
-            config.debug,
         );
         config.activity_queue = Some(Arc::new(queue));
         Ok(config)

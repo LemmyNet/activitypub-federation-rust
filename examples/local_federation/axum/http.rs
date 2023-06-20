@@ -41,7 +41,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
         .expect("Failed to lookup domain name");
     let server = axum::Server::bind(&addr).serve(app.into_make_service());
 
-    actix_rt::spawn(server);
+    tokio::spawn(server);
     Ok(())
 }
 

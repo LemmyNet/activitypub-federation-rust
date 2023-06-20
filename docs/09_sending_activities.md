@@ -9,13 +9,12 @@ To send an activity we need to initialize our previously defined struct, and pic
 # use activitypub_federation::traits::Actor;
 # use activitypub_federation::fetch::object_id::ObjectId;
 # use activitypub_federation::traits::tests::{DB_USER, DbConnection, Follow};
-# let _ = actix_rt::System::new();
-# actix_rt::Runtime::new().unwrap().block_on(async {
+# tokio::runtime::Runtime::new().unwrap().block_on(async {
 # let db_connection = DbConnection;
 # let config = FederationConfig::builder()
 #     .domain("example.com")
 #     .app_data(db_connection)
-#     .build()?;
+#     .build().await?;
 # let data = config.to_request_data();
 # let sender = DB_USER.clone();
 # let recipient = DB_USER.clone();

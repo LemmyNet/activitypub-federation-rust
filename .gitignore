@@ -1,3 +1,5 @@
 /target
 /.idea
 /Cargo.lock
+perf.data*
+flamegraph.svg

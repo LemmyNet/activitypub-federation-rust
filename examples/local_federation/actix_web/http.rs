@@ -30,7 +30,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     })
     .bind(hostname)?
     .run();
-    actix_rt::spawn(server);
+    tokio::spawn(server);
     Ok(())
 }
 

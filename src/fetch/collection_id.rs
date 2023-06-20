@@ -30,7 +30,7 @@ where
 
     /// Fetches collection over HTTP
     ///
-    /// Unlike [ObjectId::fetch](crate::fetch::object_id::ObjectId::fetch) this method doesn't do
+    /// Unlike [ObjectId::dereference](crate::fetch::object_id::ObjectId::dereference) this method doesn't do
     /// any caching.
     pub async fn dereference(
         &self,

@@ -7,18 +7,17 @@ After setting up our structs, implementing traits and initializing configuration
 # use activitypub_federation::traits::tests::DbUser;
 # use activitypub_federation::config::FederationConfig;
 # let db_connection = activitypub_federation::traits::tests::DbConnection;
-# let _ = actix_rt::System::new();
-# actix_rt::Runtime::new().unwrap().block_on(async {
+# tokio::runtime::Runtime::new().unwrap().block_on(async {
 let config = FederationConfig::builder()
     .domain("example.com")
     .app_data(db_connection)
-    .build()?;
+    .build().await?;
 let user_id = ObjectId::<DbUser>::parse("https://mastodon.social/@LemmyDev")?;
 let data = config.to_request_data();
 let user = user_id.dereference(&data).await;
 assert!(user.is_ok());
 # Ok::<(), anyhow::Error>(())
-}).unwrap()
+# }).unwrap()
 ```
 
 `dereference` retrieves the object JSON at the given URL, and uses serde to convert it to `Person`. It then calls your method `Object::from_json` which inserts it in the database and returns a `DbUser` struct. `request_data` contains the federation config as well as a counter of outgoing HTTP requests. If this counter exceeds the configured maximum, further requests are aborted in order to avoid recursive fetching which could allow for a denial of service attack.
@@ -32,9 +31,8 @@ We can similarly dereference a user over webfinger with the following method. It
 # use activitypub_federation::fetch::webfinger::webfinger_resolve_actor;
 # use activitypub_federation::traits::tests::DbUser;
 # let db_connection = DbConnection;
-# let _ = actix_rt::System::new();
-# actix_rt::Runtime::new().unwrap().block_on(async {
-# let config = FederationConfig::builder().domain("example.com").app_data(db_connection).build()?;
+# tokio::runtime::Runtime::new().unwrap().block_on(async {
+# let config = FederationConfig::builder().domain("example.com").app_data(db_connection).build().await?;
 # let data = config.to_request_data();
 let user: DbUser = webfinger_resolve_actor("nutomic@lemmy.ml", &data).await?;
 # Ok::<(), anyhow::Error>(())

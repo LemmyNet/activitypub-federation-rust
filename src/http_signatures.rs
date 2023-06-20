@@ -13,12 +13,13 @@ use crate::{
     traits::{Actor, Object},
 };
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
+use bytes::Bytes;
 use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
 use http_signature_normalization_reqwest::prelude::{Config, SignExt};
 use once_cell::sync::Lazy;
 use openssl::{
     hash::MessageDigest,
-    pkey::PKey,
+    pkey::{PKey, Private},
     rsa::Rsa,
     sign::{Signer, Verifier},
 };
@@ -26,7 +27,7 @@ use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Debug, io::ErrorKind};
+use std::{collections::BTreeMap, fmt::Debug, io::ErrorKind, time::Duration};
 use tracing::debug;
 use url::Url;
 
@@ -37,6 +38,14 @@ pub struct Keypair {
     pub private_key: String,
     /// Public key in PEM format
     pub public_key: String,
+}
+
+impl Keypair {
+    /// Helper method to turn this into an openssl private key
+    #[cfg(test)]
+    pub(crate) fn private_key(&self) -> Result<PKey<Private>, anyhow::Error> {
+        Ok(PKey::private_key_from_pem(self.private_key.as_bytes())?)
+    }
 }
 
 /// Generate a random asymmetric keypair for ActivityPub HTTP signatures.
@@ -58,19 +67,27 @@ pub fn generate_actor_keypair() -> Result<Keypair, std::io::Error> {
     })
 }
 
+/// Sets the amount of time that a signed request is valid.  Currenlty 5 minutes
+/// Mastodon & friends have ~1 hour expiry from creation if it's not set in the header
+pub(crate) const EXPIRES_AFTER: Duration = Duration::from_secs(300);
+
 /// Creates an HTTP post request to `inbox_url`, with the given `client` and `headers`, and
 /// `activity` as request body. The request is signed with `private_key` and then sent.
 pub(crate) async fn sign_request(
     request_builder: RequestBuilder,
-    actor_id: Url,
-    activity: String,
-    private_key: String,
+    actor_id: &Url,
+    activity: Bytes,
+    private_key: PKey<Private>,
     http_signature_compat: bool,
 ) -> Result<Request, anyhow::Error> {
-    static CONFIG: Lazy<Config> = Lazy::new(Config::new);
-    static CONFIG_COMPAT: Lazy<Config> = Lazy::new(|| Config::new().mastodon_compat());
+    static CONFIG: Lazy<Config> = Lazy::new(|| Config::new().set_expiration(EXPIRES_AFTER));
+    static CONFIG_COMPAT: Lazy<Config> = Lazy::new(|| {
+        Config::new()
+            .mastodon_compat()
+            .set_expiration(EXPIRES_AFTER)
+    });
 
-    let key_id = main_key_id(&actor_id);
+    let key_id = main_key_id(actor_id);
     let sig_conf = match http_signature_compat {
         false => CONFIG.clone(),
         true => CONFIG_COMPAT.clone(),
@@ -82,7 +99,6 @@ pub(crate) async fn sign_request(
             Sha256::new(),
             activity,
             move |signing_string| {
-                let private_key = PKey::private_key_from_pem(private_key.as_bytes())?;
                 let mut signer = Signer::new(MessageDigest::sha256(), &private_key)?;
                 signer.update(signing_string.as_bytes())?;
 
@@ -259,7 +275,7 @@ pub mod test {
     static INBOX_URL: Lazy<Url> =
         Lazy::new(|| Url::parse("https://example.com/u/alice/inbox").unwrap());
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_sign() {
         let mut headers = generate_request_headers(&INBOX_URL);
         // use hardcoded date in order to test against hardcoded signature
@@ -273,9 +289,9 @@ pub mod test {
             .headers(headers);
         let request = sign_request(
             request_builder,
-            ACTOR_ID.clone(),
-            "my activity".to_string(),
-            test_keypair().private_key,
+            &ACTOR_ID,
+            "my activity".into(),
+            PKey::private_key_from_pem(test_keypair().private_key.as_bytes()).unwrap(),
             // set this to prevent created/expires headers to be generated and inserted
             // automatically from current time
             true,
@@ -301,7 +317,7 @@ pub mod test {
         assert_eq!(signature, expected_signature);
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_verify() {
         let headers = generate_request_headers(&INBOX_URL);
         let request_builder = ClientWithMiddleware::from(Client::new())
@@ -309,9 +325,9 @@ pub mod test {
             .headers(headers);
         let request = sign_request(
             request_builder,
-            ACTOR_ID.clone(),
-            "my activity".to_string(),
-            test_keypair().private_key,
+            &ACTOR_ID,
+            "my activity".to_string().into(),
+            PKey::private_key_from_pem(test_keypair().private_key.as_bytes()).unwrap(),
             false,
         )
         .await
