@@ -57,10 +57,12 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) client: ClientWithMiddleware,
     /// Number of tasks that can be in-flight concurrently.
     /// Tasks are retried once after a minute, then put into the retry queue
+    /// Setting this count to `0` means that there is no limit
     #[builder(default = "1024")]
     pub(crate) worker_count: usize,
     /// Number of concurrent tasks that are being retried in-flight concurrently.
     /// Tasks are retried after an hour, then again in 60 hours.
+    /// Setting this count to `0` means that there is no limit
     #[builder(default = "128")]
     pub(crate) retry_count: usize,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
