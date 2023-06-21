@@ -217,13 +217,12 @@ async fn send(
                 text,
             ))
         }
-        Err(e) => {
-            debug!(
-                "Unable to connect to {}, aborting task {}: {}",
-                task.inbox, task.activity_id, e
-            );
-            Ok(())
-        }
+        Err(e) => Err(anyhow!(
+            "Queueing activity {} to {} for retry after connection failure: {}",
+            task.activity_id,
+            task.inbox,
+            e
+        )),
     }
 }
 
