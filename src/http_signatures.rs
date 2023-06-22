@@ -67,9 +67,12 @@ pub fn generate_actor_keypair() -> Result<Keypair, std::io::Error> {
     })
 }
 
-/// Sets the amount of time that a signed request is valid.  Currenlty 5 minutes
-/// Mastodon & friends have ~1 hour expiry from creation if it's not set in the header
-pub(crate) const EXPIRES_AFTER: Duration = Duration::from_secs(300);
+/// Time for which HTTP signatures are valid.
+///
+/// This field is optional in the standard, but required by the Rust library. It is not clear
+/// what security concerns this expiration solves (if any), so we set a very high value of one day
+/// to avoid any potential problems due to wrong clocks, overloaded servers or delayed delivery.
+pub(crate) const EXPIRES_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Creates an HTTP post request to `inbox_url`, with the given `client` and `headers`, and
 /// `activity` as request body. The request is signed with `private_key` and then sent.
