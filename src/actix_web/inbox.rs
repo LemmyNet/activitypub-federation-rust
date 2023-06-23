@@ -8,6 +8,7 @@ use crate::{
     traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
+use anyhow::Context;
 use serde::de::DeserializeOwned;
 use tracing::debug;
 

@@ -10,7 +10,7 @@ use crate::{
     traits::{ActivityHandler, Actor},
     FEDERATION_CONTENT_TYPE,
 };
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 
 use bytes::Bytes;
 use futures_core::Future;
@@ -166,7 +166,8 @@ async fn sign_and_send(
         task.private_key.clone(),
         task.http_signature_compat,
     )
-    .await?;
+    .await
+    .context("signing request")?;
 
     retry(
         || {
