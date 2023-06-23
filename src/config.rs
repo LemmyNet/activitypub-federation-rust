@@ -16,7 +16,7 @@
 //! ```
 
 use crate::{
-    activity_queue::{create_activity_queue, ActivityQueue},
+    activity_queue::{create_activity_queue, ActivityQueue, DefaultStorageHandler, StorageInterface},
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
@@ -92,6 +92,11 @@ pub struct FederationConfig<T: Clone> {
     /// present once constructed.
     #[builder(setter(skip))]
     pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
+
+    /// Implements the StorageInterface trait which provides an interface for 
+    /// storing objects and removing objects when appropiate
+    #[builder(default = "Box::new(DefaultStorageHandler())")]
+    pub(crate) outbound_storage: Box<dyn StorageInterface + Sync>,
 }
 
 impl<T: Clone> FederationConfig<T> {
