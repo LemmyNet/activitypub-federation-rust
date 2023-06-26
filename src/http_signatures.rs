@@ -70,9 +70,9 @@ pub fn generate_actor_keypair() -> Result<Keypair, std::io::Error> {
 /// Time for which HTTP signatures are valid.
 ///
 /// This field is optional in the standard, but required by the Rust library. It is not clear
-/// what security concerns this expiration solves (if any), so we set a very high value of one day
+/// what security concerns this expiration solves (if any), so we set a very high value of one hour
 /// to avoid any potential problems due to wrong clocks, overloaded servers or delayed delivery.
-pub(crate) const EXPIRES_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
+pub(crate) const EXPIRES_AFTER: Duration = Duration::from_secs(60 * 60);
 
 /// Creates an HTTP post request to `inbox_url`, with the given `client` and `headers`, and
 /// `activity` as request body. The request is signed with `private_key` and then sent.
@@ -110,9 +110,6 @@ pub(crate) async fn sign_request(
         )
         .await
 }
-
-static CONFIG2: Lazy<http_signature_normalization::Config> =
-    Lazy::new(http_signature_normalization::Config::new);
 
 /// Verifies the HTTP signature on an incoming federation request
 /// for a given actor's public key.
@@ -188,9 +185,12 @@ fn verify_signature_inner(
     uri: &Uri,
     public_key: &str,
 ) -> Result<(), Error> {
+    static CONFIG: Lazy<http_signature_normalization::Config> =
+        Lazy::new(|| http_signature_normalization::Config::new().set_expiration(EXPIRES_AFTER));
+
     let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
-    let verified = CONFIG2
+    let verified = CONFIG
         .begin_verify(method.as_str(), path_and_query, header_map)
         .map_err(Error::other)?
         .verify(|signature, signing_string| -> anyhow::Result<bool> {
