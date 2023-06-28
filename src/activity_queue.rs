@@ -77,14 +77,14 @@ where
         .unique()
         .filter(|i| !config.is_local_url(i))
         .collect();
-
     // This field is only optional to make builder work, its always present at this point
     let activity_queue = config
         .activity_queue
         .as_ref()
         .expect("Config has activity queue");
     for inbox in inboxes {
-        if config.verify_url_valid(&inbox).await.is_err() {
+        if let Err(err) = config.verify_url_valid(&inbox).await {
+            debug!("inbox url invalid, skipping: {inbox}: {err}");
             continue;
         }
 

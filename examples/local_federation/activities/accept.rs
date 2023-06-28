@@ -1,9 +1,6 @@
 use crate::{activities::follow::Follow, instance::DatabaseHandle, objects::person::DbUser};
 use activitypub_federation::{
-    config::Data,
-    fetch::object_id::ObjectId,
-    kinds::activity::AcceptType,
-    traits::ActivityHandler,
+    config::Data, fetch::object_id::ObjectId, kinds::activity::AcceptType, traits::ActivityHandler,
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
