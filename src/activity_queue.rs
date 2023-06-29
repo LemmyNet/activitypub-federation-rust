@@ -10,7 +10,7 @@ use crate::{
     traits::{ActivityHandler, Actor},
     FEDERATION_CONTENT_TYPE,
 };
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 
 use bytes::Bytes;
 use futures_core::Future;
@@ -77,14 +77,14 @@ where
         .unique()
         .filter(|i| !config.is_local_url(i))
         .collect();
-
     // This field is only optional to make builder work, its always present at this point
     let activity_queue = config
         .activity_queue
         .as_ref()
         .expect("Config has activity queue");
     for inbox in inboxes {
-        if config.verify_url_valid(&inbox).await.is_err() {
+        if let Err(err) = config.verify_url_valid(&inbox).await {
+            debug!("inbox url invalid, skipping: {inbox}: {err}");
             continue;
         }
 
@@ -166,7 +166,8 @@ async fn sign_and_send(
         task.private_key.clone(),
         task.http_signature_compat,
     )
-    .await?;
+    .await
+    .context("signing request")?;
 
     retry(
         || {

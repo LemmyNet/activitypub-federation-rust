@@ -1,27 +1,33 @@
 //! Error messages returned by this library
 
-use displaydoc::Display;
-
 /// Error messages returned by this library
-#[derive(thiserror::Error, Debug, Display)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// Object was not found in local database
+    #[error("Object was not found in local database")]
     NotFound,
     /// Request limit was reached during fetch
+    #[error("Request limit was reached during fetch")]
     RequestLimit,
     /// Response body limit was reached during fetch
+    #[error("Response body limit was reached during fetch")]
     ResponseBodyLimit,
     /// Object to be fetched was deleted
+    #[error("Object to be fetched was deleted")]
     ObjectDeleted,
-    /// {0}
+    /// url verification error
+    #[error("{0}")]
     UrlVerificationError(&'static str),
     /// Incoming activity has invalid digest for body
+    #[error("Incoming activity has invalid digest for body")]
     ActivityBodyDigestInvalid,
     /// Incoming activity has invalid signature
+    #[error("Incoming activity has invalid signature")]
     ActivitySignatureInvalid,
     /// Failed to resolve actor via webfinger
+    #[error("Failed to resolve actor via webfinger")]
     WebfingerResolveFailed,
-    /// Other errors which are not explicitly handled
+    /// other error
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }

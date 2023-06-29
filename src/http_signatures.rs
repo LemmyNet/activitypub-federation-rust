@@ -12,6 +12,7 @@ use crate::{
     protocol::public_key::main_key_id,
     traits::{Actor, Object},
 };
+use anyhow::Context;
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
 use bytes::Bytes;
 use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
@@ -102,10 +103,14 @@ pub(crate) async fn sign_request(
             Sha256::new(),
             activity,
             move |signing_string| {
-                let mut signer = Signer::new(MessageDigest::sha256(), &private_key)?;
-                signer.update(signing_string.as_bytes())?;
+                let mut signer = Signer::new(MessageDigest::sha256(), &private_key)
+                    .context("instantiating signer")?;
+                signer
+                    .update(signing_string.as_bytes())
+                    .context("updating signer")?;
 
-                Ok(Base64.encode(signer.sign_to_vec()?)) as Result<_, anyhow::Error>
+                Ok(Base64.encode(signer.sign_to_vec().context("sign to vec")?))
+                    as Result<_, anyhow::Error>
             },
         )
         .await

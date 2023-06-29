@@ -8,6 +8,7 @@ use crate::{
     traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
+use anyhow::Context;
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -32,7 +33,8 @@ where
 {
     verify_body_hash(request.headers().get("Digest"), &body)?;
 
-    let activity: Activity = serde_json::from_slice(&body)?;
+    let activity: Activity = serde_json::from_slice(&body)
+        .with_context(|| format!("deserializing body: {}", String::from_utf8_lossy(&body)))?;
     data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)
