@@ -21,6 +21,7 @@ use crate::{
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
+use anyhow::Context;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
@@ -182,6 +183,23 @@ impl<T: Clone> FederationConfig<T> {
     /// Returns the local domain
     pub fn domain(&self) -> &str {
         &self.domain
+    }
+    /// Shut down this federation, waiting for the outgoing queue to be sent
+    /// If the activityqueue is still in use in other requests, returns an error
+    /// If wait_retries is true, also wait for requests that have initially failed and are being retried
+    ///
+    /// Currently, this method does not work correctly if worker_count = 0 (unlimited)
+    pub async fn shutdown(mut self, wait_retries: bool) -> anyhow::Result<()> {
+        if let Some(q) = self.activity_queue.take() {
+            let stats = Arc::<ActivityQueue>::into_inner(q)
+                .context(
+                    "Could not cleanly shut down: activityqueue arc was still in use elsewhere ",
+                )?
+                .shutdown(wait_retries)
+                .await?;
+            tracing::info!("{:?}", stats);
+        }
+        Ok(())
     }
 }
 

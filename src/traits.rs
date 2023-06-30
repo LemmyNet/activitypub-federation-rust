@@ -93,7 +93,7 @@ use url::Url;
 ///
 /// }
 #[async_trait]
-pub trait Object: Sized {
+pub trait Object: Sized + Debug {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;

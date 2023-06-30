@@ -11,7 +11,7 @@ use url::Url;
 
 impl<T> FromStr for ObjectId<T>
 where
-    T: Object + Send + 'static,
+    T: Object + Send + Debug + 'static,
     for<'de2> <T as Object>::Kind: Deserialize<'de2>,
 {
     type Err = url::ParseError;
@@ -62,7 +62,7 @@ where
 
 impl<Kind> ObjectId<Kind>
 where
-    Kind: Object + Send + 'static,
+    Kind: Object + Send + Debug + 'static,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
@@ -93,7 +93,6 @@ where
         <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
     {
         let db_object = self.dereference_from_db(data).await?;
-
         // if its a local object, only fetch it from the database and not over http
         if data.config.is_local_url(&self.0) {
             return match db_object {
