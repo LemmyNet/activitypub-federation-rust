@@ -70,6 +70,9 @@ pub struct FederationConfig<T: Clone> {
     /// more consistent. Do not use for production.
     #[builder(default = "false")]
     pub(crate) debug: bool,
+    /// Allow HTTP urls even in production mode
+    #[builder(default = "self.debug.unwrap_or(false)")]
+    pub(crate) allow_http_urls: bool,
     /// Timeout for all HTTP requests. HTTP signatures are valid for 10s, so it makes sense to
     /// use the same as timeout when sending
     #[builder(default = "Duration::from_secs(10)")]
@@ -134,7 +137,7 @@ impl<T: Clone> FederationConfig<T> {
         match url.scheme() {
             "https" => {}
             "http" => {
-                if !self.debug {
+                if !self.allow_http_urls {
                     return Err(Error::UrlVerificationError(
                         "Http urls are only allowed in debug mode",
                     ));
