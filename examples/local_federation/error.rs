@@ -1,8 +1,8 @@
-use std::fmt::{Display, Formatter};
+use std::{fmt::{Display, Formatter}, sync::Arc};
 
 /// Necessary because of this issue: https://github.com/actix/actix-web/issues/1711
-#[derive(Debug)]
-pub struct Error(pub(crate) anyhow::Error);
+#[derive(Debug, Clone)]
+pub struct Error(pub(crate) Arc<anyhow::Error>);
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -15,6 +15,6 @@ where
     T: Into<anyhow::Error>,
 {
     fn from(t: T) -> Self {
-        Error(t.into())
+        Error(Arc::new(t.into()))
     }
 }

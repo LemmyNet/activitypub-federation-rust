@@ -1,8 +1,11 @@
 use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object};
 use anyhow::anyhow;
 use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
+use moka::future::Cache;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{
+    cell::OnceCell,
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
     str::FromStr,
@@ -62,6 +65,41 @@ where
 
 impl<Kind> ObjectId<Kind>
 where
+    Kind: Object + Send + Sync + Clone + 'static,
+    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    <Kind as Object>::Error: Clone + Send + Sync,
+{
+    /// This creates a cache for every monomorphization of ObjectId (so for every type of object)
+    const CACHE: OnceCell<Cache<Url, Result<Kind, Kind::Error>>> = OnceCell::new();
+
+    /// Fetches an activitypub object, either from local database (if possible), or over http, retrieving from cache if possible
+    pub async fn dereference(
+        &self,
+        data: &Data<<Kind as Object>::DataType>,
+    ) -> Result<Kind, <Kind as Object>::Error>
+    where
+        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
+    {
+        let cache = Self::CACHE;
+        let cache = cache.get_or_init(|| {
+            Cache::builder()
+                .max_capacity(Kind::cache_max_capacity())
+                .time_to_live(Kind::cache_time_to_live())
+                .build()
+        });
+        // The get_with method ensures that the dereference_inner method is only called once even if the dereference method is called twice simultaneously.
+        // From the docs: "This method guarantees that concurrent calls on the same not-existing key are coalesced into one evaluation of the init future. Only one of the calls evaluates its future, and other calls wait for that future to resolve."
+
+        // Considerations: should an error result be stored in the cache as well? Right now: yes. Otherwise try_get_with should be used.
+        cache
+            .get_with(*self.0.clone(), async {
+                self.dereference_uncached(data).await
+            })
+            .await
+    }
+}
+impl<Kind> ObjectId<Kind>
+where
     Kind: Object + Send + 'static,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
@@ -85,7 +123,7 @@ where
     }
 
     /// Fetches an activitypub object, either from local database (if possible), or over http.
-    pub async fn dereference(
+    pub async fn dereference_uncached(
         &self,
         data: &Data<<Kind as Object>::DataType>,
     ) -> Result<Kind, <Kind as Object>::Error>

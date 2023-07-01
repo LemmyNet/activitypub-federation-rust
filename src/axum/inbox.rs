@@ -27,13 +27,13 @@ pub async fn receive_activity<Activity, ActorT, Datatype>(
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
-    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + Sync + Clone + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
     <Activity as ActivityHandler>::Error: From<anyhow::Error>
         + From<Error>
         + From<<ActorT as Object>::Error>
         + From<serde_json::Error>,
-    <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
+    <ActorT as Object>::Error: From<Error> + From<anyhow::Error> + Clone + Send + Sync,
     Datatype: Clone,
 {
     verify_body_hash(activity_data.headers.get("Digest"), &activity_data.body)?;

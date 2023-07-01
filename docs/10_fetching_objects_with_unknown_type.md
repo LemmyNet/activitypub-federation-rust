@@ -11,25 +11,46 @@ It is sometimes necessary to fetch from a URL, but we don't know the exact type 
 # use activitypub_federation::traits::tests::DbConnection;
 # use activitypub_federation::config::Data;
 # use url::Url;
+# use std::sync::Arc;
 # use activitypub_federation::traits::tests::{Person, Note};
 
+#[derive(Clone)]
 pub enum SearchableDbObjects {
     User(DbUser),
     Post(DbPost)
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
 pub enum SearchableObjects {
     Person(Person),
     Note(Note)
 }
 
+#[derive(Debug, Clone)]
+pub struct Error(pub(crate) Arc<anyhow::Error>);
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
+impl<T> From<T> for Error
+where
+    T: Into<anyhow::Error>,
+{
+    fn from(t: T) -> Self {
+        Error(Arc::new(t.into()))
+    }
+}
+
+
 #[async_trait::async_trait]
 impl Object for SearchableDbObjects {
     type DataType = DbConnection;
     type Kind = SearchableObjects;
-    type Error = anyhow::Error;
+    type Error = Error;
 
     async fn read_from_id(
         object_id: Url,
@@ -62,7 +83,7 @@ impl Object for SearchableDbObjects {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() -> Result<(), Error> {
     # let config = FederationConfig::builder().domain("example.com").app_data(DbConnection).build().await.unwrap();
     # let data = config.to_request_data();
     let query = "https://example.com/id/413";

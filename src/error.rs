@@ -31,7 +31,6 @@ pub enum Error {
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
-
 impl Error {
     pub(crate) fn other<T>(error: T) -> Self
     where

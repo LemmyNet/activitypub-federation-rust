@@ -5,7 +5,7 @@ use crate::{
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -22,10 +22,10 @@ pub async fn webfinger_resolve_actor<T: Clone, Kind>(
     data: &Data<T>,
 ) -> Result<Kind, <Kind as Object>::Error>
 where
-    Kind: Object + Actor + Send + 'static + Object<DataType = T>,
+    Kind: Object + Actor + Send + 'static + Object<DataType = T> + Clone + Sync,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
     <Kind as Object>::Error:
-        From<crate::error::Error> + From<anyhow::Error> + From<url::ParseError> + Send + Sync,
+        From<crate::error::Error> + From<anyhow::Error> + Send + Sync + Clone,
 {
     let (_, domain) = identifier
         .splitn(2, '@')
@@ -36,7 +36,7 @@ where
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
     debug!("Fetching webfinger url: {}", &fetch_url);
 
-    let res: Webfinger = fetch_object_http(&Url::parse(&fetch_url)?, data).await?;
+    let res: Webfinger = fetch_object_http(&Url::parse(&fetch_url).context("parsing url")?, data).await?;
 
     debug_assert_eq!(res.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res

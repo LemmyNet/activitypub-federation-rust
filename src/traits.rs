@@ -4,7 +4,7 @@ use crate::{config::Data, protocol::public_key::PublicKey};
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use serde::Deserialize;
-use std::{fmt::Debug, ops::Deref};
+use std::{ops::Deref, time::Duration};
 use url::Url;
 
 /// Helper for converting between database structs and federated protocol structs.
@@ -101,6 +101,15 @@ pub trait Object: Sized {
     type Kind;
     /// Error type returned by handler methods
     type Error;
+
+    /// Defines how many of this type of object should be cached
+    fn cache_max_capacity() -> u64 {
+        1000
+    }
+    /// Defines how long objects of this type should live in the in-memory cache
+    fn cache_time_to_live() -> Duration {
+        Duration::from_secs(10)
+    }
 
     /// Returns the last time this object was updated.
     ///
@@ -337,6 +346,7 @@ pub trait Collection: Sized {
 #[doc(hidden)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {
+
     use super::*;
     use crate::{
         fetch::object_id::ObjectId,
@@ -400,11 +410,30 @@ pub mod tests {
         local: false,
     });
 
+    #[derive(Debug, Clone)]
+    pub struct ClonableError(String);
+    impl std::fmt::Display for ClonableError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+    impl std::error::Error for ClonableError {}
+    impl From<anyhow::Error> for ClonableError {
+        fn from(value: anyhow::Error) -> Self {
+            ClonableError(format!("{:?}", value))
+        }
+    }
+    impl From<crate::error::Error> for ClonableError {
+        fn from(value: crate::error::Error) -> Self {
+            ClonableError(format!("{:?}", value))
+        }
+    }
+
     #[async_trait]
     impl Object for DbUser {
         type DataType = DbConnection;
         type Kind = Person;
-        type Error = Error;
+        type Error = ClonableError;
 
         async fn read_from_id(
             _object_id: Url,
