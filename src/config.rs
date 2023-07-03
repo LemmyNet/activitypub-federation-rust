@@ -65,6 +65,10 @@ pub struct FederationConfig<T: Clone> {
     /// Setting this count to `0` means that there is no limit to concurrency
     #[builder(default = "0")]
     pub(crate) retry_count: usize,
+    /// Disable the retry queue completely
+    /// This means that retries will not be kept around but fail after the first retry
+    #[builder(default = "false")]
+    pub(crate) disable_retry: bool,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
     /// more consistent. Do not use for production.
@@ -206,6 +210,7 @@ impl<T: Clone> FederationConfigBuilder<T> {
             config.client.clone(),
             config.worker_count,
             config.retry_count,
+            config.disable_retry,
             config.request_timeout,
         );
         config.activity_queue = Some(Arc::new(queue));
