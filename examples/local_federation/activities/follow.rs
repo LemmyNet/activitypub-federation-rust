@@ -1,5 +1,7 @@
 use crate::{
-    activities::accept::Accept, generate_object_id, instance::DatabaseHandle,
+    activities::accept::Accept,
+    generate_object_id,
+    instance::DatabaseHandle,
     objects::person::DbUser,
 };
 use activitypub_federation::{
