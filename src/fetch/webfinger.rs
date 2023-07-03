@@ -66,6 +66,25 @@ where
 /// request. For a parameter of the form `acct:gargron@mastodon.social` it returns `gargron`.
 ///
 /// Returns an error if query doesn't match local domain.
+///
+///```
+/// # use activitypub_federation::config::FederationConfig;
+/// # use activitypub_federation::traits::tests::DbConnection;
+/// # use activitypub_federation::fetch::webfinger::extract_webfinger_name;
+/// # tokio::runtime::Runtime::new().unwrap().block_on(async {
+/// # let db_connection = DbConnection;
+/// let config = FederationConfig::builder()
+///     .domain("example.com")
+///     .app_data(db_connection)
+///     .build()
+///     .await
+///     .unwrap();
+/// let data = config.to_request_data();
+/// let res = extract_webfinger_name("acct:test_user@example.com", &data).unwrap();
+/// assert_eq!(res, "test_user");
+/// # Ok::<(), anyhow::Error>(())
+/// }).unwrap();
+///```
 pub fn extract_webfinger_name<T>(query: &str, data: &Data<T>) -> Result<String, Error>
 where
     T: Clone,
