@@ -38,7 +38,7 @@ bytes = "1.4.0"
 futures-core = { version = "0.3.28", default-features = false }
 pin-project-lite = "0.2.9"
 activitystreams-kinds = "0.3.0"
-regex = { version = "1.8.4", default-features = false, features = ["std"] }
+regex = { version = "1.8.4", default-features = false, features = ["std", "unicode-case"] }
 tokio = { version = "1.21.2", features = [
   "sync",
   "rt",
