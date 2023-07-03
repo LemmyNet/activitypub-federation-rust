@@ -1,7 +1,10 @@
 use crate::config::{Data, FederationConfig, FederationMiddleware};
 use actix_web::{
     dev::{forward_ready, Payload, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, FromRequest, HttpMessage, HttpRequest,
+    Error,
+    FromRequest,
+    HttpMessage,
+    HttpRequest,
 };
 use std::future::{ready, Ready};
 
