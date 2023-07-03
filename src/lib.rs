@@ -20,6 +20,7 @@ pub mod error;
 pub mod fetch;
 pub mod http_signatures;
 pub mod protocol;
+mod rate_limit;
 pub(crate) mod reqwest_shim;
 pub mod traits;
 

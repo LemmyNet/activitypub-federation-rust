@@ -3,7 +3,10 @@
 #![doc = include_str!("../../docs/07_fetching_data.md")]
 
 use crate::{
-    config::Data, error::Error, http_signatures::sign_request, reqwest_shim::ResponseExt,
+    config::Data,
+    error::Error,
+    http_signatures::sign_request,
+    reqwest_shim::ResponseExt,
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;

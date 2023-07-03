@@ -12,6 +12,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context};
 
+use crate::rate_limit::InstanceRatelimit;
 use bytes::Bytes;
 use futures_core::Future;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
@@ -26,6 +27,7 @@ use std::{
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
+        Mutex,
     },
     time::{Duration, SystemTime},
 };
@@ -104,6 +106,7 @@ where
                 &config.client,
                 config.request_timeout,
                 Default::default(),
+                activity_queue.failure_rate_limit_hourly.clone(),
             )
             .await
             {
@@ -144,11 +147,23 @@ struct SendActivityTask {
 }
 
 async fn sign_and_send(
+    // TODO: this should only take a single struct as param
     task: &SendActivityTask,
     client: &ClientWithMiddleware,
     timeout: Duration,
     retry_strategy: RetryStrategy,
+    failure_rate_limit_hourly: Arc<Mutex<InstanceRatelimit<10>>>,
 ) -> Result<(), anyhow::Error> {
+    // Do nothing if there have been too many errors from this domain recently
+    {
+        // TODO: handle locking inside of InstanceRateLimit?
+        // TODO: need wrapper url type which returns domain as String
+        let mut lock = failure_rate_limit_hourly.lock().unwrap();
+        let check = lock.check(task.inbox.domain().unwrap());
+        if !check {
+            return Ok(());
+        }
+    }
     debug!(
         "Sending {} to {}, contents:\n {}",
         task.activity_id,
@@ -177,6 +192,7 @@ async fn sign_and_send(
                 request
                     .try_clone()
                     .expect("The body of the request is not cloneable"),
+                failure_rate_limit_hourly.clone(),
             )
         },
         retry_strategy,
@@ -188,10 +204,11 @@ async fn send(
     task: &SendActivityTask,
     client: &ClientWithMiddleware,
     request: Request,
+    failure_rate_limit_hourly: Arc<Mutex<InstanceRatelimit<10>>>,
 ) -> Result<(), anyhow::Error> {
     let response = client.execute(request).await;
 
-    match response {
+    let res = match response {
         Ok(o) if o.status().is_success() => {
             debug!(
                 "Activity {} delivered successfully to {}",
@@ -224,7 +241,12 @@ async fn send(
             task.inbox,
             e
         )),
+    };
+    if res.is_err() {
+        let mut lock = failure_rate_limit_hourly.lock().unwrap();
+        lock.log(task.inbox.domain().unwrap());
     }
+    res
 }
 
 pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
@@ -258,6 +280,7 @@ pub(crate) struct ActivityQueue {
     sender: UnboundedSender<SendActivityTask>,
     sender_task: JoinHandle<()>,
     retry_sender_task: JoinHandle<()>,
+    failure_rate_limit_hourly: Arc<Mutex<InstanceRatelimit<10>>>,
 }
 
 /// Simple stat counter to show where we're up to with sending messages
@@ -478,6 +501,9 @@ impl ActivityQueue {
             sender,
             sender_task,
             retry_sender_task,
+            failure_rate_limit_hourly: Arc::new(Mutex::new(InstanceRatelimit::new(
+                Duration::from_secs(60 * 60),
+            ))),
         }
     }
 
