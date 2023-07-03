@@ -9,7 +9,11 @@ use std::{
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
     str::FromStr,
+    sync::OnceLock,
+    time::Duration,
 };
+use tokio::sync::RwLock;
+use type_map::concurrent::TypeMap;
 use url::Url;
 
 impl<T> FromStr for ObjectId<T>
@@ -63,16 +67,47 @@ where
     Kind: Object,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>;
 
+/// get a cache map for a specific object kind
+/// creates a new cache map if not already exists
+async fn get_cache_for_type<Kind>() -> Cache<Url, Result<Kind, Kind::Error>>
+where
+    Kind: Object + Send + Sync + Clone + 'static,
+    <Kind as Object>::Error: Clone + Send + Sync,
+{
+    static CACHES: OnceLock<RwLock<type_map::concurrent::TypeMap>> = OnceLock::new();
+    let caches = CACHES.get_or_init(|| RwLock::new(TypeMap::new()));
+    // in most cases (except the first call) we only need a read-only lock, do hot path separately for perf
+    let existing_cache = {
+        caches
+            .read()
+            .await
+            .get::<Cache<Url, Result<Kind, Kind::Error>>>()
+            .map(|e| e.clone())
+    };
+    match existing_cache {
+        Some(cache) => cache,
+        None => {
+            let mut caches = caches.write().await;
+            caches
+                .entry()
+                .or_insert_with(|| {
+                    Cache::builder()
+                        .max_capacity(Kind::cache_max_capacity())
+                        .time_to_live(Kind::cache_time_to_live())
+                        .build()
+                })
+                .clone()
+        }
+    }
+}
 impl<Kind> ObjectId<Kind>
 where
     Kind: Object + Send + Sync + Clone + 'static,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
     <Kind as Object>::Error: Clone + Send + Sync,
 {
-    /// This creates a cache for every monomorphization of ObjectId (so for every type of object)
-    const CACHE: OnceCell<Cache<Url, Result<Kind, Kind::Error>>> = OnceCell::new();
-
     /// Fetches an activitypub object, either from local database (if possible), or over http, retrieving from cache if possible
+    #[tracing::instrument(skip(data))]
     pub async fn dereference(
         &self,
         data: &Data<<Kind as Object>::DataType>,
@@ -80,22 +115,19 @@ where
     where
         <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
     {
-        let cache = Self::CACHE;
-        let cache = cache.get_or_init(|| {
-            Cache::builder()
-                .max_capacity(Kind::cache_max_capacity())
-                .time_to_live(Kind::cache_time_to_live())
-                .build()
-        });
-        // The get_with method ensures that the dereference_inner method is only called once even if the dereference method is called twice simultaneously.
-        // From the docs: "This method guarantees that concurrent calls on the same not-existing key are coalesced into one evaluation of the init future. Only one of the calls evaluates its future, and other calls wait for that future to resolve."
-
-        // Considerations: should an error result be stored in the cache as well? Right now: yes. Otherwise try_get_with should be used.
-        cache
-            .get_with(*self.0.clone(), async {
-                self.dereference_uncached(data).await
-            })
-            .await
+        if Kind::cache_max_capacity() == 0 || Kind::cache_time_to_live().is_zero() {
+            self.dereference_uncached(data).await
+        } else {
+            // The Cache.get_with method ensures that the dereference_inner method is only called once even if the dereference method is called twice simultaneously.
+            // From the moka docs: "This method guarantees that concurrent calls on the same not-existing key are coalesced into one evaluation of the init future. Only one of the calls evaluates its future, and other calls wait for that future to resolve."
+            // Considerations: should an error result be stored in the cache as well? Right now: yes. Otherwise try_get_with should be used.
+            get_cache_for_type::<Kind>()
+                .await
+                .get_with(*self.0.clone(), async {
+                    self.dereference_uncached(data).await
+                })
+                .await
+        }
     }
 }
 impl<Kind> ObjectId<Kind>
