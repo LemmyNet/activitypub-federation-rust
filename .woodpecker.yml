@@ -5,14 +5,14 @@ pipeline:
       - /root/.cargo/bin/cargo fmt -- --check
 
   cargo_check:
-    image: rust:1.65-bullseye
+    image: rust:1.70-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo check --all-features --all-targets
 
   cargo_clippy:
-    image: rust:1.65-bullseye
+    image: rust:1.70-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -26,28 +26,28 @@ pipeline:
       - cargo clippy --all-features -- -D clippy::unwrap_used
 
   cargo_test:
-    image: rust:1.65-bullseye
+    image: rust:1.70-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo test --all-features --no-fail-fast
 
   cargo_doc:
-    image: rust:1.65-bullseye
+    image: rust:1.70-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo doc --all-features
 
   cargo_run_actix_example:
-    image: rust:1.65-bullseye
+    image: rust:1.70-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:
       - cargo run --example local_federation actix-web
 
   cargo_run_axum_example:
-    image: rust:1.65-bullseye
+    image: rust:1.70-bullseye
     environment:
       CARGO_HOME: .cargo
     commands:

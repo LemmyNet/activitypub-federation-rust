@@ -113,19 +113,11 @@ where
             activity_queue.queue(message).await?;
             let stats = activity_queue.get_stats();
             let running = stats.running.load(Ordering::Relaxed);
-            let stats_fmt = format!(
-            "Activity queue stats: pending: {}, running: {}, retries: {}, dead: {}, complete: {}",
-            stats.pending.load(Ordering::Relaxed),
-            running,
-            stats.retries.load(Ordering::Relaxed),
-            stats.dead_last_hour.load(Ordering::Relaxed),
-            stats.completed_last_hour.load(Ordering::Relaxed),
-        );
             if running == config.worker_count && config.worker_count != 0 {
                 warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
-                warn!(stats_fmt);
+                warn!("{:?}", stats);
             } else {
-                info!(stats_fmt);
+                info!("{:?}", stats);
             }
         }
     }
@@ -264,12 +256,26 @@ pub(crate) struct ActivityQueue {
 /// This is a lock-free way to share things between tasks
 /// When reading these values it's possible (but extremely unlikely) to get stale data if a worker task is in the middle of transitioning
 #[derive(Default)]
-struct Stats {
+pub(crate) struct Stats {
     pending: AtomicUsize,
     running: AtomicUsize,
     retries: AtomicUsize,
     dead_last_hour: AtomicUsize,
     completed_last_hour: AtomicUsize,
+}
+
+impl Debug for Stats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Activity queue stats: pending: {}, running: {}, retries: {}, dead: {}, complete: {}",
+            self.pending.load(Ordering::Relaxed),
+            self.running.load(Ordering::Relaxed),
+            self.retries.load(Ordering::Relaxed),
+            self.dead_last_hour.load(Ordering::Relaxed),
+            self.completed_last_hour.load(Ordering::Relaxed)
+        )
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -494,7 +500,10 @@ impl ActivityQueue {
 
     #[allow(unused)]
     // Drops all the senders and shuts down the workers
-    async fn shutdown(self, wait_for_retries: bool) -> Result<Arc<Stats>, anyhow::Error> {
+    pub(crate) async fn shutdown(
+        self,
+        wait_for_retries: bool,
+    ) -> Result<Arc<Stats>, anyhow::Error> {
         drop(self.sender);
 
         self.sender_task.await?;
