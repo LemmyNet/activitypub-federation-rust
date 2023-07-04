@@ -184,22 +184,22 @@ impl<T: Clone> FederationConfig<T> {
     pub fn domain(&self) -> &str {
         &self.domain
     }
-    /// Shut down this federation, waiting for the outgoing queue to be sent
-    /// If the activityqueue is still in use in other requests, returns an error
-    /// If wait_retries is true, also wait for requests that have initially failed and are being retried
+    /// Shut down this federation, waiting for the outgoing queue to be sent.
+    /// If the activityqueue is still in use in other requests or was never constructed, returns an error.
+    /// If wait_retries is true, also wait for requests that have initially failed and are being retried.
+    /// Returns a stats object that can be printed for debugging (structure currently not part of the public interface).
     ///
     /// Currently, this method does not work correctly if worker_count = 0 (unlimited)
-    pub async fn shutdown(mut self, wait_retries: bool) -> anyhow::Result<()> {
-        if let Some(q) = self.activity_queue.take() {
-            let stats = Arc::<ActivityQueue>::into_inner(q)
-                .context(
-                    "Could not cleanly shut down: activityqueue arc was still in use elsewhere ",
-                )?
-                .shutdown(wait_retries)
-                .await?;
-            tracing::info!("{:?}", stats);
-        }
-        Ok(())
+    pub async fn shutdown(mut self, wait_retries: bool) -> anyhow::Result<impl std::fmt::Debug> {
+        let q = self
+            .activity_queue
+            .take()
+            .context("ActivityQueue never constructed, build() not called?")?;
+        let stats = Arc::<ActivityQueue>::into_inner(q)
+            .context("Could not cleanly shut down: activityqueue arc was still in use elsewhere ")?
+            .shutdown(wait_retries)
+            .await?;
+        return Ok(stats);
     }
 }
 
