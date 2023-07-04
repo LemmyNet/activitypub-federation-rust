@@ -204,7 +204,7 @@ impl<T: Clone> FederationConfig<T> {
             })?
             .shutdown(wait_retries)
             .await?;
-        return Ok(stats);
+        Ok(stats)
     }
 }
 
