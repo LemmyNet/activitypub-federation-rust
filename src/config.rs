@@ -195,8 +195,13 @@ impl<T: Clone> FederationConfig<T> {
             .activity_queue
             .take()
             .context("ActivityQueue never constructed, build() not called?")?;
-        let stats = Arc::<ActivityQueue>::into_inner(q)
-            .context("Could not cleanly shut down: activityqueue arc was still in use elsewhere ")?
+        // Todo: use Arc::into_inner but is only part of rust 1.70.
+        let stats = Arc::<ActivityQueue>::try_unwrap(q)
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "Could not cleanly shut down: activityqueue arc was still in use elsewhere "
+                )
+            })?
             .shutdown(wait_retries)
             .await?;
         return Ok(stats);
