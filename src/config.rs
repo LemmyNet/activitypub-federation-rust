@@ -21,6 +21,7 @@ use crate::{
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
+use anyhow::Context;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
@@ -186,6 +187,28 @@ impl<T: Clone> FederationConfig<T> {
     /// Returns the local domain
     pub fn domain(&self) -> &str {
         &self.domain
+    }
+    /// Shut down this federation, waiting for the outgoing queue to be sent.
+    /// If the activityqueue is still in use in other requests or was never constructed, returns an error.
+    /// If wait_retries is true, also wait for requests that have initially failed and are being retried.
+    /// Returns a stats object that can be printed for debugging (structure currently not part of the public interface).
+    ///
+    /// Currently, this method does not work correctly if worker_count = 0 (unlimited)
+    pub async fn shutdown(mut self, wait_retries: bool) -> anyhow::Result<impl std::fmt::Debug> {
+        let q = self
+            .activity_queue
+            .take()
+            .context("ActivityQueue never constructed, build() not called?")?;
+        // Todo: use Arc::into_inner but is only part of rust 1.70.
+        let stats = Arc::<ActivityQueue>::try_unwrap(q)
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "Could not cleanly shut down: activityqueue arc was still in use elsewhere "
+                )
+            })?
+            .shutdown(wait_retries)
+            .await?;
+        Ok(stats)
     }
 }
 
