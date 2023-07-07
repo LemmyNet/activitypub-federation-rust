@@ -16,9 +16,9 @@
 //! ```
 
 use crate::{
-    activity_queue::{create_activity_queue, ActivityQueue},
     error::Error,
     protocol::verification::verify_domains_match,
+    queue::{simple_queue::SimpleQueue, ActivityQueue},
     traits::{ActivityHandler, Actor},
 };
 use anyhow::Context;
@@ -39,9 +39,9 @@ use std::{
 use url::Url;
 
 /// Configuration for this library, with various federation related settings
-#[derive(Builder, Clone)]
-#[builder(build_fn(private, name = "partial_build"))]
-pub struct FederationConfig<T: Clone> {
+#[derive(Builder)]
+#[builder(build_fn(private, name = "partial_build"), pattern = "owned")]
+pub struct FederationConfig<T: Clone, Q: ActivityQueue + ?Sized> {
     /// The domain where this federated instance is running
     #[builder(setter(into))]
     pub(crate) domain: String,
@@ -94,13 +94,34 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) signed_fetch_actor: Option<Arc<(Url, PKey<Private>)>>,
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
-    #[builder(setter(skip))]
-    pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
+    #[builder(default = "None", setter(custom))]
+    pub(crate) activity_queue: Option<Arc<Q>>,
 }
 
-impl<T: Clone> FederationConfig<T> {
+// No clue why this can't be derived, so just implemented manually...
+impl<T: Clone, Q: ActivityQueue> Clone for FederationConfig<T, Q> {
+    fn clone(&self) -> Self {
+        Self {
+            domain: self.domain.clone(),
+            app_data: self.app_data.clone(),
+            http_fetch_limit: self.http_fetch_limit.clone(),
+            client: self.client.clone(),
+            worker_count: self.worker_count.clone(),
+            retry_count: self.retry_count.clone(),
+            debug: self.debug.clone(),
+            allow_http_urls: self.allow_http_urls.clone(),
+            request_timeout: self.request_timeout.clone(),
+            url_verifier: self.url_verifier.clone(),
+            http_signature_compat: self.http_signature_compat.clone(),
+            signed_fetch_actor: self.signed_fetch_actor.clone(),
+            activity_queue: self.activity_queue.clone(),
+        }
+    }
+}
+
+impl<T: Clone, Q: ActivityQueue> FederationConfig<T, Q> {
     /// Returns a new config builder with default values.
-    pub fn builder() -> FederationConfigBuilder<T> {
+    pub fn builder() -> FederationConfigBuilder<T, Q> {
         FederationConfigBuilder::default()
     }
 
@@ -123,7 +144,7 @@ impl<T: Clone> FederationConfig<T> {
     }
 
     /// Create new [Data] from this. You should prefer to use a middleware if possible.
-    pub fn to_request_data(&self) -> Data<T> {
+    pub fn to_request_data(&self) -> Data<T, Q> {
         Data {
             config: self.clone(),
             request_counter: Default::default(),
@@ -184,6 +205,43 @@ impl<T: Clone> FederationConfig<T> {
     pub fn domain(&self) -> &str {
         &self.domain
     }
+}
+
+impl<T: Clone, Q: ActivityQueue> FederationConfigBuilder<T, Q> {
+    /// Sets an actor to use to sign all federated fetch requests
+    pub fn signed_fetch_actor<A: Actor>(mut self, actor: &A) -> Self {
+        let private_key_pem = actor
+            .private_key_pem()
+            .expect("actor does not have a private key to sign with");
+
+        let private_key = PKey::private_key_from_pem(private_key_pem.as_bytes())
+            .expect("Could not decode PEM data");
+        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
+        self
+    }
+
+    /// Sets an actor to use to sign all federated fetch requests
+    pub fn activity_queue(mut self, queue: Q) -> Self {
+        self.activity_queue = Some(Some(Arc::new(queue)));
+        self
+    }
+}
+
+impl<T: Clone> FederationConfigBuilder<T, SimpleQueue> {
+    /// Constructs a new config instance with the values supplied to builder.
+    ///
+    /// Values which are not explicitly specified use the defaults. Also initializes the
+    /// queue for outgoing activities, which is stored internally in the config struct.
+    /// Requires a tokio runtime for the background queue.
+    pub async fn build(
+        self,
+    ) -> Result<FederationConfig<T, SimpleQueue>, FederationConfigBuilderError> {
+        let mut config = self.partial_build()?;
+        config.activity_queue = Some(Arc::new(SimpleQueue::from_config(&config)));
+        Ok(config)
+    }
+}
+impl<T: Clone> FederationConfig<T, SimpleQueue> {
     /// Shut down this federation, waiting for the outgoing queue to be sent.
     /// If the activityqueue is still in use in other requests or was never constructed, returns an error.
     /// If wait_retries is true, also wait for requests that have initially failed and are being retried.
@@ -196,7 +254,7 @@ impl<T: Clone> FederationConfig<T> {
             .take()
             .context("ActivityQueue never constructed, build() not called?")?;
         // Todo: use Arc::into_inner but is only part of rust 1.70.
-        let stats = Arc::<ActivityQueue>::try_unwrap(q)
+        let stats = Arc::<SimpleQueue>::try_unwrap(q)
             .map_err(|_| {
                 anyhow::anyhow!(
                     "Could not cleanly shut down: activityqueue arc was still in use elsewhere "
@@ -207,39 +265,7 @@ impl<T: Clone> FederationConfig<T> {
         Ok(stats)
     }
 }
-
-impl<T: Clone> FederationConfigBuilder<T> {
-    /// Sets an actor to use to sign all federated fetch requests
-    pub fn signed_fetch_actor<A: Actor>(&mut self, actor: &A) -> &mut Self {
-        let private_key_pem = actor
-            .private_key_pem()
-            .expect("actor does not have a private key to sign with");
-
-        let private_key = PKey::private_key_from_pem(private_key_pem.as_bytes())
-            .expect("Could not decode PEM data");
-        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
-        self
-    }
-
-    /// Constructs a new config instance with the values supplied to builder.
-    ///
-    /// Values which are not explicitly specified use the defaults. Also initializes the
-    /// queue for outgoing activities, which is stored internally in the config struct.
-    /// Requires a tokio runtime for the background queue.
-    pub async fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
-        let mut config = self.partial_build()?;
-        let queue = create_activity_queue(
-            config.client.clone(),
-            config.worker_count,
-            config.retry_count,
-            config.request_timeout,
-        );
-        config.activity_queue = Some(Arc::new(queue));
-        Ok(config)
-    }
-}
-
-impl<T: Clone> Deref for FederationConfig<T> {
+impl<T: Clone, Q: ActivityQueue> Deref for FederationConfig<T, Q> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -308,12 +334,12 @@ clone_trait_object!(UrlVerifier);
 /// prevent denial of service attacks, where an attacker triggers fetching of recursive objects.
 ///
 /// <https://www.w3.org/TR/activitypub/#security-recursive-objects>
-pub struct Data<T: Clone> {
-    pub(crate) config: FederationConfig<T>,
+pub struct Data<T: Clone, Q: ActivityQueue> {
+    pub(crate) config: FederationConfig<T, Q>,
     pub(crate) request_counter: AtomicU32,
 }
 
-impl<T: Clone> Data<T> {
+impl<T: Clone, Q: ActivityQueue> Data<T, Q> {
     /// Returns the data which was stored in [FederationConfigBuilder::app_data]
     pub fn app_data(&self) -> &T {
         &self.config.app_data
@@ -337,7 +363,7 @@ impl<T: Clone> Data<T> {
     }
 }
 
-impl<T: Clone> Deref for Data<T> {
+impl<T: Clone, Q: ActivityQueue> Deref for Data<T, Q> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -346,12 +372,21 @@ impl<T: Clone> Deref for Data<T> {
 }
 
 /// Middleware for HTTP handlers which provides access to [Data]
-#[derive(Clone)]
-pub struct FederationMiddleware<T: Clone>(pub(crate) FederationConfig<T>);
+pub struct FederationMiddleware<T: Clone, Q: ActivityQueue> {
+    pub(crate) config: FederationConfig<T, Q>,
+}
 
-impl<T: Clone> FederationMiddleware<T> {
+impl<T: Clone, Q: ActivityQueue> FederationMiddleware<T, Q> {
     /// Construct a new middleware instance
-    pub fn new(config: FederationConfig<T>) -> Self {
-        FederationMiddleware(config)
+    pub fn new(config: FederationConfig<T, Q>) -> Self {
+        FederationMiddleware { config }
+    }
+}
+
+impl<T: Clone, Q: ActivityQueue> Clone for FederationMiddleware<T, Q> {
+    fn clone(&self) -> Self {
+        Self {
+            config: self.config.clone(),
+        }
     }
 }

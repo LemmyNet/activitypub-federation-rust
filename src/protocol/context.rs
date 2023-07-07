@@ -61,6 +61,7 @@ where
     T: ActivityHandler + Send + Sync,
 {
     type DataType = <T as ActivityHandler>::DataType;
+    type QueueType = <T as ActivityHandler>::QueueType;
     type Error = <T as ActivityHandler>::Error;
 
     fn id(&self) -> &Url {
@@ -71,11 +72,17 @@ where
         self.inner.actor()
     }
 
-    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
+    async fn verify(
+        &self,
+        data: &Data<Self::DataType, Self::QueueType>,
+    ) -> Result<(), Self::Error> {
         self.inner.verify(data).await
     }
 
-    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
+    async fn receive(
+        self,
+        data: &Data<Self::DataType, Self::QueueType>,
+    ) -> Result<(), Self::Error> {
         self.inner.receive(data).await
     }
 }

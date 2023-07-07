@@ -10,6 +10,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
+    queue::simple_queue::SimpleQueue,
     traits::{Actor, Object},
 };
 use activitystreams_kinds::link::MentionType;
@@ -48,30 +49,37 @@ pub struct Mention {
 #[async_trait::async_trait]
 impl Object for DbPost {
     type DataType = DatabaseHandle;
+    type QueueType = SimpleQueue;
     type Kind = Note;
     type Error = Error;
 
     async fn read_from_id(
         _object_id: Url,
-        _data: &Data<Self::DataType>,
+        _data: &Data<Self::DataType, Self::QueueType>,
     ) -> Result<Option<Self>, Self::Error> {
         Ok(None)
     }
 
-    async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
+    async fn into_json(
+        self,
+        _data: &Data<Self::DataType, Self::QueueType>,
+    ) -> Result<Self::Kind, Self::Error> {
         unimplemented!()
     }
 
     async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
-        _data: &Data<Self::DataType>,
+        _data: &Data<Self::DataType, Self::QueueType>,
     ) -> Result<(), Self::Error> {
         verify_domains_match(json.id.inner(), expected_domain)?;
         Ok(())
     }
 
-    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
+    async fn from_json(
+        json: Self::Kind,
+        data: &Data<Self::DataType, Self::QueueType>,
+    ) -> Result<Self, Self::Error> {
         println!(
             "Received post with content {} and id {}",
             &json.content, &json.id

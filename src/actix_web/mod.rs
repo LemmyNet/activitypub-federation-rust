@@ -18,7 +18,7 @@ use serde::Deserialize;
 pub async fn signing_actor<A>(
     request: &HttpRequest,
     body: Option<Bytes>,
-    data: &Data<<A as Object>::DataType>,
+    data: &Data<<A as Object>::DataType, <A as Object>::QueueType>,
 ) -> Result<A, <A as Object>::Error>
 where
     A: Object + Actor,

@@ -35,7 +35,7 @@ where
     pub async fn dereference(
         &self,
         owner: &<Kind as Collection>::Owner,
-        data: &Data<<Kind as Collection>::DataType>,
+        data: &Data<<Kind as Collection>::DataType, <Kind as Collection>::QueueType>,
     ) -> Result<Kind, <Kind as Collection>::Error>
     where
         <Kind as Collection>::Error: From<Error>,

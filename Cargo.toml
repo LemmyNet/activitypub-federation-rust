@@ -56,6 +56,7 @@ axum = { version = "0.6.18", features = [
 ], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
+uuid = { version = "1.4.0", features = ["serde", "v4"] }
 
 [features]
 default = ["actix-web", "axum"]

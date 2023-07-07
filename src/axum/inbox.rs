@@ -7,6 +7,7 @@ use crate::{
     error::Error,
     fetch::object_id::ObjectId,
     http_signatures::{verify_body_hash, verify_signature},
+    queue::ActivityQueue,
     traits::{ActivityHandler, Actor, Object},
 };
 use axum::{
@@ -21,13 +22,16 @@ use serde::de::DeserializeOwned;
 use tracing::debug;
 
 /// Handles incoming activities, verifying HTTP signatures and other checks
-pub async fn receive_activity<Activity, ActorT, Datatype>(
+pub async fn receive_activity<Activity, ActorT, Datatype, Queuetype>(
     activity_data: ActivityData,
-    data: &Data<Datatype>,
+    data: &Data<Datatype, Queuetype>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
-    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    Activity: ActivityHandler<DataType = Datatype, QueueType = Queuetype>
+        + DeserializeOwned
+        + Send
+        + 'static,
+    ActorT: Object<DataType = Datatype, QueueType = Queuetype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
     <Activity as ActivityHandler>::Error: From<anyhow::Error>
         + From<Error>
@@ -35,6 +39,7 @@ where
         + From<serde_json::Error>,
     <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
     Datatype: Clone,
+    Queuetype: ActivityQueue,
 {
     verify_body_hash(activity_data.headers.get("Digest"), &activity_data.body)?;
 

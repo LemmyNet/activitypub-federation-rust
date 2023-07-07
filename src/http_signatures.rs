@@ -148,7 +148,7 @@ pub(crate) async fn signing_actor<'a, A, H>(
     headers: H,
     method: &Method,
     uri: &Uri,
-    data: &Data<<A as Object>::DataType>,
+    data: &Data<<A as Object>::DataType, <A as Object>::QueueType>,
 ) -> Result<A, <A as Object>::Error>
 where
     A: Object + Actor,
@@ -274,7 +274,7 @@ pub(crate) fn verify_body_hash(
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::activity_queue::generate_request_headers;
+    use crate::queue::request::generate_request_headers;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
     use std::str::FromStr;
