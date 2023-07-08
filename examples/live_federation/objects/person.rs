@@ -5,7 +5,6 @@ use activitypub_federation::{
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
     protocol::{public_key::PublicKey, verification::verify_domains_match},
-    queue::simple_queue::SimpleQueue,
     traits::{ActivityHandler, Actor, Object},
 };
 use chrono::{Local, NaiveDateTime};
@@ -67,7 +66,6 @@ pub struct Person {
 #[async_trait::async_trait]
 impl Object for DbUser {
     type DataType = DatabaseHandle;
-    type QueueType = SimpleQueue;
     type Kind = Person;
     type Error = Error;
 
@@ -77,7 +75,7 @@ impl Object for DbUser {
 
     async fn read_from_id(
         object_id: Url,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         let users = data.users.lock().unwrap();
         let res = users
@@ -87,10 +85,7 @@ impl Object for DbUser {
         Ok(res)
     }
 
-    async fn into_json(
-        self,
-        _data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<Self::Kind, Self::Error> {
+    async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         Ok(Person {
             preferred_username: self.name.clone(),
             kind: Default::default(),
@@ -103,7 +98,7 @@ impl Object for DbUser {
     async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
-        _data: &Data<Self::DataType, Self::QueueType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
         verify_domains_match(json.id.inner(), expected_domain)?;
         Ok(())
@@ -111,7 +106,7 @@ impl Object for DbUser {
 
     async fn from_json(
         json: Self::Kind,
-        _data: &Data<Self::DataType, Self::QueueType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error> {
         Ok(DbUser {
             name: json.preferred_username,

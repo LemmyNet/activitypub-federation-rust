@@ -148,7 +148,7 @@ pub(crate) async fn signing_actor<'a, A, H>(
     headers: H,
     method: &Method,
     uri: &Uri,
-    data: &Data<<A as Object>::DataType, <A as Object>::QueueType>,
+    data: &Data<<A as Object>::DataType>,
 ) -> Result<A, <A as Object>::Error>
 where
     A: Object + Actor,

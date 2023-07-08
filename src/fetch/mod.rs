@@ -6,7 +6,6 @@ use crate::{
     config::Data,
     error::Error,
     http_signatures::sign_request,
-    queue::ActivityQueue,
     reqwest_shim::ResponseExt,
     FEDERATION_CONTENT_TYPE,
 };
@@ -34,9 +33,9 @@ pub mod webfinger;
 /// If the value exceeds [FederationSettings.http_fetch_limit], the request is aborted with
 /// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
 /// infinite, recursive fetching of data.
-pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned, Q: ActivityQueue>(
+pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
-    data: &Data<T, Q>,
+    data: &Data<T>,
 ) -> Result<Kind, Error> {
     let config = &data.config;
     // dont fetch local objects this way

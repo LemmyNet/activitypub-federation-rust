@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Display},
     time::Duration,
 };
-use tracing::*;
+use tracing::warn;
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct RetryStrategy {

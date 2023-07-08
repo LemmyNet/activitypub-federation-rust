@@ -50,7 +50,7 @@ impl ActivityQueue for SimpleQueue {
 
 impl SimpleQueue {
     /// Construct a queue from federation config
-    pub fn from_config<T: Clone>(config: &FederationConfig<T, SimpleQueue>) -> Self {
+    pub fn from_config<T: Clone>(config: &FederationConfig<T>) -> Self {
         Self::new(
             config.client.clone(),
             config.worker_count,

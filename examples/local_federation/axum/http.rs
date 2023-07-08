@@ -11,7 +11,6 @@ use activitypub_federation::{
     config::{Data, FederationConfig, FederationMiddleware},
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name, Webfinger},
     protocol::context::WithContext,
-    queue::simple_queue::SimpleQueue,
     traits::Object,
 };
 use axum::{
@@ -26,7 +25,7 @@ use serde::Deserialize;
 use std::net::ToSocketAddrs;
 use tracing::info;
 
-pub fn listen(config: &FederationConfig<DatabaseHandle, SimpleQueue>) -> Result<(), Error> {
+pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     let hostname = config.domain();
     info!("Listening with axum on {hostname}");
     let config = config.clone();
@@ -49,7 +48,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle, SimpleQueue>) -> Result<
 #[debug_handler]
 async fn http_get_user(
     Path(name): Path<String>,
-    data: Data<DatabaseHandle, SimpleQueue>,
+    data: Data<DatabaseHandle>,
 ) -> Result<FederationJson<WithContext<Person>>, Error> {
     let db_user = data.read_user(&name)?;
     let json_user = db_user.into_json(&data).await?;
@@ -58,10 +57,10 @@ async fn http_get_user(
 
 #[debug_handler]
 async fn http_post_user_inbox(
-    data: Data<DatabaseHandle, SimpleQueue>,
+    data: Data<DatabaseHandle>,
     activity_data: ActivityData,
 ) -> impl IntoResponse {
-    receive_activity::<WithContext<PersonAcceptedActivities>, DbUser, DatabaseHandle, SimpleQueue>(
+    receive_activity::<WithContext<PersonAcceptedActivities>, DbUser, DatabaseHandle>(
         activity_data,
         &data,
     )
@@ -76,7 +75,7 @@ struct WebfingerQuery {
 #[debug_handler]
 async fn webfinger(
     Query(query): Query<WebfingerQuery>,
-    data: Data<DatabaseHandle, SimpleQueue>,
+    data: Data<DatabaseHandle>,
 ) -> Result<Json<Webfinger>, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
     let db_user = data.read_user(&name)?;

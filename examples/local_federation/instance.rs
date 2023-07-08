@@ -2,10 +2,7 @@ use crate::{
     objects::{person::DbUser, post::DbPost},
     Error,
 };
-use activitypub_federation::{
-    config::{FederationConfig, UrlVerifier},
-    queue::simple_queue::SimpleQueue,
-};
+use activitypub_federation::config::{FederationConfig, UrlVerifier};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use std::{
@@ -17,7 +14,7 @@ use url::Url;
 pub async fn new_instance(
     hostname: &str,
     name: String,
-) -> Result<FederationConfig<DatabaseHandle, SimpleQueue>, Error> {
+) -> Result<FederationConfig<DatabaseHandle>, Error> {
     let mut system_user = DbUser::new(hostname, "system".into())?;
     system_user.ap_id = Url::parse(&format!("http://{}/", hostname))?.into();
 
@@ -79,7 +76,7 @@ impl FromStr for Webserver {
 }
 
 pub fn listen(
-    config: &FederationConfig<DatabaseHandle, SimpleQueue>,
+    config: &FederationConfig<DatabaseHandle>,
     webserver: &Webserver,
 ) -> Result<(), Error> {
     match webserver {

@@ -2,7 +2,6 @@ use crate::{
     config::Data,
     error::{Error, Error::WebfingerResolveFailed},
     fetch::{fetch_object_http, object_id::ObjectId},
-    queue::ActivityQueue,
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
@@ -20,7 +19,7 @@ use url::Url;
 /// is then fetched using [ObjectId::dereference], and the result returned.
 pub async fn webfinger_resolve_actor<T: Clone, Kind>(
     identifier: &str,
-    data: &Data<T, <Kind as Object>::QueueType>,
+    data: &Data<T>,
 ) -> Result<Kind, <Kind as Object>::Error>
 where
     Kind: Object + Actor + Send + 'static + Object<DataType = T>,
@@ -86,10 +85,9 @@ where
 /// # Ok::<(), anyhow::Error>(())
 /// }).unwrap();
 ///```
-pub fn extract_webfinger_name<T, Q>(query: &str, data: &Data<T, Q>) -> Result<String, Error>
+pub fn extract_webfinger_name<T>(query: &str, data: &Data<T>) -> Result<String, Error>
 where
     T: Clone,
-    Q: ActivityQueue,
 {
     // TODO: would be nice if we could implement this without regex and remove the dependency
     // Regex taken from Mastodon -

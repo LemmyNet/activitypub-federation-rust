@@ -8,7 +8,6 @@ use activitypub_federation::{
     config::{Data, FederationConfig, FederationMiddleware},
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name},
     protocol::context::WithContext,
-    queue::simple_queue::SimpleQueue,
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
@@ -17,7 +16,7 @@ use anyhow::anyhow;
 use serde::Deserialize;
 use tracing::info;
 
-pub fn listen(config: &FederationConfig<DatabaseHandle, SimpleQueue>) -> Result<(), Error> {
+pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     let hostname = config.domain();
     info!("Listening with actix-web on {hostname}");
     let config = config.clone();
@@ -36,9 +35,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle, SimpleQueue>) -> Result<
 }
 
 /// Handles requests to fetch system user json over HTTP
-pub async fn http_get_system_user(
-    data: Data<DatabaseHandle, SimpleQueue>,
-) -> Result<HttpResponse, Error> {
+pub async fn http_get_system_user(data: Data<DatabaseHandle>) -> Result<HttpResponse, Error> {
     let json_user = data.system_user.clone().into_json(&data).await?;
     Ok(HttpResponse::Ok()
         .content_type(FEDERATION_CONTENT_TYPE)
@@ -49,7 +46,7 @@ pub async fn http_get_system_user(
 pub async fn http_get_user(
     request: HttpRequest,
     user_name: web::Path<String>,
-    data: Data<DatabaseHandle, SimpleQueue>,
+    data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
     let signed_by = signing_actor::<DbUser>(&request, None, &data).await?;
     // here, checks can be made on the actor or the domain to which
@@ -74,9 +71,9 @@ pub async fn http_get_user(
 pub async fn http_post_user_inbox(
     request: HttpRequest,
     body: Bytes,
-    data: Data<DatabaseHandle, SimpleQueue>,
+    data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
-    receive_activity::<WithContext<PersonAcceptedActivities>, DbUser, DatabaseHandle, SimpleQueue>(
+    receive_activity::<WithContext<PersonAcceptedActivities>, DbUser, DatabaseHandle>(
         request, body, &data,
     )
     .await
@@ -89,7 +86,7 @@ pub struct WebfingerQuery {
 
 pub async fn webfinger(
     query: web::Query<WebfingerQuery>,
-    data: Data<DatabaseHandle, SimpleQueue>,
+    data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
     let db_user = data.read_user(&name)?;

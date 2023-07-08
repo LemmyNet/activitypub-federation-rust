@@ -1,10 +1,6 @@
 //! Traits which need to be implemented for federated data types
 
-use crate::{
-    config::Data,
-    protocol::public_key::PublicKey,
-    queue::{simple_queue::SimpleQueue, ActivityQueue},
-};
+use crate::{config::Data, protocol::public_key::PublicKey};
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use serde::Deserialize;
@@ -101,8 +97,6 @@ pub trait Object: Sized + Debug {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
-    /// The queue type to use with this object
-    type QueueType: ActivityQueue + Send + Sync;
     /// The type of protocol struct which gets sent over network to federate this database struct.
     type Kind;
     /// Error type returned by handler methods
@@ -126,16 +120,13 @@ pub trait Object: Sized + Debug {
     /// Should return `Ok(None)` if not found.
     async fn read_from_id(
         object_id: Url,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error>;
 
     /// Mark remote object as deleted in local database.
     ///
     /// Called when a `Delete` activity is received, or if fetch returns a `Tombstone` object.
-    async fn delete(
-        self,
-        _data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn delete(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
@@ -143,10 +134,7 @@ pub trait Object: Sized + Debug {
     ///
     /// Called when a local object gets fetched by another instance over HTTP, or when an object
     /// gets sent in an activity.
-    async fn into_json(
-        self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<Self::Kind, Self::Error>;
+    async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error>;
 
     /// Verifies that the received object is valid.
     ///
@@ -158,7 +146,7 @@ pub trait Object: Sized + Debug {
     async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error>;
 
     /// Convert object from ActivityPub type to database type.
@@ -166,10 +154,7 @@ pub trait Object: Sized + Debug {
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
     /// should write the received object to database. Note that there is no distinction between
     /// create and update, so an `upsert` operation should be used.
-    async fn from_json(
-        json: Self::Kind,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<Self, Self::Error>;
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error>;
 }
 
 /// Handler for receiving incoming activities.
@@ -221,10 +206,6 @@ pub trait ActivityHandler {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
-
-    /// The queue type to use with this object
-    type QueueType: ActivityQueue + Send + Sync;
-
     /// Error type returned by handler methods
     type Error;
 
@@ -238,15 +219,13 @@ pub trait ActivityHandler {
     ///
     /// This needs to be a separate method, because it might be used for activities
     /// like `Undo/Follow`, which shouldn't perform any database write for the inner `Follow`.
-    async fn verify(&self, data: &Data<Self::DataType, Self::QueueType>)
-        -> Result<(), Self::Error>;
+    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error>;
 
     /// Called when an activity is received.
     ///
     /// Should perform validation and possibly write action to the database. In case the activity
     /// has a nested `object` field, must call `object.from_json` handler.
-    async fn receive(self, data: &Data<Self::DataType, Self::QueueType>)
-        -> Result<(), Self::Error>;
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error>;
 }
 
 /// Trait to allow retrieving common Actor data.
@@ -292,7 +271,6 @@ where
     T: ActivityHandler + Send + Sync,
 {
     type DataType = T::DataType;
-    type QueueType = T::QueueType;
     type Error = T::Error;
 
     fn id(&self) -> &Url {
@@ -303,17 +281,11 @@ where
         self.deref().actor()
     }
 
-    async fn verify(
-        &self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         self.deref().verify(data).await
     }
 
-    async fn receive(
-        self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         (*self).receive(data).await
     }
 }
@@ -326,10 +298,6 @@ pub trait Collection: Sized {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
-
-    /// The queue type to use with this object
-    type QueueType: ActivityQueue + Send + Sync;
-
     /// The type of protocol struct which gets sent over network to federate this database struct.
     type Kind: for<'de2> Deserialize<'de2>;
     /// Error type returned by handler methods
@@ -338,7 +306,7 @@ pub trait Collection: Sized {
     /// Reads local collection from database and returns it as Activitypub JSON.
     async fn read_local(
         owner: &Self::Owner,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Self::Kind, Self::Error>;
 
     /// Verifies that the received object is valid.
@@ -348,7 +316,7 @@ pub trait Collection: Sized {
     async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error>;
 
     /// Convert object from ActivityPub type to database type.
@@ -359,7 +327,7 @@ pub trait Collection: Sized {
     async fn from_json(
         json: Self::Kind,
         owner: &Self::Owner,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error>;
 }
 
@@ -435,21 +403,17 @@ pub mod tests {
     #[async_trait]
     impl Object for DbUser {
         type DataType = DbConnection;
-        type QueueType = SimpleQueue;
         type Kind = Person;
         type Error = Error;
 
         async fn read_from_id(
             _object_id: Url,
-            _data: &Data<Self::DataType, Self::QueueType>,
+            _data: &Data<Self::DataType>,
         ) -> Result<Option<Self>, Self::Error> {
             Ok(Some(DB_USER.clone()))
         }
 
-        async fn into_json(
-            self,
-            _data: &Data<Self::DataType, Self::QueueType>,
-        ) -> Result<Self::Kind, Self::Error> {
+        async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
             Ok(Person {
                 preferred_username: self.name.clone(),
                 kind: Default::default(),
@@ -462,7 +426,7 @@ pub mod tests {
         async fn verify(
             json: &Self::Kind,
             expected_domain: &Url,
-            _data: &Data<Self::DataType, Self::QueueType>,
+            _data: &Data<Self::DataType>,
         ) -> Result<(), Self::Error> {
             verify_domains_match(json.id.inner(), expected_domain)?;
             Ok(())
@@ -470,7 +434,7 @@ pub mod tests {
 
         async fn from_json(
             json: Self::Kind,
-            _data: &Data<Self::DataType, Self::QueueType>,
+            _data: &Data<Self::DataType>,
         ) -> Result<Self, Self::Error> {
             Ok(DbUser {
                 name: json.preferred_username,
@@ -515,7 +479,6 @@ pub mod tests {
     #[async_trait]
     impl ActivityHandler for Follow {
         type DataType = DbConnection;
-        type QueueType = SimpleQueue;
         type Error = Error;
 
         fn id(&self) -> &Url {
@@ -526,17 +489,11 @@ pub mod tests {
             self.actor.inner()
         }
 
-        async fn verify(
-            &self,
-            _: &Data<Self::DataType, Self::QueueType>,
-        ) -> Result<(), Self::Error> {
+        async fn verify(&self, _: &Data<Self::DataType>) -> Result<(), Self::Error> {
             Ok(())
         }
 
-        async fn receive(
-            self,
-            _data: &Data<Self::DataType, Self::QueueType>,
-        ) -> Result<(), Self::Error> {
+        async fn receive(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
             Ok(())
         }
     }
@@ -550,36 +507,29 @@ pub mod tests {
     #[async_trait]
     impl Object for DbPost {
         type DataType = DbConnection;
-        type QueueType = SimpleQueue;
         type Kind = Note;
         type Error = Error;
 
         async fn read_from_id(
             _: Url,
-            _: &Data<Self::DataType, Self::QueueType>,
+            _: &Data<Self::DataType>,
         ) -> Result<Option<Self>, Self::Error> {
             todo!()
         }
 
-        async fn into_json(
-            self,
-            _: &Data<Self::DataType, Self::QueueType>,
-        ) -> Result<Self::Kind, Self::Error> {
+        async fn into_json(self, _: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
             todo!()
         }
 
         async fn verify(
             _: &Self::Kind,
             _: &Url,
-            _: &Data<Self::DataType, Self::QueueType>,
+            _: &Data<Self::DataType>,
         ) -> Result<(), Self::Error> {
             todo!()
         }
 
-        async fn from_json(
-            _: Self::Kind,
-            _: &Data<Self::DataType, Self::QueueType>,
-        ) -> Result<Self, Self::Error> {
+        async fn from_json(_: Self::Kind, _: &Data<Self::DataType>) -> Result<Self, Self::Error> {
             todo!()
         }
     }

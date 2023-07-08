@@ -14,7 +14,7 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use anyhow::{anyhow, Context};
-use tracing::*;
+use tracing::debug;
 
 use super::{util::RetryStrategy, SendActivityTask};
 

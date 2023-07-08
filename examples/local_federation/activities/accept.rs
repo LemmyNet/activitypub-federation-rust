@@ -3,7 +3,6 @@ use activitypub_federation::{
     config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::AcceptType,
-    queue::simple_queue::SimpleQueue,
     traits::ActivityHandler,
 };
 use serde::{Deserialize, Serialize};
@@ -33,7 +32,6 @@ impl Accept {
 #[async_trait::async_trait]
 impl ActivityHandler for Accept {
     type DataType = DatabaseHandle;
-    type QueueType = SimpleQueue;
     type Error = crate::error::Error;
 
     fn id(&self) -> &Url {
@@ -44,17 +42,11 @@ impl ActivityHandler for Accept {
         self.actor.inner()
     }
 
-    async fn verify(
-        &self,
-        _data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn verify(&self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    async fn receive(
-        self,
-        _data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn receive(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 }

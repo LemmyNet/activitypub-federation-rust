@@ -4,7 +4,6 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
-    queue::simple_queue::SimpleQueue,
     traits::Object,
 };
 use serde::{Deserialize, Serialize};
@@ -45,13 +44,12 @@ pub struct Note {
 #[async_trait::async_trait]
 impl Object for DbPost {
     type DataType = DatabaseHandle;
-    type QueueType = SimpleQueue;
     type Kind = Note;
     type Error = Error;
 
     async fn read_from_id(
         object_id: Url,
-        data: &Data<Self::DataType, Self::QueueType>,
+        data: &Data<Self::DataType>,
     ) -> Result<Option<Self>, Self::Error> {
         let posts = data.posts.lock().unwrap();
         let res = posts
@@ -61,10 +59,7 @@ impl Object for DbPost {
         Ok(res)
     }
 
-    async fn into_json(
-        self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<Self::Kind, Self::Error> {
+    async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         let creator = self.creator.dereference_local(data).await?;
         Ok(Note {
             kind: Default::default(),
@@ -78,16 +73,13 @@ impl Object for DbPost {
     async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
-        _data: &Data<Self::DataType, Self::QueueType>,
+        _data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
         verify_domains_match(json.id.inner(), expected_domain)?;
         Ok(())
     }
 
-    async fn from_json(
-        json: Self::Kind,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<Self, Self::Error> {
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
         let post = DbPost {
             text: json.content,
             ap_id: json.id,

@@ -5,7 +5,6 @@ use crate::{
     error::Error,
     fetch::object_id::ObjectId,
     http_signatures::{verify_body_hash, verify_signature},
-    queue::ActivityQueue,
     traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
@@ -16,17 +15,14 @@ use tracing::debug;
 /// Handles incoming activities, verifying HTTP signatures and other checks
 ///
 /// After successful validation, activities are passed to respective [trait@ActivityHandler].
-pub async fn receive_activity<Activity, ActorT, Datatype, Queuetype>(
+pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
-    data: &Data<Datatype, Queuetype>,
+    data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype, QueueType = Queuetype>
-        + DeserializeOwned
-        + Send
-        + 'static,
-    ActorT: Object<DataType = Datatype, QueueType = Queuetype> + Actor + Send + 'static,
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
     <Activity as ActivityHandler>::Error: From<anyhow::Error>
         + From<Error>
@@ -34,7 +30,6 @@ where
         + From<serde_json::Error>,
     <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
     Datatype: Clone,
-    Queuetype: ActivityQueue,
 {
     verify_body_hash(request.headers().get("Digest"), &body)?;
 
@@ -64,7 +59,7 @@ mod test {
     use crate::{
         config::FederationConfig,
         http_signatures::sign_request,
-        queue::{request::generate_request_headers, simple_queue::SimpleQueue},
+        queue::request::generate_request_headers,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},
     };
     use actix_web::test::TestRequest;
@@ -75,7 +70,7 @@ mod test {
     #[tokio::test]
     async fn test_receive_activity() {
         let (body, incoming_request, config) = setup_receive_test().await;
-        receive_activity::<Follow, DbUser, DbConnection, SimpleQueue>(
+        receive_activity::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
             body,
             &config.to_request_data(),
@@ -87,7 +82,7 @@ mod test {
     #[tokio::test]
     async fn test_receive_activity_invalid_body_signature() {
         let (_, incoming_request, config) = setup_receive_test().await;
-        let err = receive_activity::<Follow, DbUser, DbConnection, SimpleQueue>(
+        let err = receive_activity::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
             "invalid".into(),
             &config.to_request_data(),
@@ -104,7 +99,7 @@ mod test {
     async fn test_receive_activity_invalid_path() {
         let (body, incoming_request, config) = setup_receive_test().await;
         let incoming_request = incoming_request.uri("/wrong");
-        let err = receive_activity::<Follow, DbUser, DbConnection, SimpleQueue>(
+        let err = receive_activity::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
             body,
             &config.to_request_data(),
@@ -117,11 +112,7 @@ mod test {
         assert_eq!(e, &Error::ActivitySignatureInvalid)
     }
 
-    async fn setup_receive_test() -> (
-        Bytes,
-        TestRequest,
-        FederationConfig<DbConnection, SimpleQueue>,
-    ) {
+    async fn setup_receive_test() -> (Bytes, TestRequest, FederationConfig<DbConnection>) {
         let inbox = "https://example.com/inbox";
         let headers = generate_request_headers(&Url::parse(inbox).unwrap());
         let request_builder = ClientWithMiddleware::from(Client::default())

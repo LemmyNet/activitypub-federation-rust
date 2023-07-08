@@ -8,7 +8,6 @@ use activitypub_federation::{
     config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::FollowType,
-    queue::simple_queue::SimpleQueue,
     traits::{ActivityHandler, Actor},
 };
 use serde::{Deserialize, Serialize};
@@ -38,7 +37,6 @@ impl Follow {
 #[async_trait::async_trait]
 impl ActivityHandler for Follow {
     type DataType = DatabaseHandle;
-    type QueueType = SimpleQueue;
     type Error = crate::error::Error;
 
     fn id(&self) -> &Url {
@@ -49,19 +47,13 @@ impl ActivityHandler for Follow {
         self.actor.inner()
     }
 
-    async fn verify(
-        &self,
-        _data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn verify(&self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
     // Ignore clippy false positive: https://github.com/rust-lang/rust-clippy/issues/6446
     #[allow(clippy::await_holding_lock)]
-    async fn receive(
-        self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         // add to followers
         let local_user = {
             let mut users = data.users.lock().unwrap();

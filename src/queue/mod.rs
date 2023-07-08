@@ -25,7 +25,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 use url::Url;
 
 use self::request::sign_and_send;
@@ -34,7 +34,7 @@ use self::request::sign_and_send;
 /// Anything that can enqueue outgoing activitypub requests
 pub trait ActivityQueue {
     /// The errors that can be returned when queuing
-    type Error;
+    type Error: Debug;
 
     /// Retrieve the queue stats
     fn stats(&self) -> &Stats;
@@ -44,26 +44,20 @@ pub trait ActivityQueue {
 }
 
 /// Sends an activity with an outbound activity queue
-pub async fn send_activity<Q: ActivityQueue, Activity, Datatype, ActorType>(
+pub async fn send_activity<Activity, Datatype, ActorType>(
     activity: Activity,
     actor: &ActorType,
     inboxes: Vec<Url>,
-    data: &Data<Datatype, Q>,
+    data: &Data<Datatype>,
 ) -> Result<(), <Activity as ActivityHandler>::Error>
 where
     Activity: ActivityHandler + Serialize,
-    <Activity as ActivityHandler>::Error: From<anyhow::Error>
-        + From<serde_json::Error>
-        + std::convert::From<<Q as ActivityQueue>::Error>,
+    <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     Datatype: Clone,
     ActorType: Actor,
 {
     let config = &data.config;
-    let queue = data
-        .config
-        .activity_queue
-        .clone()
-        .expect("Should have a queue configured");
+    let queue = data.config.activity_queue.clone();
     let actor_id = activity.actor();
     let activity_id = activity.id();
     let activity_serialized: Bytes = serde_json::to_vec(&activity)?.into();
@@ -114,15 +108,18 @@ where
                 warn!("{err}");
             }
         } else {
-            queue.queue(message).await?;
-            let stats = queue.stats();
-            let running = stats.running.load(Ordering::Relaxed);
-            if running == config.worker_count && config.worker_count != 0 {
-                warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
-                warn!("{:?}", stats);
-            } else {
-                info!("{:?}", stats);
-            }
+            queue
+                .send(message)
+                .await
+                .map_err(|err| anyhow!("Error sending to queue:{err:?}"))?;
+            //let stats = queue.stats();
+            //let running = stats.running.load(Ordering::Relaxed);
+            //if running == config.worker_count && config.worker_count != 0 {
+            //    warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", config.worker_count);
+            //    warn!("{:?}", stats);
+            //} else {
+            //    info!("{:?}", stats);
+            //}
         }
     }
 
@@ -184,6 +181,7 @@ mod tests {
     };
 
     use crate::{http_signatures::generate_actor_keypair, queue::simple_queue::SimpleQueue};
+    use tracing::{debug, info};
 
     use super::*;
 

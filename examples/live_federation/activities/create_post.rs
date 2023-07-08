@@ -10,7 +10,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::{context::WithContext, helpers::deserialize_one_or_many},
-    queue::{send_activity, simple_queue::SimpleQueue},
+    queue::send_activity,
     traits::{ActivityHandler, Object},
 };
 use serde::{Deserialize, Serialize};
@@ -29,11 +29,7 @@ pub struct CreatePost {
 }
 
 impl CreatePost {
-    pub async fn send(
-        note: Note,
-        inbox: Url,
-        data: &Data<DatabaseHandle, SimpleQueue>,
-    ) -> Result<(), Error> {
+    pub async fn send(note: Note, inbox: Url, data: &Data<DatabaseHandle>) -> Result<(), Error> {
         print!("Sending reply to {}", &note.attributed_to);
         let create = CreatePost {
             actor: note.attributed_to.clone(),
@@ -51,7 +47,6 @@ impl CreatePost {
 #[async_trait::async_trait]
 impl ActivityHandler for CreatePost {
     type DataType = DatabaseHandle;
-    type QueueType = SimpleQueue;
     type Error = crate::error::Error;
 
     fn id(&self) -> &Url {
@@ -62,18 +57,12 @@ impl ActivityHandler for CreatePost {
         self.actor.inner()
     }
 
-    async fn verify(
-        &self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn verify(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::verify(&self.object, &self.id, data).await?;
         Ok(())
     }
 
-    async fn receive(
-        self,
-        data: &Data<Self::DataType, Self::QueueType>,
-    ) -> Result<(), Self::Error> {
+    async fn receive(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         DbPost::from_json(self.object, data).await?;
         Ok(())
     }

@@ -87,7 +87,7 @@ where
     /// Fetches an activitypub object, either from local database (if possible), or over http.
     pub async fn dereference(
         &self,
-        data: &Data<<Kind as Object>::DataType, <Kind as Object>::QueueType>,
+        data: &Data<<Kind as Object>::DataType>,
     ) -> Result<Kind, <Kind as Object>::Error>
     where
         <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
@@ -121,7 +121,7 @@ where
     /// the object is not found in the database.
     pub async fn dereference_local(
         &self,
-        data: &Data<<Kind as Object>::DataType, <Kind as Object>::QueueType>,
+        data: &Data<<Kind as Object>::DataType>,
     ) -> Result<Kind, <Kind as Object>::Error>
     where
         <Kind as Object>::Error: From<Error>,
@@ -133,7 +133,7 @@ where
     /// returning none means the object was not found in local db
     async fn dereference_from_db(
         &self,
-        data: &Data<<Kind as Object>::DataType, <Kind as Object>::QueueType>,
+        data: &Data<<Kind as Object>::DataType>,
     ) -> Result<Option<Kind>, <Kind as Object>::Error> {
         let id = self.0.clone();
         Object::read_from_id(*id, data).await
@@ -141,7 +141,7 @@ where
 
     async fn dereference_from_http(
         &self,
-        data: &Data<<Kind as Object>::DataType, <Kind as Object>::QueueType>,
+        data: &Data<<Kind as Object>::DataType>,
         db_object: Option<Kind>,
     ) -> Result<Kind, <Kind as Object>::Error>
     where
