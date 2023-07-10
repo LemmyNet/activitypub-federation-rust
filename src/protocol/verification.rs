@@ -1,7 +1,7 @@
 //! Verify that received data is valid
 
+use crate::error::Error;
 use anyhow::anyhow;
-use crate::error::{Error};
 use url::Url;
 
 /// Check that both urls have the same domain. If not, return UrlVerificationError.

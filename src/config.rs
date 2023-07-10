@@ -114,9 +114,9 @@ impl<T: Clone> FederationConfig<T> {
         verify_domains_match(activity.id(), activity.actor())?;
         self.verify_url_valid(activity.id()).await?;
         if self.is_local_url(activity.id()) {
-            return Err(Error::UrlVerificationError(
-                anyhow!("Activity was sent from local instance"),
-            ));
+            return Err(Error::UrlVerificationError(anyhow!(
+                "Activity was sent from local instance"
+            )));
         }
 
         Ok(())
@@ -139,9 +139,9 @@ impl<T: Clone> FederationConfig<T> {
             "https" => {}
             "http" => {
                 if !self.allow_http_urls {
-                    return Err(Error::UrlVerificationError(
-                        anyhow!("Http urls are only allowed in debug mode"),
-                    ));
+                    return Err(Error::UrlVerificationError(anyhow!(
+                        "Http urls are only allowed in debug mode"
+                    )));
                 }
             }
             _ => return Err(Error::UrlVerificationError(anyhow!("Invalid url scheme"))),
@@ -153,13 +153,15 @@ impl<T: Clone> FederationConfig<T> {
         }
 
         if url.domain().is_none() {
-            return Err(Error::UrlVerificationError(anyhow!("Url must have a domain")));
+            return Err(Error::UrlVerificationError(anyhow!(
+                "Url must have a domain"
+            )));
         }
 
         if url.domain() == Some("localhost") && !self.debug {
-            return Err(Error::UrlVerificationError(
-                anyhow!("Localhost is only allowed in debug mode"),
-            ));
+            return Err(Error::UrlVerificationError(anyhow!(
+                "Localhost is only allowed in debug mode"
+            )));
         }
 
         self.url_verifier
