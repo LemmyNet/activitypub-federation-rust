@@ -18,7 +18,12 @@
 use crate::{
     error::Error,
     protocol::verification::verify_domains_match,
-    queue::{simple_queue::SimpleQueue, ActivityQueue, SendActivityTask},
+    queue::{
+        standard_retry_queue::StandardRetryQueue,
+        worker::Worker,
+        ActivityMessage,
+        ActivityQueue,
+    },
     traits::{ActivityHandler, Actor},
 };
 use async_trait::async_trait;
@@ -96,7 +101,7 @@ pub struct FederationConfig<T: Clone> {
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(custom))]
-    pub(crate) activity_queue: Sender<SendActivityTask>,
+    pub(crate) activity_queue: Option<Sender<ActivityMessage>>,
 }
 
 impl<T: Clone> FederationConfig<T> {
@@ -205,17 +210,7 @@ impl<T: Clone> FederationConfigBuilder<T> {
         &mut self,
         queue: Q,
     ) -> &mut Self {
-        let (sender, mut receiver) = channel(8192);
-
-        tokio::spawn(async move {
-            while let Some(message) = receiver.recv().await {
-                if let Err(err) = queue.queue(message).await {
-                    error!("{err:?}");
-                }
-            }
-        });
-
-        self.activity_queue = Some(sender);
+        self.activity_queue = Some(Some(make_sender(queue)));
         self
     }
 
@@ -225,23 +220,36 @@ impl<T: Clone> FederationConfigBuilder<T> {
     /// queue for outgoing activities, which is stored internally in the config struct.
     /// Requires a tokio runtime for the background queue.
     pub async fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
-        if self.activity_queue.is_none() {
-            let queue = SimpleQueue::new(
-                self.client
-                    .clone()
-                    .unwrap_or_else(|| reqwest::Client::default().into()),
-                self.worker_count.unwrap_or_default(),
-                self.retry_count.unwrap_or_default(),
-                self.request_timeout.unwrap_or(Duration::from_secs(10)),
-                60,
-                self.http_signature_compat.unwrap_or_default(),
-            );
+        let mut config = self.partial_build()?;
 
-            self.activity_queue(queue).await;
+        if config.activity_queue.is_none() {
+            if config.debug {
+                // If we're in debug we use a single worker to send things
+                let queue = Worker::from_config(&config);
+                config.activity_queue = Some(make_sender(queue));
+            } else {
+                // Otherwise we use the standard retry queue
+                let queue = StandardRetryQueue::from_config(&config);
+                config.activity_queue = Some(make_sender(queue));
+            }
         }
 
-        self.partial_build()
+        Ok(config)
     }
+}
+
+fn make_sender<Q: ActivityQueue + Sync + Send + 'static>(queue: Q) -> Sender<ActivityMessage> {
+    let (sender, mut receiver) = channel(8192);
+
+    tokio::spawn(async move {
+        while let Some(message) = receiver.recv().await {
+            if let Err(err) = queue.queue(message).await {
+                error!("{err:?}");
+            }
+        }
+    });
+
+    sender
 }
 
 // impl<T: Clone> FederationConfig<T> {

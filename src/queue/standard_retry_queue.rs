@@ -11,45 +11,56 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedSender},
     task::{JoinHandle, JoinSet},
 };
+use tracing::{info, warn};
 
 use crate::config::FederationConfig;
 
 use super::{
-    util::RetryStrategy,
-    worker::{activity_worker, retry_worker},
+    util::{retry, RetryStrategy},
+    worker::Worker,
+    ActivityMessage,
     ActivityQueue,
-    SendActivityTask,
     Stats,
 };
-
-/// A simple activity queue which spawns tokio workers to send out requests
-/// When creating a queue, it will spawn a task per worker thread
-/// Uses an unbounded mpsc queue for communication (i.e, all messages are in memory)
-pub struct SimpleQueue {
+/// A tokio spawned worker queue which is responsible for submitting requests to federated servers
+/// This will retry up to one time with the same signature, and if it fails, will move it to the retry queue.
+/// We need to retry activity sending in case the target instances is temporarily unreachable.
+/// In this case, the task is stored and resent when the instance is hopefully back up. This
+/// list shows the retry intervals, and which events of the target instance can be covered:
+/// - 60s (one minute, service restart) -- happens in the worker w/ same signature
+/// - 60min (one hour, instance maintenance) --- happens in the retry queue
+/// - 60h (2.5 days, major incident with rebuild from backup) --- happens in the retry queue
+pub struct StandardRetryQueue {
     // Stats shared between the queue and workers
     stats: Arc<Stats>,
-    sender: UnboundedSender<SendActivityTask>,
+    worker_count: usize,
+    sender: UnboundedSender<ActivityMessage>,
     sender_task: JoinHandle<()>,
     retry_sender_task: JoinHandle<()>,
 }
 
 #[async_trait]
-impl ActivityQueue for SimpleQueue {
+impl ActivityQueue for StandardRetryQueue {
     type Error = anyhow::Error;
-    fn stats(&self) -> &Stats {
-        &self.stats
-    }
 
-    async fn queue(&self, message: SendActivityTask) -> Result<(), Self::Error> {
+    async fn queue(&self, message: ActivityMessage) -> Result<(), Self::Error> {
         self.stats.pending.fetch_add(1, Ordering::Relaxed);
         self.sender.send(message)?;
+
+        let running = self.stats.running.load(Ordering::Relaxed);
+        if running == self.worker_count && self.worker_count != 0 {
+            warn!("Reached max number of send activity workers ({}). Consider increasing worker count to avoid federation delays", self.worker_count);
+            warn!("{:?}", self.stats);
+        } else {
+            info!("{:?}", self.stats);
+        }
 
         Ok(())
     }
 }
 
-impl SimpleQueue {
-    /// Construct a queue from federation config
+impl StandardRetryQueue {
+    /// Builds a simple queue from a federation config
     pub fn from_config<T: Clone>(config: &FederationConfig<T>) -> Self {
         Self::new(
             config.client.clone(),
@@ -85,7 +96,6 @@ impl SimpleQueue {
 
         let (retry_sender, mut retry_receiver) = unbounded_channel();
         let retry_stats = stats.clone();
-        let retry_client = client.clone();
 
         // The "fast path" retry
         // The backoff should be < 5 mins for this to work otherwise signatures may expire
@@ -97,6 +107,13 @@ impl SimpleQueue {
             initial_sleep: 0,
         };
 
+        let worker = Arc::new(Worker {
+            client: client.clone(),
+            request_timeout: timeout,
+            strategy,
+            http_signature_compat,
+        });
+
         // The "retry path" strategy
         // After the fast path fails, a task will sleep up to backoff ^ 2 and then retry again
         let retry_strategy = RetryStrategy {
@@ -106,17 +123,23 @@ impl SimpleQueue {
             initial_sleep: backoff.pow(2), // wait 60 mins before even trying
         };
 
+        let retry_worker = Arc::new(Worker {
+            client: client.clone(),
+            request_timeout: timeout,
+            // Internally we need to re-sign the message each attempt so we remove this strategy
+            strategy: RetryStrategy::default(),
+            http_signature_compat,
+        });
+
         let retry_sender_task = tokio::spawn(async move {
             let mut join_set = JoinSet::new();
 
             while let Some(message) = retry_receiver.recv().await {
-                let retry_task = retry_worker(
-                    retry_client.clone(),
-                    timeout,
-                    message,
+                let retry_task = retry_task(
                     retry_stats.clone(),
+                    retry_worker.clone(),
+                    message,
                     retry_strategy,
-                    http_signature_compat,
                 );
 
                 if retry_count > 0 {
@@ -145,14 +168,11 @@ impl SimpleQueue {
             let mut join_set = JoinSet::new();
 
             while let Some(message) = receiver.recv().await {
-                let task = activity_worker(
-                    client.clone(),
-                    timeout,
+                let task = main_task(
+                    sender_stats.clone(),
+                    worker.clone(),
                     message,
                     retry_sender.clone(),
-                    sender_stats.clone(),
-                    strategy,
-                    http_signature_compat,
                 );
 
                 if worker_count > 0 {
@@ -180,15 +200,12 @@ impl SimpleQueue {
             sender,
             sender_task,
             retry_sender_task,
+            worker_count,
         }
     }
 
-    #[allow(unused)]
-    // Drops all the senders and shuts down the workers
-    pub(crate) async fn shutdown(
-        self,
-        wait_for_retries: bool,
-    ) -> Result<Arc<Stats>, anyhow::Error> {
+    /// Drops all the senders and shuts down the workers
+    pub async fn shutdown(self, wait_for_retries: bool) -> Result<Arc<Stats>, anyhow::Error> {
         drop(self.sender);
 
         self.sender_task.await?;
@@ -198,5 +215,56 @@ impl SimpleQueue {
         }
 
         Ok(self.stats)
+    }
+}
+
+pub(super) async fn main_task(
+    stats: Arc<Stats>,
+    worker: Arc<Worker>,
+    message: ActivityMessage,
+    retry_queue: UnboundedSender<ActivityMessage>,
+) {
+    stats.pending.fetch_sub(1, Ordering::Relaxed);
+    stats.running.fetch_add(1, Ordering::Relaxed);
+
+    let outcome = worker.queue(message.clone()).await;
+
+    // "Running" has finished, check the outcome
+    stats.running.fetch_sub(1, Ordering::Relaxed);
+
+    match outcome {
+        Ok(_) => {
+            stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(_err) => {
+            stats.retries.fetch_add(1, Ordering::Relaxed);
+            warn!(
+                "Sending activity {} to {} to the retry queue to be tried again later",
+                message.activity_id, message.inbox
+            );
+            // Send to the retry queue.  Ignoring whether it succeeds or not
+            retry_queue.send(message).ok();
+        }
+    }
+}
+
+pub(super) async fn retry_task(
+    stats: Arc<Stats>,
+    worker: Arc<Worker>,
+    message: ActivityMessage,
+    strategy: RetryStrategy,
+) {
+    // Because the times are pretty extravagant between retries, we have to re-sign each time
+    let outcome = retry(|| worker.queue(message.clone()), strategy).await;
+
+    stats.retries.fetch_sub(1, Ordering::Relaxed);
+
+    match outcome {
+        Ok(_) => {
+            stats.completed_last_hour.fetch_add(1, Ordering::Relaxed);
+        }
+        Err(_err) => {
+            stats.dead_last_hour.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }

@@ -16,10 +16,12 @@ use crate::{
 use anyhow::{anyhow, Context};
 use tracing::debug;
 
-use super::{util::RetryStrategy, SendActivityTask};
+use super::{util::RetryStrategy, ActivityMessage};
 
-pub(super) async fn sign_and_send(
-    task: &SendActivityTask,
+/// Sign and send a message with an optional retry
+/// The retry itself doesn't re-sign the request, so the retry times should be < 5 min
+pub async fn sign_and_send(
+    message: &ActivityMessage,
     client: &ClientWithMiddleware,
     timeout: Duration,
     retry_strategy: RetryStrategy,
@@ -27,19 +29,19 @@ pub(super) async fn sign_and_send(
 ) -> Result<(), anyhow::Error> {
     debug!(
         "Sending {} to {}, contents:\n {}",
-        task.activity_id,
-        task.inbox,
-        serde_json::from_slice::<serde_json::Value>(&task.activity)?
+        message.activity_id,
+        message.inbox,
+        serde_json::from_slice::<serde_json::Value>(&message.activity)?
     );
     let request_builder = client
-        .post(task.inbox.to_string())
+        .post(message.inbox.to_string())
         .timeout(timeout)
-        .headers(generate_request_headers(&task.inbox));
+        .headers(generate_request_headers(&message.inbox));
     let request = sign_request(
         request_builder,
-        &task.actor_id,
-        task.activity.clone(),
-        task.private_key.clone(),
+        &message.actor_id,
+        message.activity.clone(),
+        message.private_key.clone(),
         http_signature_compat,
     )
     .await
@@ -48,7 +50,7 @@ pub(super) async fn sign_and_send(
     retry(
         || {
             send(
-                task,
+                message,
                 client,
                 request
                     .try_clone()
@@ -61,7 +63,7 @@ pub(super) async fn sign_and_send(
 }
 
 pub(super) async fn send(
-    task: &SendActivityTask,
+    task: &ActivityMessage,
     client: &ClientWithMiddleware,
     request: Request,
 ) -> Result<(), anyhow::Error> {

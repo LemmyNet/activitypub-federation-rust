@@ -1,3 +1,4 @@
+//! Utilities for working with futures
 use futures_core::Future;
 use std::{
     fmt::{Debug, Display},
@@ -6,8 +7,9 @@ use std::{
 use tracing::warn;
 
 #[derive(Clone, Copy, Default)]
-pub(crate) struct RetryStrategy {
-    /// Amount of time in seconds to back off
+/// A strategy for retrying a future
+pub struct RetryStrategy {
+    /// Amount of time in seconds to back off, exponential based upon the amount of retries i.e, sleep is backoff ^ retries
     pub backoff: usize,
     /// Amount of times to retry
     pub retries: usize,
@@ -18,12 +20,7 @@ pub(crate) struct RetryStrategy {
 }
 
 /// Retries a future action factory function up to `amount` times with an exponential backoff timer between tries
-pub(crate) async fn retry<
-    T,
-    E: Display + Debug,
-    F: Future<Output = Result<T, E>>,
-    A: FnMut() -> F,
->(
+pub async fn retry<T, E: Display + Debug, F: Future<Output = Result<T, E>>, A: FnMut() -> F>(
     mut action: A,
     strategy: RetryStrategy,
 ) -> Result<T, E> {

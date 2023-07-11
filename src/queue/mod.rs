@@ -3,9 +3,9 @@
 #![doc = include_str!("../../docs/09_sending_activities.md")]
 
 pub(crate) mod request;
-pub mod simple_queue;
-mod util;
-mod worker;
+pub mod standard_retry_queue;
+pub mod util;
+pub mod worker;
 
 use crate::{
     config::Data,
@@ -36,11 +36,8 @@ pub trait ActivityQueue {
     /// The errors that can be returned when queuing
     type Error: Debug;
 
-    /// Retrieve the queue stats
-    fn stats(&self) -> &Stats;
-
     /// Queues one activity task to a specific inbox
-    async fn queue(&self, message: SendActivityTask) -> Result<(), Self::Error>;
+    async fn queue(&self, message: ActivityMessage) -> Result<(), Self::Error>;
 }
 
 /// Sends an activity with an outbound activity queue
@@ -57,7 +54,11 @@ where
     ActorType: Actor,
 {
     let config = &data.config;
-    let queue = data.config.activity_queue.clone();
+    let queue = data
+        .config
+        .activity_queue
+        .clone()
+        .expect("Activity Queue is always configured");
     let actor_id = activity.actor();
     let activity_id = activity.id();
     let activity_serialized: Bytes = serde_json::to_vec(&activity)?.into();
@@ -85,7 +86,7 @@ where
             continue;
         }
 
-        let message = SendActivityTask {
+        let message = ActivityMessage {
             id: Uuid::new_v4(),
             actor_id: actor_id.clone(),
             activity_id: activity_id.clone(),
@@ -129,7 +130,7 @@ where
 #[derive(Clone, Debug)]
 /// The struct sent to a worker for processing
 /// When `send_activity` is used, it is split up to tasks per-inbox
-pub struct SendActivityTask {
+pub struct ActivityMessage {
     /// The ID of the activity task
     pub id: Uuid,
     /// The actor ID
@@ -160,7 +161,7 @@ impl Debug for Stats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Activity queue stats: pending: {}, running: {}, retries: {}, dead: {}, complete: {}",
+            "Activity queue stats: pending: {}, running: {}, retries: {}, dead (last hr): {}, complete (last hr): {}",
             self.pending.load(Ordering::Relaxed),
             self.running.load(Ordering::Relaxed),
             self.retries.load(Ordering::Relaxed),
@@ -180,7 +181,10 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use crate::{http_signatures::generate_actor_keypair, queue::simple_queue::SimpleQueue};
+    use crate::{
+        http_signatures::generate_actor_keypair,
+        queue::standard_retry_queue::StandardRetryQueue,
+    };
     use tracing::{debug, info};
 
     use super::*;
@@ -237,7 +241,7 @@ mod tests {
 
         */
 
-        let queue = SimpleQueue::new(
+        let queue = StandardRetryQueue::new(
             reqwest::Client::default().into(),
             num_workers,
             num_workers,
@@ -248,7 +252,7 @@ mod tests {
 
         let keypair = generate_actor_keypair().unwrap();
 
-        let message = SendActivityTask {
+        let message = ActivityMessage {
             id: Uuid::new_v4(),
             actor_id: "http://localhost:8001".parse().unwrap(),
             activity_id: "http://localhost:8001/activity".parse().unwrap(),
