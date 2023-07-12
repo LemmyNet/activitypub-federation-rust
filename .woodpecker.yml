@@ -1,8 +1,15 @@
 pipeline:
   cargo_fmt:
-    image: rustdocker/rust:nightly
+    image: rust:1.70-bullseye
+    environment:
+      # store cargo data in repo folder so that it gets cached between steps
+      CARGO_HOME: .cargo
     commands:
-      - /root/.cargo/bin/cargo fmt -- --check
+      # need make existing toolchain available
+      - cp -r -n /usr/local/cargo .cargo
+      - rustup toolchain install nightly
+      - rustup component add rustfmt --toolchain nightly
+      - cargo +nightly fmt -- --check
 
   cargo_check:
     image: rust:1.70-bullseye
