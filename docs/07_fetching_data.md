@@ -25,7 +25,7 @@ assert!(user.is_ok());
 After dereferencing a remote object, it is stored in the local database and can be retrieved using [ObjectId::dereference_local](crate::fetch::object_id::ObjectId::dereference_local) without any network requests. This is important for performance reasons and for searching.
 
 We can similarly dereference a user over webfinger with the following method. It fetches the webfinger response from `.well-known/webfinger` and then fetches the actor using [ObjectId::dereference](crate::fetch::object_id::ObjectId::dereference) as above.
-```rust
+```no_run
 # use activitypub_federation::traits::tests::DbConnection;
 # use activitypub_federation::config::FederationConfig;
 # use activitypub_federation::fetch::webfinger::webfinger_resolve_actor;

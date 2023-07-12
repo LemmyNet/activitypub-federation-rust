@@ -31,6 +31,6 @@ impl PublicKey {
     }
 }
 
-pub(crate) fn main_key_id(owner: &Url) -> String {
-    format!("{}#main-key", &owner)
+pub(crate) fn main_key_id<U: AsRef<str>>(owner: &U) -> String {
+    format!("{}#main-key", owner.as_ref())
 }

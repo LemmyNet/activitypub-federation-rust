@@ -77,9 +77,9 @@ pub(crate) const EXPIRES_AFTER: Duration = Duration::from_secs(60 * 60);
 
 /// Creates an HTTP post request to `inbox_url`, with the given `client` and `headers`, and
 /// `activity` as request body. The request is signed with `private_key` and then sent.
-pub(crate) async fn sign_request(
+pub(crate) async fn sign_request<U: AsRef<str>>(
     request_builder: RequestBuilder,
-    actor_id: &Url,
+    actor_id: &U,
     activity: Bytes,
     private_key: PKey<Private>,
     http_signature_compat: bool,
@@ -274,7 +274,7 @@ pub(crate) fn verify_body_hash(
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::activity_queue::generate_request_headers;
+    use crate::activity_queue::request::generate_request_headers;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
     use std::str::FromStr;
@@ -285,7 +285,7 @@ pub mod test {
 
     #[tokio::test]
     async fn test_sign() {
-        let mut headers = generate_request_headers(&INBOX_URL);
+        let mut headers = generate_request_headers(&INBOX_URL.as_str()).unwrap();
         // use hardcoded date in order to test against hardcoded signature
         headers.insert(
             "date",
@@ -297,7 +297,7 @@ pub mod test {
             .headers(headers);
         let request = sign_request(
             request_builder,
-            &ACTOR_ID,
+            &*ACTOR_ID,
             "my activity".into(),
             PKey::private_key_from_pem(test_keypair().private_key.as_bytes()).unwrap(),
             // set this to prevent created/expires headers to be generated and inserted
@@ -327,13 +327,13 @@ pub mod test {
 
     #[tokio::test]
     async fn test_verify() {
-        let headers = generate_request_headers(&INBOX_URL);
+        let headers = generate_request_headers(&INBOX_URL.as_str()).unwrap();
         let request_builder = ClientWithMiddleware::from(Client::new())
             .post(INBOX_URL.to_string())
             .headers(headers);
         let request = sign_request(
             request_builder,
-            &ACTOR_ID,
+            &*ACTOR_ID,
             "my activity".to_string().into(),
             PKey::private_key_from_pem(test_keypair().private_key.as_bytes()).unwrap(),
             false,

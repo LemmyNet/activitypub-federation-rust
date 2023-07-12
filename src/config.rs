@@ -16,7 +16,7 @@
 //! ```
 
 use crate::{
-    activity_queue::{create_activity_queue, ActivityQueue},
+    activity_queue::{create_activity_queue, retry_queue::RetryQueue},
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
@@ -95,7 +95,7 @@ pub struct FederationConfig<T: Clone> {
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
-    pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
+    pub(crate) activity_queue: Option<Arc<RetryQueue>>,
 }
 
 impl<T: Clone> FederationConfig<T> {
@@ -196,7 +196,7 @@ impl<T: Clone> FederationConfig<T> {
             .take()
             .context("ActivityQueue never constructed, build() not called?")?;
         // Todo: use Arc::into_inner but is only part of rust 1.70.
-        let stats = Arc::<ActivityQueue>::try_unwrap(q)
+        let stats = Arc::<RetryQueue>::try_unwrap(q)
             .map_err(|_| {
                 anyhow::anyhow!(
                     "Could not cleanly shut down: activityqueue arc was still in use elsewhere "
