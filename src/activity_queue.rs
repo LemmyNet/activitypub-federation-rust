@@ -13,10 +13,13 @@ use crate::{
 use anyhow::{anyhow, Context};
 
 use bytes::Bytes;
+use futures::StreamExt;
 use futures_core::Future;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use httpdate::fmt_http_date;
 use itertools::Itertools;
+use moka::future::Cache;
+use once_cell::sync::Lazy;
 use openssl::pkey::{PKey, Private};
 use reqwest::Request;
 use reqwest_middleware::ClientWithMiddleware;
@@ -57,46 +60,13 @@ where
     ActorType: Actor,
 {
     let config = &data.config;
-    let actor_id = activity.actor();
-    let activity_id = activity.id();
-    let activity_serialized: Bytes = serde_json::to_vec(&activity)?.into();
-    let private_key_pem = actor
-        .private_key_pem()
-        .ok_or_else(|| anyhow!("Actor {actor_id} does not contain a private key for signing"))?;
 
-    // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
-    let private_key = tokio::task::spawn_blocking(move || {
-        PKey::private_key_from_pem(private_key_pem.as_bytes())
-            .map_err(|err| anyhow!("Could not create private key from PEM data:{err}"))
-    })
-    .await
-    .map_err(|err| anyhow!("Error joining:{err}"))??;
-
-    let inboxes: Vec<Url> = inboxes
-        .into_iter()
-        .unique()
-        .filter(|i| !config.is_local_url(i))
-        .collect();
     // This field is only optional to make builder work, its always present at this point
     let activity_queue = config
         .activity_queue
         .as_ref()
         .expect("Config has activity queue");
-    for inbox in inboxes {
-        if let Err(err) = config.verify_url_valid(&inbox).await {
-            debug!("inbox url invalid, skipping: {inbox}: {err}");
-            continue;
-        }
-
-        let message = SendActivityTask {
-            actor_id: actor_id.clone(),
-            activity_id: activity_id.clone(),
-            inbox,
-            activity: activity_serialized.clone(),
-            private_key: private_key.clone(),
-            http_signature_compat: config.http_signature_compat,
-        };
-
+    for message in prepare_raw(&activity, actor, inboxes, data).await? {
         // Don't use the activity queue if this is in debug mode, send and wait directly
         if config.debug {
             if let Err(err) = sign_and_send(
@@ -126,13 +96,92 @@ where
 }
 
 #[derive(Clone, Debug)]
-struct SendActivityTask {
+/// all info needed to send one activity to one inbox
+pub struct SendActivityTask {
     actor_id: Url,
     activity_id: Url,
     activity: Bytes,
     inbox: Url,
     private_key: PKey<Private>,
     http_signature_compat: bool,
+}
+impl Display for SendActivityTask {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} to {}", self.activity_id, self.inbox)
+    }
+}
+
+/// prepare an activity for sending
+pub async fn prepare_raw<Activity, Datatype, ActorType>(
+    activity: &Activity,
+    actor: &ActorType,
+    inboxes: Vec<Url>,
+    data: &Data<Datatype>,
+) -> Result<Vec<SendActivityTask>, <Activity as ActivityHandler>::Error>
+where
+    Activity: ActivityHandler + Serialize,
+    <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
+    Datatype: Clone,
+    ActorType: Actor,
+{
+    let config = &data.config;
+    let actor_id = activity.actor();
+    let activity_id = activity.id();
+    let activity_serialized: Bytes = serde_json::to_vec(&activity)?.into();
+    let private_key = get_pkey_cached(actor).await?;
+
+    Ok(futures::stream::iter(
+        inboxes
+            .into_iter()
+            .unique()
+            .filter(|i| !config.is_local_url(i)),
+    )
+    .filter_map(|inbox| async {
+        if let Err(err) = config.verify_url_valid(&inbox).await {
+            debug!("inbox url invalid, skipping: {inbox}: {err}");
+            return None;
+        };
+        Some(SendActivityTask {
+            actor_id: actor_id.clone(),
+            activity_id: activity_id.clone(),
+            inbox,
+            activity: activity_serialized.clone(),
+            private_key: private_key.clone(),
+            http_signature_compat: config.http_signature_compat,
+        })
+    })
+    .collect()
+    .await)
+}
+
+/// convert a sendactivitydata to a request, signing it
+/// make sure you don't keep this too long because the signature will expire
+pub async fn sign_raw<Datatype: Clone>(
+    task: &SendActivityTask,
+    data: &Data<Datatype>,
+    timeout: Duration,
+) -> Result<Request, anyhow::Error> {
+    sign_raw_inner(task, &data.config.client, timeout).await
+}
+async fn sign_raw_inner(
+    task: &SendActivityTask,
+    client: &ClientWithMiddleware,
+    timeout: Duration,
+) -> Result<Request, anyhow::Error> {
+    let request_builder = client
+        .post(task.inbox.to_string())
+        .timeout(timeout)
+        .headers(generate_request_headers(&task.inbox));
+    let request = sign_request(
+        request_builder,
+        &task.actor_id,
+        task.activity.clone(),
+        task.private_key.clone(),
+        task.http_signature_compat,
+    )
+    .await
+    .context("signing request")?;
+    Ok(request)
 }
 
 async fn sign_and_send(
@@ -147,19 +196,8 @@ async fn sign_and_send(
         task.inbox,
         serde_json::from_slice::<serde_json::Value>(&task.activity)?
     );
-    let request_builder = client
-        .post(task.inbox.to_string())
-        .timeout(timeout)
-        .headers(generate_request_headers(&task.inbox));
-    let request = sign_request(
-        request_builder,
-        &task.actor_id,
-        task.activity.clone(),
-        task.private_key.clone(),
-        task.http_signature_compat,
-    )
-    .await
-    .context("signing request")?;
+
+    let request = sign_raw_inner(task, client, timeout).await?;
 
     retry(
         || {
@@ -176,8 +214,47 @@ async fn sign_and_send(
     .await
 }
 
+async fn get_pkey_cached<ActorType>(actor: &ActorType) -> Result<PKey<Private>, anyhow::Error>
+where
+    ActorType: Actor,
+{
+    static CACHE: Lazy<Cache<Url, PKey<Private>>> = Lazy::new(|| {
+        Cache::builder()
+            .max_capacity(10000 /* todo: how to decide size */)
+            .build()
+    });
+    let actor_id = actor.id();
+    // PKey is internally like an Arc<>, so cloning is ok
+    CACHE
+        .try_get_with(actor_id.clone(), async {
+            let private_key_pem = actor.private_key_pem().ok_or_else(|| {
+                anyhow!("Actor {actor_id} does not contain a private key for signing")
+            })?;
+
+            // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
+            let pkey = tokio::task::spawn_blocking(move || {
+                PKey::private_key_from_pem(private_key_pem.as_bytes())
+                    .map_err(|err| anyhow!("Could not create private key from PEM data:{err}"))
+            })
+            .await
+            .map_err(|err| anyhow!("Error joining: {err}"))??;
+            std::result::Result::<PKey<Private>, anyhow::Error>::Ok(pkey)
+        })
+        .await
+        .map_err(|e| anyhow!("cloned error: {e}"))
+}
+
+/// send a request, returning Ok if the request returned with status 200 or 4XX
+pub async fn send_raw<Datatype: Clone>(
+    task: impl Display,
+    data: &Data<Datatype>,
+    request: Request,
+) -> anyhow::Result<(), anyhow::Error> {
+    send(task, &data.config.client, request).await
+}
+
 async fn send(
-    task: &SendActivityTask,
+    task: impl Display,
     client: &ClientWithMiddleware,
     request: Request,
 ) -> Result<(), anyhow::Error> {
@@ -185,35 +262,25 @@ async fn send(
 
     match response {
         Ok(o) if o.status().is_success() => {
-            debug!(
-                "Activity {} delivered successfully to {}",
-                task.activity_id, task.inbox
-            );
+            debug!("Activity {task} delivered successfully");
             Ok(())
         }
         Ok(o) if o.status().is_client_error() => {
             let text = o.text_limited().await.map_err(Error::other)?;
-            debug!(
-                "Activity {} was rejected by {}, aborting: {}",
-                task.activity_id, task.inbox, text,
-            );
+            debug!("Activity {task} was rejected, aborting: {}", text);
             Ok(())
         }
         Ok(o) => {
             let status = o.status();
             let text = o.text_limited().await.map_err(Error::other)?;
             Err(anyhow!(
-                "Queueing activity {} to {} for retry after failure with status {}: {}",
-                task.activity_id,
-                task.inbox,
+                "Queueing activity {task} for retry after failure with status {}: {}",
                 status,
                 text,
             ))
         }
         Err(e) => Err(anyhow!(
-            "Queueing activity {} to {} for retry after connection failure: {}",
-            task.activity_id,
-            task.inbox,
+            "Queueing activity {task} for retry after connection failure: {}",
             e
         )),
     }
