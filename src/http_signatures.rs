@@ -285,7 +285,7 @@ pub mod test {
 
     #[tokio::test]
     async fn test_sign() {
-        let mut headers = generate_request_headers(INBOX_URL.as_str()).unwrap();
+        let mut headers = generate_request_headers(&*INBOX_URL).unwrap();
         // use hardcoded date in order to test against hardcoded signature
         headers.insert(
             "date",

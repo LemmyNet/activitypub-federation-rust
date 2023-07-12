@@ -102,8 +102,8 @@ pub(super) async fn send(
     }
 }
 
-pub(crate) fn generate_request_headers(inbox_url: &str) -> Result<HeaderMap, Error> {
-    let url = Url::parse(inbox_url).map_err(|err| anyhow!("{err}"))?;
+pub(crate) fn generate_request_headers<U: AsRef<str>>(inbox_url: U) -> Result<HeaderMap, Error> {
+    let url = Url::parse(inbox_url.as_ref()).map_err(|err| anyhow!("{err}"))?;
     let mut host = url.domain().expect("read inbox domain").to_string();
     if let Some(port) = url.port() {
         host = format!("{}:{}", host, port);
