@@ -13,6 +13,7 @@ It is sometimes necessary to fetch from a URL, but we don't know the exact type 
 # use url::Url;
 # use activitypub_federation::traits::tests::{Person, Note};
 
+#[derive(Debug)]
 pub enum SearchableDbObjects {
     User(DbUser),
     Post(DbPost)
