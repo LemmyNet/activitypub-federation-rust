@@ -12,10 +12,6 @@ pub(super) struct RetryStrategy {
     pub backoff: usize,
     /// Amount of times to retry
     pub retries: usize,
-    /// If this particular request has already been retried, you can add an offset here to increment the count to start
-    pub offset: usize,
-    /// Number of seconds to sleep before trying
-    pub initial_sleep: usize,
 }
 
 /// Retries a future action factory function up to `amount` times with an exponential backoff timer between tries
@@ -28,13 +24,7 @@ pub(super) async fn retry<
     mut action: A,
     strategy: RetryStrategy,
 ) -> Result<T, E> {
-    let mut count = strategy.offset;
-
-    // Do an initial sleep if it's called for
-    if strategy.initial_sleep > 0 {
-        let sleep_dur = Duration::from_secs(strategy.initial_sleep as u64);
-        tokio::time::sleep(sleep_dur).await;
-    }
+    let mut count = 0;
 
     loop {
         match action().await {

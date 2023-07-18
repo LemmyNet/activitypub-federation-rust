@@ -1,3 +1,4 @@
+use futures_core::Future;
 use reqwest_middleware::ClientWithMiddleware;
 use std::{
     fmt::Debug,
@@ -8,13 +9,13 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedSender},
+    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     task::{JoinHandle, JoinSet},
 };
 
 use super::{
     util::RetryStrategy,
-    worker::{main_worker, retry_worker},
+    worker::{MainWorker, RetryWorker},
     SendActivityTask,
 };
 
@@ -76,7 +77,6 @@ impl RetryQueue {
             }
         });
 
-        let (retry_sender, mut retry_receiver) = unbounded_channel();
         let retry_stats = stats.clone();
         let retry_client = client.clone();
 
@@ -86,85 +86,34 @@ impl RetryQueue {
         let strategy = RetryStrategy {
             backoff,
             retries: 1,
-            offset: 0,
-            initial_sleep: 0,
         };
 
-        // The "retry path" strategy
-        // After the fast path fails, a task will sleep up to backoff ^ 2 and then retry again
-        let retry_strategy = RetryStrategy {
-            backoff,
-            retries: 3,
-            offset: 2,
-            initial_sleep: backoff.pow(2), // wait 60 mins before even trying
-        };
+        let (retry_sender, retry_sender_task) = RetryWorker::new(
+            retry_client.clone(),
+            timeout,
+            retry_stats.clone(),
+            retry_count,
+            backoff.pow(2),
+        );
 
-        let retry_sender_task = tokio::spawn(async move {
-            let mut join_set = JoinSet::new();
-
-            while let Some(message) = retry_receiver.recv().await {
-                let retry_task = retry_worker(
-                    retry_client.clone(),
-                    timeout,
-                    message,
-                    retry_stats.clone(),
-                    retry_strategy,
-                );
-
-                if retry_count > 0 {
-                    // If we're over the limit of retries, wait for them to finish before spawning
-                    while join_set.len() >= retry_count {
-                        join_set.join_next().await;
-                    }
-
-                    join_set.spawn(retry_task);
-                } else {
-                    // If the retry worker count is `0` then just spawn and don't use the join_set
-                    tokio::spawn(retry_task);
-                }
-            }
-
-            while !join_set.is_empty() {
-                join_set.join_next().await;
-            }
-        });
-
-        let (sender, mut receiver) = unbounded_channel();
+        let (sender, receiver) = unbounded_channel();
 
         let sender_stats = stats.clone();
 
-        let sender_task = tokio::spawn(async move {
-            let mut join_set = JoinSet::new();
+        let main_worker = Arc::new(MainWorker::new(
+            client.clone(),
+            timeout,
+            retry_sender,
+            sender_stats.clone(),
+            strategy,
+        ));
 
-            while let Some(message) = receiver.recv().await {
-                let task = main_worker(
-                    client.clone(),
-                    timeout,
-                    message,
-                    retry_sender.clone(),
-                    sender_stats.clone(),
-                    strategy,
-                );
-
-                if worker_count > 0 {
-                    // If we're over the limit of workers, wait for them to finish before spawning
-                    while join_set.len() >= worker_count {
-                        join_set.join_next().await;
-                    }
-
-                    join_set.spawn(task);
-                } else {
-                    // If the worker count is `0` then just spawn and don't use the join_set
-                    tokio::spawn(task);
-                }
+        let sender_task = tokio::spawn(receiver_queue(worker_count, receiver, move |message| {
+            let worker = main_worker.clone();
+            async move {
+                worker.send(message).await;
             }
-
-            drop(retry_sender);
-
-            while !join_set.is_empty() {
-                join_set.join_next().await;
-            }
-        });
+        }));
 
         Self {
             stats,
@@ -200,5 +149,40 @@ impl RetryQueue {
         }
 
         Ok(self.stats)
+    }
+}
+
+// Helper function to abstract away the receiver queue task
+// This will use a join set to apply backpressure or have it entirely unbounded
+async fn receiver_queue<O: Future<Output = ()> + Send + 'static, F: Fn(SendActivityTask) -> O>(
+    worker_count: usize,
+    mut receiver: UnboundedReceiver<SendActivityTask>,
+    spawn_fn: F,
+) {
+    // If we're above the worker count, we create a joinset to apply a bit of backpressure here
+    if worker_count > 0 {
+        let mut join_set = JoinSet::new();
+
+        while let Some(message) = receiver.recv().await {
+            // If we're over the limit of workers, wait for them to finish before spawning
+            while join_set.len() >= worker_count {
+                join_set.join_next().await;
+            }
+
+            let task = spawn_fn(message);
+
+            join_set.spawn(task);
+        }
+
+        // Drain the queue if we receive no extra messages
+        while !join_set.is_empty() {
+            join_set.join_next().await;
+        }
+    } else {
+        // If the worker count is `0` then just spawn and don't use the join_set
+        while let Some(message) = receiver.recv().await {
+            let task = spawn_fn(message);
+            tokio::spawn(task);
+        }
     }
 }

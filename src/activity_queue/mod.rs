@@ -2,23 +2,20 @@
 //!
 #![doc = include_str!("../../docs/09_sending_activities.md")]
 
+use self::{request::sign_and_send, retry_queue::RetryQueue};
 use crate::{
     config::Data,
     traits::{ActivityHandler, Actor},
 };
 use anyhow::anyhow;
-
 use bytes::Bytes;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{fmt::Debug, sync::atomic::Ordering, time::Duration};
-
 use tracing::{debug, info, warn};
 use url::Url;
-
-use self::{request::sign_and_send, retry_queue::RetryQueue};
 
 pub(crate) mod request;
 pub(crate) mod retry_queue;
@@ -146,20 +143,20 @@ mod tests {
         sync::{atomic::AtomicUsize, Arc},
         time::Instant,
     };
+    use tracing::trace;
 
     use crate::http_signatures::generate_actor_keypair;
 
     use super::*;
 
-    #[allow(unused)]
     // This will periodically send back internal errors to test the retry
     async fn dodgy_handler(
         State(state): State<Arc<AtomicUsize>>,
         headers: HeaderMap,
         body: Bytes,
     ) -> Result<(), StatusCode> {
-        debug!("Headers:{:?}", headers);
-        debug!("Body len:{}", body.len());
+        trace!("Headers:{:?}", headers);
+        trace!("Body len:{}", body.len());
 
         if state.fetch_add(1, Ordering::Relaxed) % 20 == 0 {
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -197,8 +194,8 @@ mod tests {
 
         env_logger::builder()
             .filter_level(LevelFilter::Warn)
-            .filter_module("activitypub_federation", LevelFilter::Info)
-            .format_timestamp(None)
+            .filter_module("activitypub_federation", LevelFilter::Debug)
+            .format_timestamp(Some(env_logger::TimestampPrecision::Millis))
             .init();
 
         */
@@ -207,7 +204,7 @@ mod tests {
             reqwest::Client::default().into(),
             num_workers,
             num_workers,
-            Duration::from_secs(10),
+            Duration::from_secs(1),
             1,
         );
 
