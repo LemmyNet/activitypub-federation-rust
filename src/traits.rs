@@ -22,6 +22,7 @@ use url::Url;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 /// #
 /// /// How the post is read/written in the local database
+/// #[derive(Debug)]
 /// pub struct DbPost {
 ///     pub text: String,
 ///     pub ap_id: ObjectId<DbPost>,
