@@ -33,9 +33,21 @@ pub mod webfinger;
 /// If the value exceeds [FederationSettings.http_fetch_limit], the request is aborted with
 /// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
 /// infinite, recursive fetching of data.
+///
+/// The `Accept` header will be set to the content of [`FEDERATION_CONTENT_TYPE`].
 pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
+) -> Result<Kind, Error> {
+    fetch_object_http_with_accept(url, data, FEDERATION_CONTENT_TYPE).await
+}
+
+/// Fetch a remote object over HTTP and convert to `Kind`. This function works exactly as
+/// [`fetch_object_http`] except that the `Accept` header is specified in `content_type`.
+async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
+    url: &Url,
+    data: &Data<T>,
+    content_type: &str,
 ) -> Result<Kind, Error> {
     let config = &data.config;
     // dont fetch local objects this way
@@ -51,7 +63,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     let req = config
         .client
         .get(url.as_str())
-        .header("Accept", FEDERATION_CONTENT_TYPE)
+        .header("Accept", content_type)
         .timeout(config.request_timeout);
 
     let res = if let Some((actor_id, private_key_pem)) = config.signed_fetch_actor.as_deref() {

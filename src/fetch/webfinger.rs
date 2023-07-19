@@ -1,7 +1,7 @@
 use crate::{
     config::Data,
     error::{Error, Error::WebfingerResolveFailed},
-    fetch::{fetch_object_http, object_id::ObjectId},
+    fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
@@ -36,7 +36,9 @@ where
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
     debug!("Fetching webfinger url: {}", &fetch_url);
 
-    let res: Webfinger = fetch_object_http(&Url::parse(&fetch_url)?, data).await?;
+    let res: Webfinger =
+        fetch_object_http_with_accept(&Url::parse(&fetch_url)?, data, "application/jrd+json")
+            .await?;
 
     debug_assert_eq!(res.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res
@@ -230,6 +232,9 @@ mod tests {
         let res =
             webfinger_resolve_actor::<DbConnection, DbUser>("LemmyDev@mastodon.social", &data)
                 .await;
+        assert!(res.is_ok());
+        // poa.st is as of 2023-07-14 the largest Pleroma instance
+        let res = webfinger_resolve_actor::<DbConnection, DbUser>("graf@poa.st", &data).await;
         assert!(res.is_ok());
     }
 }

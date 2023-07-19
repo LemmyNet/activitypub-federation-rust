@@ -34,7 +34,7 @@ We can similarly dereference a user over webfinger with the following method. It
 # tokio::runtime::Runtime::new().unwrap().block_on(async {
 # let config = FederationConfig::builder().domain("example.com").app_data(db_connection).build().await?;
 # let data = config.to_request_data();
-let user: DbUser = webfinger_resolve_actor("nutomic@lemmy.ml", &data).await?;
+let user: DbUser = webfinger_resolve_actor("ruud@lemmy.world", &data).await?;
 # Ok::<(), anyhow::Error>(())
 # }).unwrap();
 ```
