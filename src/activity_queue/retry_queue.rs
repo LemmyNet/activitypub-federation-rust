@@ -73,7 +73,7 @@ impl RetryQueue {
 
         // Setup & spawn the retry worker
         let (sender, sender_task) = RetryWorker::spawn(
-            client.clone(),
+            client,
             timeout,
             stats.clone(),
             worker_count,
