@@ -1,4 +1,7 @@
-use futures_core::Future;
+use super::{
+    retry_worker::{RetryRawActivity, RetryWorker},
+    RawActivity,
+};
 use reqwest_middleware::ClientWithMiddleware;
 use std::{
     fmt::Debug,
@@ -6,28 +9,17 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
-use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    task::{JoinHandle, JoinSet},
-};
-
-use super::{
-    util::RetryStrategy,
-    worker::{MainWorker, RetryWorker},
-    SendActivityTask,
-};
+use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 
 /// A simple activity queue which spawns tokio workers to send out requests
-/// When creating a queue, it will spawn a task per worker thread
 /// Uses an unbounded mpsc queue for communication (i.e, all messages are in memory)
 pub(crate) struct RetryQueue {
     // Stats shared between the queue and workers
     stats: Arc<Stats>,
-    sender: UnboundedSender<SendActivityTask>,
+    sender: UnboundedSender<RetryRawActivity>,
     sender_task: JoinHandle<()>,
-    retry_sender_task: JoinHandle<()>,
 }
 
 /// Simple stat counter to show where we're up to with sending messages
@@ -61,8 +53,10 @@ impl RetryQueue {
         client: ClientWithMiddleware,
         worker_count: usize,
         retry_count: usize,
+        disable_retry: bool,
         timeout: Duration,
         backoff: usize, // This should be 60 seconds by default or 1 second in tests
+        http_signature_compat: bool,
     ) -> Self {
         let stats: Arc<Stats> = Default::default();
 
@@ -77,55 +71,36 @@ impl RetryQueue {
             }
         });
 
-        let retry_stats = stats.clone();
-        let retry_client = client.clone();
-
-        // The "fast path" retry
-        // The backoff should be < 5 mins for this to work otherwise signatures may expire
-        // This strategy is the one that is used with the *same* signature
-        let strategy = RetryStrategy {
-            backoff,
-            retries: 1,
-        };
-
-        let (retry_sender, retry_sender_task) = RetryWorker::new(
-            retry_client.clone(),
-            timeout,
-            retry_stats.clone(),
-            retry_count,
-            backoff.pow(2),
-        );
-
-        let (sender, receiver) = unbounded_channel();
-
-        let sender_stats = stats.clone();
-
-        let main_worker = Arc::new(MainWorker::new(
+        // Setup & spawn the retry worker
+        let (sender, sender_task) = RetryWorker::spawn(
             client.clone(),
             timeout,
-            retry_sender,
-            sender_stats.clone(),
-            strategy,
-        ));
-
-        let sender_task = tokio::spawn(receiver_queue(worker_count, receiver, move |message| {
-            let worker = main_worker.clone();
-            async move {
-                worker.send(message).await;
-            }
-        }));
+            stats.clone(),
+            worker_count,
+            if disable_retry {
+                None
+            } else {
+                Some(retry_count)
+            },
+            backoff,
+            http_signature_compat,
+        );
 
         Self {
             stats,
             sender,
             sender_task,
-            retry_sender_task,
         }
     }
 
-    pub(super) async fn queue(&self, message: SendActivityTask) -> Result<(), anyhow::Error> {
+    pub(super) async fn queue(&self, raw: RawActivity) -> Result<(), anyhow::Error> {
         self.stats.pending.fetch_add(1, Ordering::Relaxed);
-        self.sender.send(message)?;
+
+        self.sender.send(RetryRawActivity {
+            message: raw,
+            last_sent: Instant::now(),
+            count: 1,
+        })?;
 
         Ok(())
     }
@@ -144,45 +119,6 @@ impl RetryQueue {
 
         self.sender_task.await?;
 
-        if wait_for_retries {
-            self.retry_sender_task.await?;
-        }
-
         Ok(self.stats)
-    }
-}
-
-// Helper function to abstract away the receiver queue task
-// This will use a join set to apply backpressure or have it entirely unbounded
-async fn receiver_queue<O: Future<Output = ()> + Send + 'static, F: Fn(SendActivityTask) -> O>(
-    worker_count: usize,
-    mut receiver: UnboundedReceiver<SendActivityTask>,
-    spawn_fn: F,
-) {
-    // If we're above the worker count, we create a joinset to apply a bit of backpressure here
-    if worker_count > 0 {
-        let mut join_set = JoinSet::new();
-
-        while let Some(message) = receiver.recv().await {
-            // If we're over the limit of workers, wait for them to finish before spawning
-            while join_set.len() >= worker_count {
-                join_set.join_next().await;
-            }
-
-            let task = spawn_fn(message);
-
-            join_set.spawn(task);
-        }
-
-        // Drain the queue if we receive no extra messages
-        while !join_set.is_empty() {
-            join_set.join_next().await;
-        }
-    } else {
-        // If the worker count is `0` then just spawn and don't use the join_set
-        while let Some(message) = receiver.recv().await {
-            let task = spawn_fn(message);
-            tokio::spawn(task);
-        }
     }
 }

@@ -36,6 +36,7 @@ http-signature-normalization-reqwest = { version = "0.8.0", default-features = f
 http-signature-normalization = "0.7.0"
 bytes = "1.4.0"
 futures-core = { version = "0.3.28", default-features = false }
+futures-util = "0.3.28"
 pin-project-lite = "0.2.9"
 activitystreams-kinds = "0.3.0"
 regex = { version = "1.8.4", default-features = false, features = ["std", "unicode-case"] }
@@ -56,7 +57,6 @@ axum = { version = "0.6.18", features = [
 ], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
-futures = "0.3.28"
 
 [features]
 default = ["actix-web", "axum"]

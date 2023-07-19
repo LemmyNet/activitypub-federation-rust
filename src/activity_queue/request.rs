@@ -16,38 +16,33 @@ use std::time::{Duration, SystemTime};
 use tracing::debug;
 use url::Url;
 
-use super::{util::RetryStrategy, SendActivityTask};
+use super::{util::RetryStrategy, RawActivity};
 
 pub(super) async fn sign_and_send(
-    task: &SendActivityTask,
+    raw: &RawActivity,
     client: &ClientWithMiddleware,
     timeout: Duration,
     retry_strategy: RetryStrategy,
+    http_signature_compat: bool,
 ) -> Result<(), anyhow::Error> {
-    debug!(
-        "Sending {} to {}, contents:\n {}",
-        task.activity_id,
-        task.inbox,
-        serde_json::from_slice::<serde_json::Value>(&task.activity)?
-    );
     let request_builder = client
-        .post(task.inbox.to_string())
+        .post(raw.inbox.to_string())
         .timeout(timeout)
-        .headers(generate_request_headers(&task.inbox)?);
+        .headers(generate_request_headers(&raw.inbox)?);
     let request = sign_request(
         request_builder,
-        &task.actor_id,
-        task.activity.clone(),
-        task.private_key.clone(),
-        task.http_signature_compat,
+        &raw.actor_id,
+        raw.activity.clone(),
+        raw.private_key.clone(),
+        http_signature_compat,
     )
     .await
-    .context("signing request")?;
+    .with_context(|| format!("signing activity {raw}"))?;
 
     retry(
         || {
             send(
-                task,
+                raw,
                 client,
                 request
                     .try_clone()
@@ -60,7 +55,7 @@ pub(super) async fn sign_and_send(
 }
 
 pub(super) async fn send(
-    task: &SendActivityTask,
+    raw: &RawActivity,
     client: &ClientWithMiddleware,
     request: Request,
 ) -> Result<(), anyhow::Error> {
@@ -68,35 +63,25 @@ pub(super) async fn send(
 
     match response {
         Ok(o) if o.status().is_success() => {
-            debug!(
-                "Activity {} delivered successfully to {}",
-                task.activity_id, task.inbox
-            );
+            debug!("Activity {raw} delivered successfully",);
             Ok(())
         }
         Ok(o) if o.status().is_client_error() => {
             let text = o.text_limited().await.map_err(Error::other)?;
-            debug!(
-                "Activity {} was rejected by {}, aborting: {}",
-                task.activity_id, task.inbox, text,
-            );
+            debug!("Activity {raw} was rejected, aborting: {}", text);
             Ok(())
         }
         Ok(o) => {
             let status = o.status();
             let text = o.text_limited().await.map_err(Error::other)?;
             Err(anyhow!(
-                "Queueing activity {} to {} for retry after failure with status {}: {}",
-                task.activity_id,
-                task.inbox,
+                "Activity {raw} failed with status {}: {}",
                 status,
                 text,
             ))
         }
         Err(e) => Err(anyhow!(
-            "Queueing activity {} to {} for retry after connection failure: {}",
-            task.activity_id,
-            task.inbox,
+            "Activity {raw} failed with connection failure: {}",
             e
         )),
     }

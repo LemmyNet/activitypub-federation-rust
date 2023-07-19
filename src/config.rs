@@ -66,6 +66,10 @@ pub struct FederationConfig<T: Clone> {
     /// Setting this count to `0` means that there is no limit to concurrency
     #[builder(default = "0")]
     pub(crate) retry_count: usize,
+    /// Disable the retry queue completely
+    /// This means that retries will not be kept around but fail after the first retry
+    #[builder(default = "false")]
+    pub(crate) disable_retry: bool,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
     /// more consistent. Do not use for production.
@@ -74,8 +78,7 @@ pub struct FederationConfig<T: Clone> {
     /// Allow HTTP urls even in production mode
     #[builder(default = "self.debug.unwrap_or(false)")]
     pub(crate) allow_http_urls: bool,
-    /// Timeout for all HTTP requests. HTTP signatures are valid for 10s, so it makes sense to
-    /// use the same as timeout when sending
+    /// Timeout for all HTTP requests.  Default of 10 seconds.
     #[builder(default = "Duration::from_secs(10)")]
     pub(crate) request_timeout: Duration,
     /// Function used to verify that urls are valid, See [UrlVerifier] for details.
@@ -232,7 +235,9 @@ impl<T: Clone> FederationConfigBuilder<T> {
             config.client.clone(),
             config.worker_count,
             config.retry_count,
+            config.disable_retry,
             config.request_timeout,
+            config.http_signature_compat,
         );
         config.activity_queue = Some(Arc::new(queue));
         Ok(config)
