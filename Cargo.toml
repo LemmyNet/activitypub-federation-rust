@@ -45,6 +45,7 @@ tokio = { version = "1.21.2", features = [
   "rt",
   "rt-multi-thread",
   "time",
+  "macros"
 ] }
 
 # Actix-web
