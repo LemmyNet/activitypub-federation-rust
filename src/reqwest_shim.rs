@@ -12,8 +12,8 @@ use std::{
     task::{Context, Poll},
 };
 
-/// 100KB
-const MAX_BODY_SIZE: usize = 102400;
+/// 200KB
+const MAX_BODY_SIZE: usize = 204800;
 
 pin_project! {
     pub struct BytesFuture {
