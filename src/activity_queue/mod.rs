@@ -2,7 +2,7 @@
 //!
 #![doc = include_str!("../../docs/09_sending_activities.md")]
 
-use self::{request::sign_and_send, retry_queue::RetryQueue};
+use self::{queue::ActivityQueue, request::sign_and_send};
 use crate::{
     config::Data,
     traits::{ActivityHandler, Actor},
@@ -22,16 +22,15 @@ use std::{
 use tracing::{debug, info, warn};
 use url::Url;
 
+pub(crate) mod queue;
 pub(crate) mod request;
-pub(crate) mod retry_queue;
 pub(super) mod retry_worker;
 pub(super) mod util;
 
 /// Send a new activity to the given inboxes
 ///
 /// - `activity`: The activity to be sent, gets converted to json
-/// - `private_key`: Private key belonging to the actor who sends the activity, for signing HTTP
-///                  signature. Generated with [crate::http_signatures::generate_actor_keypair].
+/// - `actor`: The actor doing the sending
 /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
 ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
 ///              for each target actor.
@@ -95,6 +94,17 @@ pub struct RawActivity {
     inbox: String,
     private_key: PKey<Private>,
 }
+
+impl PartialEq for RawActivity {
+    fn eq(&self, other: &Self) -> bool {
+        self.actor_id == other.actor_id
+            && self.activity_id == other.activity_id
+            && self.activity == other.activity
+            && self.inbox == other.inbox
+    }
+}
+
+impl Eq for RawActivity {}
 
 impl RawActivity {
     /// Sends a raw activity directly, rather than using the background queue.
@@ -187,8 +197,8 @@ pub(crate) fn create_activity_queue(
     disable_retry: bool,
     request_timeout: Duration,
     http_signature_compat: bool,
-) -> RetryQueue {
-    RetryQueue::new(
+) -> ActivityQueue {
+    ActivityQueue::new(
         client,
         worker_count,
         retry_count,
@@ -264,7 +274,7 @@ mod tests {
             .init();
         */
 
-        let activity_queue = RetryQueue::new(
+        let activity_queue = ActivityQueue::new(
             reqwest::Client::default().into(),
             num_workers,
             num_workers,

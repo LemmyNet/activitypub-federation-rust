@@ -15,7 +15,7 @@ use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 
 /// A simple activity queue which spawns tokio workers to send out requests
 /// Uses an unbounded mpsc queue for communication (i.e, all messages are in memory)
-pub(crate) struct RetryQueue {
+pub(crate) struct ActivityQueue {
     // Stats shared between the queue and workers
     stats: Arc<Stats>,
     sender: UnboundedSender<RetryRawActivity>,
@@ -48,7 +48,7 @@ impl Debug for Stats {
     }
 }
 
-impl RetryQueue {
+impl ActivityQueue {
     pub fn new(
         client: ClientWithMiddleware,
         worker_count: usize,
