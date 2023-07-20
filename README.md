@@ -2,7 +2,7 @@ Activitypub-Federation
 ===
 [![Crates.io](https://img.shields.io/crates/v/activitypub-federation.svg)](https://crates.io/crates/activitypub-federation)
 [![Documentation](https://shields.io/docsrs/activitypub_federation)](https://docs.rs/activitypub-federation/)
-[![Build Status](https://drone.join-lemmy.org/api/badges/LemmyNet/activitypub-federation-rust/status.svg)](https://drone.join-lemmy.org/LemmyNet/activitypub-federation-rust)
+[![Build Status](https://woodpecker.join-lemmy.org/api/badges/LemmyNet/activitypub-federation-rust/status.svg)](https://drone.join-lemmy.org/LemmyNet/activitypub-federation-rust)
 
 <!-- be sure to keep this file in sync with docs/01_intro.md -->
 
