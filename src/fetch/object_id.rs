@@ -260,9 +260,9 @@ pub mod tests {
     #[test]
     fn test_should_refetch_object() {
         let one_second_ago = Utc::now() - ChronoDuration::seconds(1);
-        assert!(!should_refetch_object(one_second_ago.into()));
+        assert!(!should_refetch_object(one_second_ago));
 
         let two_days_ago = Utc::now() - ChronoDuration::days(2);
-        assert!(should_refetch_object(two_days_ago.into()));
+        assert!(should_refetch_object(two_days_ago));
     }
 }
