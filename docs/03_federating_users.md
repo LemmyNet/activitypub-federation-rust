@@ -65,7 +65,7 @@ Besides we also need a second struct to represent the data which gets stored in 
 
 ```rust
 # use url::Url;
-# use chrono::NaiveDateTime;
+# use chrono::{DateTime, Utc};
 
 pub struct DbUser {
     pub id: i32,
@@ -79,7 +79,7 @@ pub struct DbUser {
     pub local: bool,
     pub public_key: String,
     pub private_key: Option<String>,
-    pub last_refreshed_at: NaiveDateTime,
+    pub last_refreshed_at: DateTime<Utc>,
 }
 ```
 

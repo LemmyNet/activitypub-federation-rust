@@ -221,7 +221,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn test_webfinger() {
+    async fn test_webfinger() -> Result<(), Error> {
         let config = FederationConfig::builder()
             .domain("example.com")
             .app_data(DbConnection)
@@ -229,12 +229,10 @@ mod tests {
             .await
             .unwrap();
         let data = config.to_request_data();
-        let res =
-            webfinger_resolve_actor::<DbConnection, DbUser>("LemmyDev@mastodon.social", &data)
-                .await;
-        assert!(res.is_ok());
+
+        webfinger_resolve_actor::<DbConnection, DbUser>("LemmyDev@mastodon.social", &data).await?;
         // poa.st is as of 2023-07-14 the largest Pleroma instance
-        let res = webfinger_resolve_actor::<DbConnection, DbUser>("graf@poa.st", &data).await;
-        assert!(res.is_ok());
+        webfinger_resolve_actor::<DbConnection, DbUser>("graf@poa.st", &data).await?;
+        Ok(())
     }
 }

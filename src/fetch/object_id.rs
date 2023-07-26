@@ -1,6 +1,6 @@
 use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object};
 use anyhow::anyhow;
-use chrono::{Duration as ChronoDuration, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -180,14 +180,14 @@ static ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG: i64 = 20;
 /// Determines when a remote actor should be refetched from its instance. In release builds, this is
 /// `ACTOR_REFETCH_INTERVAL_SECONDS` after the last refetch, in debug builds
 /// `ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG`.
-fn should_refetch_object(last_refreshed: NaiveDateTime) -> bool {
+fn should_refetch_object(last_refreshed: DateTime<Utc>) -> bool {
     let update_interval = if cfg!(debug_assertions) {
         // avoid infinite loop when fetching community outbox
         ChronoDuration::seconds(ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG)
     } else {
         ChronoDuration::seconds(ACTOR_REFETCH_INTERVAL_SECONDS)
     };
-    let refresh_limit = Utc::now().naive_utc() - update_interval;
+    let refresh_limit = Utc::now() - update_interval;
     last_refreshed.lt(&refresh_limit)
 }
 
@@ -259,10 +259,10 @@ pub mod tests {
 
     #[test]
     fn test_should_refetch_object() {
-        let one_second_ago = Utc::now().naive_utc() - ChronoDuration::seconds(1);
+        let one_second_ago = Utc::now() - ChronoDuration::seconds(1);
         assert!(!should_refetch_object(one_second_ago));
 
-        let two_days_ago = Utc::now().naive_utc() - ChronoDuration::days(2);
+        let two_days_ago = Utc::now() - ChronoDuration::days(2);
         assert!(should_refetch_object(two_days_ago));
     }
 }

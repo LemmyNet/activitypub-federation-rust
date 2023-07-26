@@ -19,7 +19,7 @@ pub enum SearchableDbObjects {
     Post(DbPost)
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
 pub enum SearchableObjects {
     Person(Person),
