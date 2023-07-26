@@ -49,9 +49,9 @@ struct MyUrlVerifier();
 
 #[async_trait]
 impl UrlVerifier for MyUrlVerifier {
-    async fn verify(&self, url: &Url) -> Result<(), &'static str> {
+    async fn verify(&self, url: &Url) -> Result<(), anyhow::Error> {
         if url.domain() == Some("malicious.com") {
-            Err("malicious domain")
+            Err(anyhow!("malicious domain"))
         } else {
             Ok(())
         }

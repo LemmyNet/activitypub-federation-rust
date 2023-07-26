@@ -21,7 +21,7 @@ use crate::{
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
@@ -114,9 +114,9 @@ impl<T: Clone> FederationConfig<T> {
         verify_domains_match(activity.id(), activity.actor())?;
         self.verify_url_valid(activity.id()).await?;
         if self.is_local_url(activity.id()) {
-            return Err(Error::UrlVerificationError(
-                "Activity was sent from local instance",
-            ));
+            return Err(Error::UrlVerificationError(anyhow!(
+                "Activity was sent from local instance"
+            )));
         }
 
         Ok(())
@@ -139,12 +139,12 @@ impl<T: Clone> FederationConfig<T> {
             "https" => {}
             "http" => {
                 if !self.allow_http_urls {
-                    return Err(Error::UrlVerificationError(
-                        "Http urls are only allowed in debug mode",
-                    ));
+                    return Err(Error::UrlVerificationError(anyhow!(
+                        "Http urls are only allowed in debug mode"
+                    )));
                 }
             }
-            _ => return Err(Error::UrlVerificationError("Invalid url scheme")),
+            _ => return Err(Error::UrlVerificationError(anyhow!("Invalid url scheme"))),
         };
 
         // Urls which use our local domain are not a security risk, no further verification needed
@@ -153,13 +153,15 @@ impl<T: Clone> FederationConfig<T> {
         }
 
         if url.domain().is_none() {
-            return Err(Error::UrlVerificationError("Url must have a domain"));
+            return Err(Error::UrlVerificationError(anyhow!(
+                "Url must have a domain"
+            )));
         }
 
         if url.domain() == Some("localhost") && !self.debug {
-            return Err(Error::UrlVerificationError(
-                "Localhost is only allowed in debug mode",
-            ));
+            return Err(Error::UrlVerificationError(anyhow!(
+                "Localhost is only allowed in debug mode"
+            )));
         }
 
         self.url_verifier
@@ -258,6 +260,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 /// # use async_trait::async_trait;
 /// # use url::Url;
 /// # use activitypub_federation::config::UrlVerifier;
+/// # use anyhow::anyhow;
 /// # #[derive(Clone)]
 /// # struct DatabaseConnection();
 /// # async fn get_blocklist(_: &DatabaseConnection) -> Vec<String> {
@@ -270,11 +273,11 @@ impl<T: Clone> Deref for FederationConfig<T> {
 ///
 /// #[async_trait]
 /// impl UrlVerifier for Verifier {
-///     async fn verify(&self, url: &Url) -> Result<(), &'static str> {
+///     async fn verify(&self, url: &Url) -> Result<(), anyhow::Error> {
 ///         let blocklist = get_blocklist(&self.db_connection).await;
 ///         let domain = url.domain().unwrap().to_string();
 ///         if blocklist.contains(&domain) {
-///             Err("Domain is blocked")
+///             Err(anyhow!("Domain is blocked"))
 ///         } else {
 ///             Ok(())
 ///         }
@@ -284,7 +287,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 #[async_trait]
 pub trait UrlVerifier: DynClone + Send {
     /// Should return Ok iff the given url is valid for processing.
-    async fn verify(&self, url: &Url) -> Result<(), &'static str>;
+    async fn verify(&self, url: &Url) -> Result<(), anyhow::Error>;
 }
 
 /// Default URL verifier which does nothing.
@@ -293,7 +296,7 @@ struct DefaultUrlVerifier();
 
 #[async_trait]
 impl UrlVerifier for DefaultUrlVerifier {
-    async fn verify(&self, _url: &Url) -> Result<(), &'static str> {
+    async fn verify(&self, _url: &Url) -> Result<(), anyhow::Error> {
         Ok(())
     }
 }
