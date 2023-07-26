@@ -75,8 +75,8 @@ axum-macros = "0.3.7"
 tokio = { version = "1.21.2", features = ["full"] }
 
 [profile.dev]
-#strip = "symbols"
-#debug = 0
+strip = "symbols"
+debug = 0
 
 [[example]]
 name = "local_federation"
