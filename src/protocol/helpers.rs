@@ -115,3 +115,22 @@ where
     let inner = T::deserialize(value).unwrap_or_default();
     Ok(inner)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn deserialize_one_multiple_values() {
+        use crate::protocol::helpers::deserialize_one;
+        use url::Url;
+        #[derive(serde::Deserialize)]
+        struct Note {
+            #[serde(deserialize_with = "deserialize_one")]
+            _to: Url,
+        }
+
+        let note = serde_json::from_str::<Note>(
+            r#"{"_to": ["https://example.com/u/alice", "https://example.com/u/bob"] }"#,
+        );
+        assert!(note.is_err());
+    }
+}
