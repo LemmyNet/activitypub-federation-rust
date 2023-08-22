@@ -39,7 +39,7 @@ impl CreatePost {
             id: generate_object_id(data.domain())?,
         };
         let create_with_context = WithContext::new_default(create);
-        send_activity(create_with_context, &data.local_user(), vec![inbox], data).await?;
+        send_activity(&create_with_context, &data.local_user(), vec![inbox], data).await?;
         Ok(())
     }
 }

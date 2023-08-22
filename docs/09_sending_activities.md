@@ -25,7 +25,7 @@ let activity = Follow {
     id: "https://lemmy.ml/activities/321".try_into()?
 };
 let inboxes = vec![recipient.shared_inbox_or_inbox()];
-send_activity(activity, &sender, inboxes, &data).await?;
+send_activity(&activity, &sender, inboxes, &data).await?;
 # Ok::<(), anyhow::Error>(())
 # }).unwrap()
 ```
@@ -38,6 +38,7 @@ private key. Finally the activity is delivered to the inbox.
 It is possible that delivery fails because the target instance is temporarily unreachable. In
 this case the task is scheduled for retry after a certain waiting time. For each task delivery
 is retried up to 3 times after the initial attempt. The retry intervals are as follows:
+
 - one minute, in case of service restart
 - one hour, in case of instance maintenance
 - 2.5 days, in case of major incident with rebuild from backup

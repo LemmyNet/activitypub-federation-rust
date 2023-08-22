@@ -9,22 +9,20 @@
 //!     .domain("example.com")
 //!     .app_data(())
 //!     .http_fetch_limit(50)
-//!     .worker_count(16)
 //!     .build().await?;
 //! # Ok::<(), anyhow::Error>(())
 //! # }).unwrap()
 //! ```
 
 use crate::{
-    activity_queue::{create_activity_queue, ActivityQueue},
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
-use anyhow::Context;
 use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
+use moka::future::Cache;
 use openssl::pkey::{PKey, Private};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::de::DeserializeOwned;
@@ -56,16 +54,6 @@ pub struct FederationConfig<T: Clone> {
     /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
     /// like log tracing or retry of failed requests.
     pub(crate) client: ClientWithMiddleware,
-    /// Number of tasks that can be in-flight concurrently.
-    /// Tasks are retried once after a minute, then put into the retry queue.
-    /// Setting this count to `0` means that there is no limit to concurrency
-    #[builder(default = "0")]
-    pub(crate) worker_count: usize,
-    /// Number of concurrent tasks that are being retried in-flight concurrently.
-    /// Tasks are retried after an hour, then again in 60 hours.
-    /// Setting this count to `0` means that there is no limit to concurrency
-    #[builder(default = "0")]
-    pub(crate) retry_count: usize,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
     /// more consistent. Do not use for production.
@@ -92,10 +80,11 @@ pub struct FederationConfig<T: Clone> {
     /// <https://docs.joinmastodon.org/spec/activitypub/#secure-mode>
     #[builder(default = "None", setter(custom))]
     pub(crate) signed_fetch_actor: Option<Arc<(Url, PKey<Private>)>>,
-    /// Queue for sending outgoing activities. Only optional to make builder work, its always
-    /// present once constructed.
-    #[builder(setter(skip))]
-    pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
+    #[builder(
+        default = "Cache::builder().max_capacity(10000).build()",
+        setter(custom)
+    )]
+    pub(crate) actor_pkey_cache: Cache<Url, PKey<Private>>,
 }
 
 impl<T: Clone> FederationConfig<T> {
@@ -184,28 +173,6 @@ impl<T: Clone> FederationConfig<T> {
     pub fn domain(&self) -> &str {
         &self.domain
     }
-    /// Shut down this federation, waiting for the outgoing queue to be sent.
-    /// If the activityqueue is still in use in other requests or was never constructed, returns an error.
-    /// If wait_retries is true, also wait for requests that have initially failed and are being retried.
-    /// Returns a stats object that can be printed for debugging (structure currently not part of the public interface).
-    ///
-    /// Currently, this method does not work correctly if worker_count = 0 (unlimited)
-    pub async fn shutdown(mut self, wait_retries: bool) -> anyhow::Result<impl std::fmt::Debug> {
-        let q = self
-            .activity_queue
-            .take()
-            .context("ActivityQueue never constructed, build() not called?")?;
-        // Todo: use Arc::into_inner but is only part of rust 1.70.
-        let stats = Arc::<ActivityQueue>::try_unwrap(q)
-            .map_err(|_| {
-                anyhow::anyhow!(
-                    "Could not cleanly shut down: activityqueue arc was still in use elsewhere "
-                )
-            })?
-            .shutdown(wait_retries)
-            .await?;
-        Ok(stats)
-    }
 }
 
 impl<T: Clone> FederationConfigBuilder<T> {
@@ -221,20 +188,19 @@ impl<T: Clone> FederationConfigBuilder<T> {
         self
     }
 
+    /// sets the number of parsed actor private keys to keep in memory
+    pub fn actor_pkey_cache(&mut self, cache_size: u64) -> &mut Self {
+        self.actor_pkey_cache = Some(Cache::builder().max_capacity(cache_size).build());
+        self
+    }
+
     /// Constructs a new config instance with the values supplied to builder.
     ///
     /// Values which are not explicitly specified use the defaults. Also initializes the
     /// queue for outgoing activities, which is stored internally in the config struct.
     /// Requires a tokio runtime for the background queue.
     pub async fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
-        let mut config = self.partial_build()?;
-        let queue = create_activity_queue(
-            config.client.clone(),
-            config.worker_count,
-            config.retry_count,
-            config.request_timeout,
-        );
-        config.activity_queue = Some(Arc::new(queue));
+        let config = self.partial_build()?;
         Ok(config)
     }
 }

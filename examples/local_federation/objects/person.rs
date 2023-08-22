@@ -113,7 +113,7 @@ impl DbUser {
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
-        send_activity(activity, self, recipients, data).await?;
+        send_activity(&activity, self, recipients, data).await?;
         Ok(())
     }
 }
