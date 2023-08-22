@@ -30,7 +30,8 @@ use tracing::debug;
 use url::Url;
 
 /// sends an activity to many inboxes
-/// for higher performance, you'll want to use the methods in [SendActivityTask] manually
+/// as opposed to older version, there is no queueing, retrying or parallelization.
+/// for higher performance and reliability, you'll want to use the methods in [SendActivityTask] directly
 pub async fn send_activity<Activity, Datatype, ActorType>(
     activity: &Activity,
     actor: &ActorType,
