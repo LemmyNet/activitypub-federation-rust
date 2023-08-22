@@ -52,21 +52,21 @@ where
 }
 #[derive(Clone, Debug)]
 /// all info needed to send one activity to one inbox
-pub struct SendActivityTask {
-    actor_id: Url,
-    activity_id: Url,
+pub struct SendActivityTask<'a> {
+    actor_id: &'a Url,
+    activity_id: &'a Url,
     activity: Bytes,
     inbox: Url,
     private_key: PKey<Private>,
     http_signature_compat: bool,
 }
-impl Display for SendActivityTask {
+impl Display for SendActivityTask<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} to {}", self.activity_id, self.inbox)
     }
 }
 
-impl SendActivityTask {
+impl SendActivityTask<'_> {
     /// prepare an activity for sending
     ///
     /// - `activity`: The activity to be sent, gets converted to json
@@ -75,12 +75,12 @@ impl SendActivityTask {
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
     ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
     ///              for each target actor.
-    pub async fn prepare<Activity, Datatype, ActorType>(
-        activity: &Activity,
+    pub async fn prepare<'a, Activity, Datatype, ActorType>(
+        activity: &'a Activity,
         actor: &ActorType,
         inboxes: Vec<Url>,
         data: &Data<Datatype>,
-    ) -> Result<Vec<SendActivityTask>, <Activity as ActivityHandler>::Error>
+    ) -> Result<Vec<SendActivityTask<'a>>, <Activity as ActivityHandler>::Error>
     where
         Activity: ActivityHandler + Serialize,
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
@@ -105,8 +105,8 @@ impl SendActivityTask {
                 return None;
             };
             Some(SendActivityTask {
-                actor_id: actor_id.clone(),
-                activity_id: activity_id.clone(),
+                actor_id: actor_id,
+                activity_id: activity_id,
                 inbox,
                 activity: activity_serialized.clone(),
                 private_key: private_key.clone(),
@@ -297,8 +297,8 @@ mod tests {
         let keypair = generate_actor_keypair().unwrap();
 
         let message = SendActivityTask {
-            actor_id: "http://localhost:8001".parse().unwrap(),
-            activity_id: "http://localhost:8001/activity".parse().unwrap(),
+            actor_id: &"http://localhost:8001".parse().unwrap(),
+            activity_id: &"http://localhost:8001/activity".parse().unwrap(),
             activity: "{}".into(),
             inbox: "http://localhost:8001".parse().unwrap(),
             private_key: keypair.private_key().unwrap(),
