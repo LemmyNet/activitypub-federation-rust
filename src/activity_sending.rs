@@ -276,8 +276,8 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    // Queues 100 messages and then asserts that the worker runs them
-    async fn test_activity_queue_workers() -> anyhow::Result<()> {
+    // Sends 100 messages
+    async fn test_activity_sending() -> anyhow::Result<()> {
         let num_messages: usize = 100;
 
         tokio::spawn(test_server());

@@ -1,7 +1,7 @@
 //! Generating keypairs, creating and verifying signatures
 //!
 //! Signature creation and verification is handled internally in the library. See
-//! [send_activity](crate::activity_queue::send_activity) and
+//! [send_activity](crate::activity_sending::send_activity) and
 //! [receive_activity (actix-web)](crate::actix_web::inbox::receive_activity) /
 //! [receive_activity (axum)](crate::axum::inbox::receive_activity).
 
@@ -274,7 +274,7 @@ pub(crate) fn verify_body_hash(
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::activity_queue::generate_request_headers;
+    use crate::activity_sending::generate_request_headers;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
     use std::str::FromStr;

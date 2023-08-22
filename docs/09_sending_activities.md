@@ -4,7 +4,7 @@ To send an activity we need to initialize our previously defined struct, and pic
 
 ```
 # use activitypub_federation::config::FederationConfig;
-# use activitypub_federation::activity_queue::send_activity;
+# use activitypub_federation::activity_sending::send_activity;
 # use activitypub_federation::http_signatures::generate_actor_keypair;
 # use activitypub_federation::traits::Actor;
 # use activitypub_federation::fetch::object_id::ObjectId;

@@ -57,7 +57,7 @@ where
 mod test {
     use super::*;
     use crate::{
-        activity_queue::generate_request_headers,
+        activity_sending::generate_request_headers,
         config::FederationConfig,
         http_signatures::sign_request,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},

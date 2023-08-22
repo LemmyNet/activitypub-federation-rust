@@ -6,7 +6,7 @@ use crate::{
     DbPost,
 };
 use activitypub_federation::{
-    activity_queue::send_activity,
+    activity_sending::send_activity,
     config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,

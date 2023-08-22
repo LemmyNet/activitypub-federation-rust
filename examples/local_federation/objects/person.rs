@@ -6,7 +6,7 @@ use crate::{
     utils::generate_object_id,
 };
 use activitypub_federation::{
-    activity_queue::send_activity,
+    activity_sending::send_activity,
     config::Data,
     fetch::{object_id::ObjectId, webfinger::webfinger_resolve_actor},
     http_signatures::generate_actor_keypair,
