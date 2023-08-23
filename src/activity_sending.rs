@@ -70,8 +70,6 @@ impl SendActivityTask<'_> {
     /// prepare an activity for sending
     ///
     /// - `activity`: The activity to be sent, gets converted to json
-    /// - `private_key`: Private key belonging to the actor who sends the activity, for signing HTTP
-    ///                  signature. Generated with [crate::http_signatures::generate_actor_keypair].
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
     ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
     ///              for each target actor.
