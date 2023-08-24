@@ -16,8 +16,8 @@ pub enum Error {
     #[error("Object to be fetched was deleted")]
     ObjectDeleted,
     /// url verification error
-    #[error("{0}")]
-    UrlVerificationError(&'static str),
+    #[error("URL failed verification: {0}")]
+    UrlVerificationError(anyhow::Error),
     /// Incoming activity has invalid digest for body
     #[error("Incoming activity has invalid digest for body")]
     ActivityBodyDigestInvalid,

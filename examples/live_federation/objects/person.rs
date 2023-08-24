@@ -7,7 +7,7 @@ use activitypub_federation::{
     protocol::{public_key::PublicKey, verification::verify_domains_match},
     traits::{ActivityHandler, Actor, Object},
 };
-use chrono::{Local, NaiveDateTime};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use url::Url;
@@ -21,7 +21,7 @@ pub struct DbUser {
     pub public_key: String,
     // exists only for local users
     pub private_key: Option<String>,
-    last_refreshed_at: NaiveDateTime,
+    last_refreshed_at: DateTime<Utc>,
     pub followers: Vec<Url>,
     pub local: bool,
 }
@@ -45,7 +45,7 @@ impl DbUser {
             inbox,
             public_key: keypair.public_key,
             private_key: Some(keypair.private_key),
-            last_refreshed_at: Local::now().naive_local(),
+            last_refreshed_at: Utc::now(),
             followers: vec![],
             local: true,
         })
@@ -69,7 +69,7 @@ impl Object for DbUser {
     type Kind = Person;
     type Error = Error;
 
-    fn last_refreshed_at(&self) -> Option<NaiveDateTime> {
+    fn last_refreshed_at(&self) -> Option<DateTime<Utc>> {
         Some(self.last_refreshed_at)
     }
 
@@ -114,7 +114,7 @@ impl Object for DbUser {
             inbox: json.inbox,
             public_key: json.public_key.public_key_pem,
             private_key: None,
-            last_refreshed_at: Local::now().naive_local(),
+            last_refreshed_at: Utc::now(),
             followers: vec![],
             local: false,
         })

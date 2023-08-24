@@ -2,7 +2,7 @@
 
 use crate::{config::Data, protocol::public_key::PublicKey};
 use async_trait::async_trait;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::{fmt::Debug, ops::Deref};
 use url::Url;
@@ -11,7 +11,7 @@ use url::Url;
 ///
 /// ```
 /// # use activitystreams_kinds::{object::NoteType, public};
-/// # use chrono::{Local, NaiveDateTime};
+/// # use chrono::{Local, DateTime, Utc};
 /// # use serde::{Deserialize, Serialize};
 /// # use url::Url;
 /// # use activitypub_federation::protocol::{public_key::PublicKey, helpers::deserialize_one_or_many};
@@ -112,7 +112,7 @@ pub trait Object: Sized + Debug {
     ///
     /// The object is refetched if `last_refreshed_at` value is more than 24 hours ago. In debug
     /// mode this is reduced to 20 seconds.
-    fn last_refreshed_at(&self) -> Option<NaiveDateTime> {
+    fn last_refreshed_at(&self) -> Option<DateTime<Utc>> {
         None
     }
 
