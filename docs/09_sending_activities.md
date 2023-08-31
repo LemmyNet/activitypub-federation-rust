@@ -4,7 +4,7 @@ To send an activity we need to initialize our previously defined struct, and pic
 
 ```
 # use activitypub_federation::config::FederationConfig;
-# use activitypub_federation::activity_sending::send_activity;
+# use activitypub_federation::activity_sending::SendActivityTask;
 # use activitypub_federation::http_signatures::generate_actor_keypair;
 # use activitypub_federation::traits::Actor;
 # use activitypub_federation::fetch::object_id::ObjectId;
@@ -25,7 +25,11 @@ let activity = Follow {
     id: "https://lemmy.ml/activities/321".try_into()?
 };
 let inboxes = vec![recipient.shared_inbox_or_inbox()];
-send_activity(&activity, &sender, inboxes, &data).await?;
+
+let sends = SendActivityTask::prepare(&activity, &sender, inboxes, &data).await?;
+for send in sends {
+    send.sign_and_send(&data).await?;
+}
 # Ok::<(), anyhow::Error>(())
 # }).unwrap()
 ```

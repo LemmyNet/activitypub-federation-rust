@@ -29,27 +29,6 @@ use std::{
 use tracing::debug;
 use url::Url;
 
-/// sends an activity to many inboxes
-/// as opposed to older version, there is no queueing, retrying or parallelization.
-/// for higher performance and reliability, you'll want to use the methods in [SendActivityTask] directly
-pub async fn send_activity<Activity, Datatype, ActorType>(
-    activity: &Activity,
-    actor: &ActorType,
-    inboxes: Vec<Url>,
-    data: &Data<Datatype>,
-) -> Result<(), <Activity as ActivityHandler>::Error>
-where
-    Activity: ActivityHandler + Serialize,
-    <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
-    Datatype: Clone,
-    ActorType: Actor,
-{
-    let sends = SendActivityTask::prepare(activity, actor, inboxes, data).await?;
-    for send in sends {
-        send.sign_and_send(data).await?;
-    }
-    Ok(())
-}
 #[derive(Clone, Debug)]
 /// all info needed to send one activity to one inbox
 pub struct SendActivityTask<'a> {
@@ -103,8 +82,8 @@ impl SendActivityTask<'_> {
                 return None;
             };
             Some(SendActivityTask {
-                actor_id: actor_id,
-                activity_id: activity_id,
+                actor_id,
+                activity_id,
                 inbox,
                 activity: activity_serialized.clone(),
                 private_key: private_key.clone(),
@@ -137,7 +116,7 @@ impl SendActivityTask<'_> {
             .headers(generate_request_headers(&task.inbox));
         let request = sign_request(
             request_builder,
-            &task.actor_id,
+            task.actor_id,
             task.activity.clone(),
             task.private_key.clone(),
             task.http_signature_compat,

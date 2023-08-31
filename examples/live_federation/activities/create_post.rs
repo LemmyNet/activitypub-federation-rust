@@ -6,7 +6,7 @@ use crate::{
     DbPost,
 };
 use activitypub_federation::{
-    activity_sending::send_activity,
+    activity_sending::SendActivityTask,
     config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
@@ -39,7 +39,12 @@ impl CreatePost {
             id: generate_object_id(data.domain())?,
         };
         let create_with_context = WithContext::new_default(create);
-        send_activity(&create_with_context, &data.local_user(), vec![inbox], data).await?;
+        let sends =
+            SendActivityTask::prepare(&create_with_context, &data.local_user(), vec![inbox], data)
+                .await?;
+        for send in sends {
+            send.sign_and_send(data).await?;
+        }
         Ok(())
     }
 }
