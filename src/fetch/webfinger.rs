@@ -165,13 +165,14 @@ pub fn build_webfinger_response_with_type(
                     rel: Some("http://webfinger.net/rel/profile-page".to_string()),
                     kind: Some("text/html".to_string()),
                     href: Some(url.clone()),
-                    properties: Default::default(),
+                    ..Default::default()
                 },
                 WebfingerLink {
                     rel: Some("self".to_string()),
                     kind: Some(FEDERATION_CONTENT_TYPE.to_string()),
                     href: Some(url.clone()),
                     properties,
+                    ..Default::default()
                 },
             ];
             acc.append(&mut links);
@@ -207,6 +208,8 @@ pub struct WebfingerLink {
     pub kind: Option<String>,
     /// Url pointing to the target resource
     pub href: Option<Url>,
+    /// Used for remote follow external interaction url
+    pub template: Option<String>,
     /// Additional data about the link
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub properties: HashMap<Url, String>,
