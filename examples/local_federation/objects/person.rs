@@ -6,7 +6,7 @@ use crate::{
     utils::generate_object_id,
 };
 use activitypub_federation::{
-    activity_queue::send_activity,
+    activity_sending::SendActivityTask,
     config::Data,
     fetch::{object_id::ObjectId, webfinger::webfinger_resolve_actor},
     http_signatures::generate_actor_keypair,
@@ -113,7 +113,10 @@ impl DbUser {
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
-        send_activity(activity, self, recipients, data).await?;
+        let sends = SendActivityTask::prepare(&activity, self, recipients, data).await?;
+        for send in sends {
+            send.sign_and_send(data).await?;
+        }
         Ok(())
     }
 }
