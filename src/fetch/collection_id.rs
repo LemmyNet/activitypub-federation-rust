@@ -40,9 +40,10 @@ where
     where
         <Kind as Collection>::Error: From<Error>,
     {
-        let json = fetch_object_http(&self.0, data).await?;
-        Kind::verify(&json, &self.0, data).await?;
-        Kind::from_json(json, owner, data).await
+        let res = fetch_object_http(&self.0, data).await?;
+        let redirect_url = &res.url;
+        Kind::verify(&res.object, redirect_url, data).await?;
+        Kind::from_json(res.object, owner, data).await
     }
 }
 

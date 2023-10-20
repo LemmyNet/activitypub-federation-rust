@@ -23,6 +23,14 @@ pub mod object_id;
 /// Resolves identifiers of the form `name@example.com`
 pub mod webfinger;
 
+/// Response from fetching a remote object
+pub struct FetchObjectResponse<Kind> {
+    /// The resolved object
+    object: Kind,
+    /// Contains the final URL (different from request URL in case of redirect)
+    url: Url,
+}
+
 /// Fetch a remote object over HTTP and convert to `Kind`.
 ///
 /// [crate::fetch::object_id::ObjectId::dereference] wraps this function to add caching and
@@ -38,7 +46,7 @@ pub mod webfinger;
 pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
-) -> Result<Kind, Error> {
+) -> Result<FetchObjectResponse<Kind>, Error> {
     fetch_object_http_with_accept(url, data, FEDERATION_CONTENT_TYPE).await
 }
 
@@ -48,7 +56,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
     content_type: &str,
-) -> Result<Kind, Error> {
+) -> Result<FetchObjectResponse<Kind>, Error> {
     let config = &data.config;
     // dont fetch local objects this way
     debug_assert!(url.domain() != Some(&config.domain));
@@ -84,5 +92,9 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
         return Err(Error::ObjectDeleted);
     }
 
-    res.json_limited().await
+    let url = res.url().clone();
+    Ok(FetchObjectResponse {
+        object: res.json_limited().await?,
+        url
+    })
 }

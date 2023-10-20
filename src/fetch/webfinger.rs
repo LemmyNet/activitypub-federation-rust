@@ -38,7 +38,7 @@ where
 
     let res: Webfinger =
         fetch_object_http_with_accept(&Url::parse(&fetch_url)?, data, "application/jrd+json")
-            .await?;
+            .await?.object;
 
     debug_assert_eq!(res.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res

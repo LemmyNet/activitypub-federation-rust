@@ -156,10 +156,11 @@ where
             return Err(anyhow!("Fetched remote object {} which was deleted", self).into());
         }
 
-        let res2 = res?;
+        let res = res?;
+        let redirect_url = &res.url;
 
-        Kind::verify(&res2, self.inner(), data).await?;
-        Kind::from_json(res2, data).await
+        Kind::verify(&res.object, redirect_url, data).await?;
+        Kind::from_json(res.object, data).await
     }
 }
 
