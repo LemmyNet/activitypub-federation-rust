@@ -22,7 +22,7 @@ use axum::{
 };
 use axum_macros::debug_handler;
 use serde::Deserialize;
-use std::net::ToSocketAddrs;
+use std::net::TcpListener;
 use tracing::info;
 
 pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
@@ -35,11 +35,8 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
         .route("/.well-known/webfinger", get(webfinger))
         .layer(FederationMiddleware::new(config));
 
-    let addr = hostname
-        .to_socket_addrs()?
-        .next()
-        .expect("Failed to lookup domain name");
-    let server = axum::Server::bind(&addr).serve(app.into_make_service());
+    let addr = tokio::net::TcpListener::from_std(TcpListener::bind(hostname)?)?;
+    let server = axum::serve(addr, app.into_make_service());
 
     tokio::spawn(server);
     Ok(())

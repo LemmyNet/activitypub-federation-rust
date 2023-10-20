@@ -215,6 +215,7 @@ mod tests {
         sync::{atomic::AtomicUsize, Arc},
         time::Instant,
     };
+    use tokio::net::TcpListener;
     use tracing::info;
 
     use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
@@ -247,10 +248,12 @@ mod tests {
             .route("/", post(dodgy_handler))
             .with_state(state);
 
-        axum::Server::bind(&"0.0.0.0:8001".parse().unwrap())
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
+        axum::serve(
+            TcpListener::bind("0.0.0.0:8001").await.unwrap(),
+            app.into_make_service(),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
