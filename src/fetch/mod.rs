@@ -26,9 +26,9 @@ pub mod webfinger;
 /// Response from fetching a remote object
 pub struct FetchObjectResponse<Kind> {
     /// The resolved object
-    object: Kind,
+    pub object: Kind,
     /// Contains the final URL (different from request URL in case of redirect)
-    url: Url,
+    pub url: Url,
 }
 
 /// Fetch a remote object over HTTP and convert to `Kind`.
@@ -95,6 +95,6 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let url = res.url().clone();
     Ok(FetchObjectResponse {
         object: res.json_limited().await?,
-        url
+        url,
     })
 }
