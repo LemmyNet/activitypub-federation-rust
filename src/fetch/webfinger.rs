@@ -91,14 +91,10 @@ pub fn extract_webfinger_name<T>(query: &str, data: &Data<T>) -> Result<String, 
 where
     T: Clone,
 {
+    // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: would be nice if we could implement this without regex and remove the dependency
-    // Regex taken from Mastodon -
-    // https://github.com/mastodon/mastodon/blob/2b113764117c9ab98875141bcf1758ba8be58173/app/models/account.rb#L65
-    let regex = Regex::new(&format!(
-        "^acct:((?i)[a-z0-9_]+([a-z0-9_\\.-]+[a-z0-9_]+)?)@{}$",
-        data.domain()
-    ))
-    .map_err(Error::other)?;
+    let regex =
+        Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@{}$", data.domain())).map_err(Error::other)?;
     Ok(regex
         .captures(query)
         .and_then(|c| c.get(1))
@@ -219,7 +215,7 @@ pub struct WebfingerLink {
 mod tests {
     use super::*;
     use crate::{
-        config::FederationConfig,
+        config::{FederationConfig, FederationConfigBuilder},
         traits::tests::{DbConnection, DbUser},
     };
 
@@ -236,6 +232,33 @@ mod tests {
         webfinger_resolve_actor::<DbConnection, DbUser>("LemmyDev@mastodon.social", &data).await?;
         // poa.st is as of 2023-07-14 the largest Pleroma instance
         webfinger_resolve_actor::<DbConnection, DbUser>("graf@poa.st", &data).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_webfinger_extract_name() -> Result<(), Error> {
+        use crate::traits::tests::DbConnection;
+        let data = Data {
+            config: FederationConfig::builder()
+                .domain("example.com")
+                .app_data(DbConnection)
+                .build()
+                .await
+                .unwrap(),
+            request_counter: Default::default(),
+        };
+        assert_eq!(
+            Ok("test123".to_string()),
+            extract_webfinger_name("acct:test123@example.com", &data)
+        );
+        assert_eq!(
+            Ok("Владимир".to_string()),
+            extract_webfinger_name("acct:Владимир@example.com", &data)
+        );
+        assert_eq!(
+            Ok("تجريب".to_string()),
+            extract_webfinger_name("acct:تجريب@example.com", &data)
+        );
         Ok(())
     }
 }
