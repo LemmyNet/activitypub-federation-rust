@@ -215,7 +215,7 @@ pub struct WebfingerLink {
 mod tests {
     use super::*;
     use crate::{
-        config::{FederationConfig, FederationConfigBuilder},
+        config::FederationConfig,
         traits::tests::{DbConnection, DbUser},
     };
 
