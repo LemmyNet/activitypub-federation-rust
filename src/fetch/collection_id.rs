@@ -96,3 +96,13 @@ where
         CollectionId(Box::new(url), PhantomData::<Kind>)
     }
 }
+
+impl<Kind> PartialEq for CollectionId<Kind>
+where
+    Kind: Collection,
+    for<'de2> <Kind as Collection>::Kind: serde::Deserialize<'de2>,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0) && self.1 == other.1
+    }
+}

@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 /// Media type for markdown text.
 ///
 /// <https://www.iana.org/assignments/media-types/media-types.xhtml>
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum MediaTypeMarkdown {
     /// `text/markdown`
     #[serde(rename = "text/markdown")]
@@ -45,7 +45,7 @@ pub enum MediaTypeMarkdown {
 /// Media type for HTML text.
 ///
 /// <https://www.iana.org/assignments/media-types/media-types.xhtml>
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum MediaTypeHtml {
     /// `text/html`
     #[serde(rename = "text/html")]
