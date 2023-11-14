@@ -1,5 +1,11 @@
 //! Error messages returned by this library
 
+use std::string::FromUtf8Error;
+
+use http_signature_normalization_reqwest::SignError;
+use openssl::error::ErrorStack;
+use url::Url;
+
 /// Error messages returned by this library
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -13,11 +19,11 @@ pub enum Error {
     #[error("Response body limit was reached during fetch")]
     ResponseBodyLimit,
     /// Object to be fetched was deleted
-    #[error("Object to be fetched was deleted")]
-    ObjectDeleted,
+    #[error("Fetched remote object {0} which was deleted")]
+    ObjectDeleted(Url),
     /// url verification error
     #[error("URL failed verification: {0}")]
-    UrlVerificationError(anyhow::Error),
+    UrlVerificationError(&'static str),
     /// Incoming activity has invalid digest for body
     #[error("Incoming activity has invalid digest for body")]
     ActivityBodyDigestInvalid,
@@ -27,17 +33,35 @@ pub enum Error {
     /// Failed to resolve actor via webfinger
     #[error("Failed to resolve actor via webfinger")]
     WebfingerResolveFailed,
-    /// other error
+    /// Failed to resolve actor via webfinger
+    #[error("Webfinger regex failed to match")]
+    WebfingerRegexFailed,
+    /// JSON Error
     #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    Json(#[from] serde_json::Error),
+    /// Reqwest Middleware Error
+    #[error(transparent)]
+    ReqwestMiddleware(#[from] reqwest_middleware::Error),
+    /// Reqwest Error
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+    /// UTF-8 error
+    #[error(transparent)]
+    Utf8(#[from] FromUtf8Error),
+    /// Url Parse
+    #[error(transparent)]
+    UrlParse(#[from] url::ParseError),
+    /// Signing errors
+    #[error(transparent)]
+    SignError(#[from] SignError),
+    /// Other generic errors
+    #[error("{0}")]
+    Other(String),
 }
 
-impl Error {
-    pub(crate) fn other<T>(error: T) -> Self
-    where
-        T: Into<anyhow::Error>,
-    {
-        Error::Other(error.into())
+impl From<ErrorStack> for Error {
+    fn from(value: ErrorStack) -> Self {
+        Error::Other(value.to_string())
     }
 }
 

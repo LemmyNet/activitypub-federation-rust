@@ -8,7 +8,6 @@ use crate::{
     traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
-use anyhow::Context;
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -24,17 +23,13 @@ where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<anyhow::Error>
-        + From<Error>
-        + From<<ActorT as Object>::Error>
-        + From<serde_json::Error>,
-    <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
     verify_body_hash(request.headers().get("Digest"), &body)?;
 
-    let activity: Activity = serde_json::from_slice(&body)
-        .with_context(|| format!("deserializing body: {}", String::from_utf8_lossy(&body)))?;
+    let activity: Activity = serde_json::from_slice(&body).map_err(Error::Json)?;
     data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)
@@ -91,8 +86,7 @@ mod test {
         .err()
         .unwrap();
 
-        let e = err.root_cause().downcast_ref::<Error>().unwrap();
-        assert_eq!(e, &Error::ActivityBodyDigestInvalid)
+        assert_eq!(&err, &Error::ActivityBodyDigestInvalid)
     }
 
     #[tokio::test]
@@ -108,8 +102,7 @@ mod test {
         .err()
         .unwrap();
 
-        let e = err.root_cause().downcast_ref::<Error>().unwrap();
-        assert_eq!(e, &Error::ActivitySignatureInvalid)
+        assert_eq!(&err, &Error::ActivitySignatureInvalid)
     }
 
     async fn setup_receive_test() -> (Bytes, TestRequest, FederationConfig<DbConnection>) {

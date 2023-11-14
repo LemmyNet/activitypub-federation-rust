@@ -49,9 +49,11 @@ struct MyUrlVerifier();
 
 #[async_trait]
 impl UrlVerifier for MyUrlVerifier {
-    async fn verify(&self, url: &Url) -> Result<(), anyhow::Error> {
+    async fn verify(&self, url: &Url) -> Result<(), activitypub_federation::error::Error> {
         if url.domain() == Some("malicious.com") {
-            Err(anyhow!("malicious domain"))
+            Err(activitypub_federation::error::Error::Other(
+                "malicious domain".into(),
+            ))
         } else {
             Ok(())
         }
