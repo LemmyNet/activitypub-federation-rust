@@ -95,7 +95,7 @@ where
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: would be nice if we could implement this without regex and remove the dependency
     let regex =
-        Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@{}$", data.domain())).map_err(Error::other)?;
+        Regex::new(&format!(r"^acct:@?([\p{{L}}0-9_]+)@{}$", data.domain())).map_err(Error::other)?;
     Ok(regex
         .captures(query)
         .and_then(|c| c.get(1))
