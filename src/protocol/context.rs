@@ -26,6 +26,7 @@ use url::Url;
 
 /// Default context used in Activitypub
 const DEFAULT_CONTEXT: &str = "https://www.w3.org/ns/activitystreams";
+const DEFAULT_SECURITY_CONTEXT: &str = "https://w3id.org/security/v1";
 
 /// Wrapper for federated structs which handles `@context` field.
 #[derive(Serialize, Deserialize, Debug)]
@@ -40,7 +41,10 @@ pub struct WithContext<T> {
 impl<T> WithContext<T> {
     /// Create a new wrapper with the default Activitypub context.
     pub fn new_default(inner: T) -> WithContext<T> {
-        let context = vec![Value::String(DEFAULT_CONTEXT.to_string())];
+        let context = vec![
+            Value::String(DEFAULT_CONTEXT.to_string()),
+            Value::String(DEFAULT_SECURITY_CONTEXT.to_string()),
+        ];
         WithContext::new(inner, context)
     }
 
