@@ -30,10 +30,7 @@ impl Future for BytesFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
             let this = self.as_mut().project();
-            if let Some(chunk) = ready!(this.stream.poll_next(cx))
-                .transpose()
-                .map_err(Error::other)?
-            {
+            if let Some(chunk) = ready!(this.stream.poll_next(cx)).transpose()? {
                 this.aggregator.put(chunk);
                 if this.aggregator.len() > *this.limit {
                     return Poll::Ready(Err(Error::ResponseBodyLimit));
@@ -66,7 +63,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let bytes = ready!(this.future.poll(cx))?;
-        Poll::Ready(serde_json::from_slice(&bytes).map_err(Error::other))
+        Poll::Ready(serde_json::from_slice(&bytes).map_err(Error::Json))
     }
 }
 
@@ -83,7 +80,7 @@ impl Future for TextFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let bytes = ready!(this.future.poll(cx))?;
-        Poll::Ready(String::from_utf8(bytes.to_vec()).map_err(Error::other))
+        Poll::Ready(String::from_utf8(bytes.to_vec()).map_err(Error::Utf8))
     }
 }
 

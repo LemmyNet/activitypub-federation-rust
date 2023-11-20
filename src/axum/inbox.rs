@@ -29,16 +29,13 @@ where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<anyhow::Error>
-        + From<Error>
-        + From<<ActorT as Object>::Error>
-        + From<serde_json::Error>,
-    <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
     verify_body_hash(activity_data.headers.get("Digest"), &activity_data.body)?;
 
-    let activity: Activity = serde_json::from_slice(&activity_data.body)?;
+    let activity: Activity = serde_json::from_slice(&activity_data.body).map_err(Error::Json)?;
     data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)

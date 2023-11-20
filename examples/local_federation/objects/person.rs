@@ -107,7 +107,7 @@ impl DbUser {
         activity: Activity,
         recipients: Vec<Url>,
         data: &Data<DatabaseHandle>,
-    ) -> Result<(), <Activity as ActivityHandler>::Error>
+    ) -> Result<(), Error>
     where
         Activity: ActivityHandler + Serialize + Debug + Send + Sync,
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
