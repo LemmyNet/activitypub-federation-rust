@@ -65,8 +65,7 @@ where
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
-    pub fn parse(url: &str) -> Result<Self, url::ParseError>
-    {
+    pub fn parse(url: &str) -> Result<Self, url::ParseError> {
         Ok(Self(Box::new(Url::parse(url)?), PhantomData::<Kind>))
     }
 
