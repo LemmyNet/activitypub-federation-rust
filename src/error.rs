@@ -6,6 +6,8 @@ use http_signature_normalization_reqwest::SignError;
 use openssl::error::ErrorStack;
 use url::Url;
 
+use crate::fetch::webfinger::WebFingerError;
+
 /// Error messages returned by this library
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -32,10 +34,7 @@ pub enum Error {
     ActivitySignatureInvalid,
     /// Failed to resolve actor via webfinger
     #[error("Failed to resolve actor via webfinger")]
-    WebfingerResolveFailed,
-    /// Failed to resolve actor via webfinger
-    #[error("Webfinger regex failed to match")]
-    WebfingerRegexFailed,
+    WebfingerResolveFailed(#[from] WebFingerError),
     /// JSON Error
     #[error(transparent)]
     Json(#[from] serde_json::Error),
