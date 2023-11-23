@@ -57,6 +57,7 @@ tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
 futures = "0.3.28"
 moka = { version = "0.11.3", features = ["future"] }
+unicode-properties = "0.1.0"
 
 [features]
 default = ["actix-web", "axum"]

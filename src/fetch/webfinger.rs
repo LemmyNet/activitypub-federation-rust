@@ -6,7 +6,6 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use itertools::Itertools;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 use tracing::debug;
@@ -111,22 +110,39 @@ where
 /// # Ok::<(), anyhow::Error>(())
 /// }).unwrap();
 ///```
-pub fn extract_webfinger_name<T>(query: &str, data: &Data<T>) -> Result<String, Error>
+pub fn extract_webfinger_name<'i, T>(query: &'i str, data: &Data<T>) -> Result<&'i str, Error>
 where
     T: Clone,
 {
-    // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
-    // TODO: would be nice if we could implement this without regex and remove the dependency
-    let result = Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@{}$", data.domain()))
-        .map_err(|_| WebFingerError::WrongFormat)
-        .and_then(|regex| {
-            regex
-                .captures(query)
-                .and_then(|c| c.get(1))
-                .ok_or_else(|| WebFingerError::WrongFormat)
-        })?;
+    fn accept_char_name(c: char) -> bool {
+        use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 
-    return Ok(result.as_str().to_string());
+        c == '_' || c.is_digit(10) || c.general_category_group() == GeneralCategoryGroup::Letter
+    }
+
+    let Some(rem) = query.strip_prefix("acct:") else {
+        return Err(WebFingerError::WrongFormat.to_crate_error());
+    };
+
+    let mut rem_iter = rem.char_indices();
+    while let Some((idx, c)) = rem_iter.next() {
+        if c == '@' {
+            assert_eq!(c.len_utf8(), 1);
+            if idx == 0 {
+                return Err(WebFingerError::WrongFormat.into());
+            }
+
+            if &rem[idx + 1..] != data.domain() {
+                return Err(WebFingerError::WrongDomain.into());
+            }
+
+            return Ok(&rem[..idx]);
+        } else if !accept_char_name(c) {
+            return Err(WebFingerError::WrongFormat.into());
+        }
+    }
+
+    return Err(WebFingerError::WrongFormat.into());
 }
 
 /// Builds a basic webfinger response for the actor.
@@ -274,15 +290,15 @@ mod tests {
             request_counter: Default::default(),
         };
         assert_eq!(
-            Ok("test123".to_string()),
+            Ok("test123"),
             extract_webfinger_name("acct:test123@example.com", &data)
         );
         assert_eq!(
-            Ok("Владимир".to_string()),
+            Ok("Владимир"),
             extract_webfinger_name("acct:Владимир@example.com", &data)
         );
         assert_eq!(
-            Ok("تجريب".to_string()),
+            Ok("تجريب"),
             extract_webfinger_name("acct:تجريب@example.com", &data)
         );
         Ok(())

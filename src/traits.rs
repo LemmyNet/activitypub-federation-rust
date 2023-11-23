@@ -356,7 +356,7 @@ pub mod tests {
         pub async fn read_post_from_json_id<T>(&self, _: Url) -> Result<Option<T>, Error> {
             Ok(None)
         }
-        pub async fn read_local_user(&self, _: String) -> Result<DbUser, Error> {
+        pub async fn read_local_user(&self, _: &str) -> Result<DbUser, Error> {
             todo!()
         }
         pub async fn upsert<T>(&self, _: &T) -> Result<(), Error> {
