@@ -39,7 +39,10 @@ bytes = "1.5.0"
 futures-core = { version = "0.3.28", default-features = false }
 pin-project-lite = "0.2.13"
 activitystreams-kinds = "0.3.0"
-regex = { version = "1.10.2", default-features = false, features = ["std", "unicode-case"] }
+regex = { version = "1.10.2", default-features = false, features = [
+  "std",
+  "unicode-case",
+] }
 tokio = { version = "1.33.0", features = [
   "sync",
   "rt",
@@ -51,7 +54,7 @@ tokio = { version = "1.33.0", features = [
 actix-web = { version = "4.4.0", default-features = false, optional = true }
 
 # Axum
-axum = { git = "https://github.com/tokio-rs/axum.git", features = [
+axum = { git = "https://github.com/tokio-rs/axum.git", rev = "30afe97e99303fffc4bf2f411a93022b5bc1ba35", features = [
   "json",
 ], default-features = false, optional = true }
 tower = { version = "*", optional = true }
@@ -68,12 +71,12 @@ axum = ["dep:axum", "dep:tower", "dep:hyper"]
 rand = "0.8.5"
 env_logger = "0.10.0"
 tower-http = { version = "*", features = ["map-request-body", "util"] }
-axum = { git = "https://github.com/tokio-rs/axum.git", features = [
+axum = { git = "https://github.com/tokio-rs/axum.git", rev = "30afe97e99303fffc4bf2f411a93022b5bc1ba35", features = [
   "http1",
   "tokio",
   "query",
 ], default-features = false }
-axum-macros = { git = "https://github.com/tokio-rs/axum.git" }
+axum-macros = { git = "https://github.com/tokio-rs/axum.git", rev = "30afe97e99303fffc4bf2f411a93022b5bc1ba35" }
 tokio = { version = "*", features = ["full"] }
 
 [profile.dev]
