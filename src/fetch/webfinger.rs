@@ -114,9 +114,9 @@ pub fn extract_webfinger_name<'i, T>(query: &'i str, data: &Data<T>) -> Result<&
 where
     T: Clone,
 {
+    /// Acceptable characters for a webfinger are the `Letter` unicode category, underscores and dashes.
     fn accept_char_name(c: char) -> bool {
         use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
-
         c == '_' || c.is_digit(10) || c.general_category_group() == GeneralCategoryGroup::Letter
     }
 
@@ -125,19 +125,25 @@ where
     };
 
     let mut rem_iter = rem.char_indices();
+
     while let Some((idx, c)) = rem_iter.next() {
         if c == '@' {
-            assert_eq!(c.len_utf8(), 1);
             if idx == 0 {
+                // This means the webfinger query looked like `acct:@domain.com`
                 return Err(WebFingerError::WrongFormat.into());
             }
 
-            if &rem[idx + 1..] != data.domain() {
+            let (account_name, domain_with_at) = rem.split_at(idx);
+
+            // Get rid of the `@`
+            if &domain_with_at[1..] != data.domain() {
+                // Only accept webfinger requests for our own domain
                 return Err(WebFingerError::WrongDomain.into());
             }
 
-            return Ok(&rem[..idx]);
+            return Ok(account_name);
         } else if !accept_char_name(c) {
+            // The account name contains an unnaceptable character
             return Err(WebFingerError::WrongFormat.into());
         }
     }
