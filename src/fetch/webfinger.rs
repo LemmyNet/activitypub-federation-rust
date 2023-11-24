@@ -21,7 +21,7 @@ pub enum WebFingerError {
     #[error("The webfinger identifier doesn't match the expected instance domain name")]
     WrongDomain,
     /// The wefinger object did not contain any link to an activitypub item
-    #[error("The wefinger object did not contain any link to an activitypub item")]
+    #[error("The webfinger object did not contain any link to an activitypub item")]
     NoValidLink,
 }
 
