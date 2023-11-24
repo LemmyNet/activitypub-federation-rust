@@ -10,7 +10,6 @@ use crate::{
     traits::{ActivityHandler, Actor},
     FEDERATION_CONTENT_TYPE,
 };
-use anyhow::{anyhow, Context};
 
 use bytes::Bytes;
 use futures::StreamExt;
@@ -57,17 +56,16 @@ impl SendActivityTask<'_> {
         actor: &ActorType,
         inboxes: Vec<Url>,
         data: &Data<Datatype>,
-    ) -> Result<Vec<SendActivityTask<'a>>, <Activity as ActivityHandler>::Error>
+    ) -> Result<Vec<SendActivityTask<'a>>, Error>
     where
         Activity: ActivityHandler + Serialize,
-        <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
         Datatype: Clone,
         ActorType: Actor,
     {
         let config = &data.config;
         let actor_id = activity.actor();
         let activity_id = activity.id();
-        let activity_serialized: Bytes = serde_json::to_vec(&activity)?.into();
+        let activity_serialized: Bytes = serde_json::to_vec(&activity).map_err(Error::Json)?.into();
         let private_key = get_pkey_cached(data, actor).await?;
 
         Ok(futures::stream::iter(
@@ -95,10 +93,7 @@ impl SendActivityTask<'_> {
     }
 
     /// convert a sendactivitydata to a request, signing and sending it
-    pub async fn sign_and_send<Datatype: Clone>(
-        &self,
-        data: &Data<Datatype>,
-    ) -> Result<(), anyhow::Error> {
+    pub async fn sign_and_send<Datatype: Clone>(&self, data: &Data<Datatype>) -> Result<(), Error> {
         let req = self
             .sign(&data.config.client, data.config.request_timeout)
             .await?;
@@ -108,7 +103,7 @@ impl SendActivityTask<'_> {
         &self,
         client: &ClientWithMiddleware,
         timeout: Duration,
-    ) -> Result<Request, anyhow::Error> {
+    ) -> Result<Request, Error> {
         let task = self;
         let request_builder = client
             .post(task.inbox.to_string())
@@ -121,36 +116,31 @@ impl SendActivityTask<'_> {
             task.private_key.clone(),
             task.http_signature_compat,
         )
-        .await
-        .context("signing request")?;
+        .await?;
         Ok(request)
     }
 
-    async fn send(
-        &self,
-        client: &ClientWithMiddleware,
-        request: Request,
-    ) -> Result<(), anyhow::Error> {
-        let response = client.execute(request).await;
+    async fn send(&self, client: &ClientWithMiddleware, request: Request) -> Result<(), Error> {
+        let response = client.execute(request).await?;
 
         match response {
-            Ok(o) if o.status().is_success() => {
+            o if o.status().is_success() => {
                 debug!("Activity {self} delivered successfully");
                 Ok(())
             }
-            Ok(o) if o.status().is_client_error() => {
-                let text = o.text_limited().await.map_err(Error::other)?;
+            o if o.status().is_client_error() => {
+                let text = o.text_limited().await?;
                 debug!("Activity {self} was rejected, aborting: {text}");
                 Ok(())
             }
-            Ok(o) => {
+            o => {
                 let status = o.status();
-                let text = o.text_limited().await.map_err(Error::other)?;
-                Err(anyhow!(
+                let text = o.text_limited().await?;
+
+                Err(Error::Other(format!(
                     "Activity {self} failure with status {status}: {text}",
-                ))
+                )))
             }
-            Err(e) => Err(anyhow!("Activity {self} connection failure: {e}")),
         }
     }
 }
@@ -158,7 +148,7 @@ impl SendActivityTask<'_> {
 async fn get_pkey_cached<ActorType>(
     data: &Data<impl Clone>,
     actor: &ActorType,
-) -> Result<PKey<Private>, anyhow::Error>
+) -> Result<PKey<Private>, Error>
 where
     ActorType: Actor,
 {
@@ -168,20 +158,23 @@ where
         .actor_pkey_cache
         .try_get_with_by_ref(&actor_id, async {
             let private_key_pem = actor.private_key_pem().ok_or_else(|| {
-                anyhow!("Actor {actor_id} does not contain a private key for signing")
+                Error::Other(format!(
+                    "Actor {actor_id} does not contain a private key for signing"
+                ))
             })?;
 
             // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
             let pkey = tokio::task::spawn_blocking(move || {
-                PKey::private_key_from_pem(private_key_pem.as_bytes())
-                    .map_err(|err| anyhow!("Could not create private key from PEM data:{err}"))
+                PKey::private_key_from_pem(private_key_pem.as_bytes()).map_err(|err| {
+                    Error::Other(format!("Could not create private key from PEM data:{err}"))
+                })
             })
             .await
-            .map_err(|err| anyhow!("Error joining: {err}"))??;
-            std::result::Result::<PKey<Private>, anyhow::Error>::Ok(pkey)
+            .map_err(|err| Error::Other(format!("Error joining: {err}")))??;
+            std::result::Result::<PKey<Private>, Error>::Ok(pkey)
         })
         .await
-        .map_err(|e| anyhow!("cloned error: {e}"))
+        .map_err(|e| Error::Other(format!("cloned error: {e}")))
 }
 
 pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {

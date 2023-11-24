@@ -5,7 +5,6 @@ use crate::{
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
-use anyhow::anyhow;
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -24,8 +23,7 @@ pub async fn webfinger_resolve_actor<T: Clone, Kind>(
 where
     Kind: Object + Actor + Send + 'static + Object<DataType = T>,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
-    <Kind as Object>::Error:
-        From<crate::error::Error> + From<anyhow::Error> + From<url::ParseError> + Send + Sync,
+    <Kind as Object>::Error: From<crate::error::Error> + Send + Sync,
 {
     let (_, domain) = identifier
         .splitn(2, '@')
@@ -36,10 +34,13 @@ where
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
     debug!("Fetching webfinger url: {}", &fetch_url);
 
-    let res: Webfinger =
-        fetch_object_http_with_accept(&Url::parse(&fetch_url)?, data, "application/jrd+json")
-            .await?
-            .object;
+    let res: Webfinger = fetch_object_http_with_accept(
+        &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
+        data,
+        "application/jrd+json",
+    )
+    .await?
+    .object;
 
     debug_assert_eq!(res.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res
@@ -94,14 +95,16 @@ where
 {
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: would be nice if we could implement this without regex and remove the dependency
-    let regex =
-        Regex::new(&format!(r"^acct:@?([\p{{L}}0-9_]+)@{}$", data.domain())).map_err(Error::other)?;
-    Ok(regex
-        .captures(query)
-        .and_then(|c| c.get(1))
-        .ok_or_else(|| Error::other(anyhow!("Webfinger regex failed to match")))?
-        .as_str()
-        .to_string())
+    let result = Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@{}$", data.domain()))
+        .map_err(|_| Error::WebfingerRegexFailed)
+        .and_then(|regex| {
+            regex
+                .captures(query)
+                .and_then(|c| c.get(1))
+                .ok_or_else(|| Error::WebfingerRegexFailed)
+        })?;
+
+    return Ok(result.as_str().to_string());
 }
 
 /// Builds a basic webfinger response for the actor.

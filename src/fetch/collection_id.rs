@@ -20,12 +20,8 @@ where
     for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
 {
     /// Construct a new CollectionId instance
-    pub fn parse<T>(url: T) -> Result<Self, url::ParseError>
-    where
-        T: TryInto<Url>,
-        url::ParseError: From<<T as TryInto<Url>>::Error>,
-    {
-        Ok(Self(Box::new(url.try_into()?), PhantomData::<Kind>))
+    pub fn parse(url: &str) -> Result<Self, url::ParseError> {
+        Ok(Self(Box::new(Url::parse(url)?), PhantomData::<Kind>))
     }
 
     /// Fetches collection over HTTP
@@ -94,5 +90,15 @@ where
 {
     fn from(url: Url) -> Self {
         CollectionId(Box::new(url), PhantomData::<Kind>)
+    }
+}
+
+impl<Kind> PartialEq for CollectionId<Kind>
+where
+    Kind: Collection,
+    for<'de2> <Kind as Collection>::Kind: serde::Deserialize<'de2>,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0) && self.1 == other.1
     }
 }

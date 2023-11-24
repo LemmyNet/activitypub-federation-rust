@@ -12,7 +12,6 @@ use crate::{
     protocol::public_key::main_key_id,
     traits::{Actor, Object},
 };
-use anyhow::Context;
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
 use bytes::Bytes;
 use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
@@ -83,7 +82,7 @@ pub(crate) async fn sign_request(
     activity: Bytes,
     private_key: PKey<Private>,
     http_signature_compat: bool,
-) -> Result<Request, anyhow::Error> {
+) -> Result<Request, Error> {
     static CONFIG: Lazy<Config> = Lazy::new(|| Config::new().set_expiration(EXPIRES_AFTER));
     static CONFIG_COMPAT: Lazy<Config> = Lazy::new(|| {
         Config::new()
@@ -103,14 +102,10 @@ pub(crate) async fn sign_request(
             Sha256::new(),
             activity,
             move |signing_string| {
-                let mut signer = Signer::new(MessageDigest::sha256(), &private_key)
-                    .context("instantiating signer")?;
-                signer
-                    .update(signing_string.as_bytes())
-                    .context("updating signer")?;
+                let mut signer = Signer::new(MessageDigest::sha256(), &private_key)?;
+                signer.update(signing_string.as_bytes())?;
 
-                Ok(Base64.encode(signer.sign_to_vec().context("sign to vec")?))
-                    as Result<_, anyhow::Error>
+                Ok(Base64.encode(signer.sign_to_vec()?)) as Result<_, Error>
             },
         )
         .await
@@ -152,7 +147,7 @@ pub(crate) async fn signing_actor<'a, A, H>(
 ) -> Result<A, <A as Object>::Error>
 where
     A: Object + Actor,
-    <A as Object>::Error: From<Error> + From<anyhow::Error>,
+    <A as Object>::Error: From<Error>,
     for<'de2> <A as Object>::Kind: Deserialize<'de2>,
     H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,
 {
@@ -197,8 +192,8 @@ fn verify_signature_inner(
 
     let verified = CONFIG
         .begin_verify(method.as_str(), path_and_query, header_map)
-        .map_err(Error::other)?
-        .verify(|signature, signing_string| -> anyhow::Result<bool> {
+        .map_err(|val| Error::Other(val.to_string()))?
+        .verify(|signature, signing_string| -> Result<bool, Error> {
             debug!(
                 "Verifying with key {}, message {}",
                 &public_key, &signing_string
@@ -206,9 +201,13 @@ fn verify_signature_inner(
             let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
             let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
             verifier.update(signing_string.as_bytes())?;
-            Ok(verifier.verify(&Base64.decode(signature)?)?)
-        })
-        .map_err(Error::other)?;
+
+            let base64_decoded = Base64
+                .decode(signature)
+                .map_err(|err| Error::Other(err.to_string()))?;
+
+            Ok(verifier.verify(&base64_decoded)?)
+        })?;
 
     Ok(())
     // if verified {

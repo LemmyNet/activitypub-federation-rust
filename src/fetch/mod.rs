@@ -83,13 +83,13 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
             data.config.http_signature_compat,
         )
         .await?;
-        config.client.execute(req).await.map_err(Error::other)?
+        config.client.execute(req).await?
     } else {
-        req.send().await.map_err(Error::other)?
+        req.send().await?
     };
 
     if res.status() == StatusCode::GONE {
-        return Err(Error::ObjectDeleted);
+        return Err(Error::ObjectDeleted(url.clone()));
     }
 
     let url = res.url().clone();

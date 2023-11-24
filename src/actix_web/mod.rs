@@ -22,7 +22,7 @@ pub async fn signing_actor<A>(
 ) -> Result<A, <A as Object>::Error>
 where
     A: Object + Actor,
-    <A as Object>::Error: From<Error> + From<anyhow::Error>,
+    <A as Object>::Error: From<Error>,
     for<'de2> <A as Object>::Kind: Deserialize<'de2>,
 {
     verify_body_hash(request.headers().get("Digest"), &body.unwrap_or_default())?;

@@ -1,5 +1,4 @@
 use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object};
-use anyhow::anyhow;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -66,12 +65,8 @@ where
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
-    pub fn parse<T>(url: T) -> Result<Self, url::ParseError>
-    where
-        T: TryInto<Url>,
-        url::ParseError: From<<T as TryInto<Url>>::Error>,
-    {
-        Ok(ObjectId(Box::new(url.try_into()?), PhantomData::<Kind>))
+    pub fn parse(url: &str) -> Result<Self, url::ParseError> {
+        Ok(Self(Box::new(Url::parse(url)?), PhantomData::<Kind>))
     }
 
     /// Returns a reference to the wrapped URL value
@@ -90,7 +85,7 @@ where
         data: &Data<<Kind as Object>::DataType>,
     ) -> Result<Kind, <Kind as Object>::Error>
     where
-        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
+        <Kind as Object>::Error: From<Error>,
     {
         let db_object = self.dereference_from_db(data).await?;
         // if its a local object, only fetch it from the database and not over http
@@ -145,15 +140,15 @@ where
         db_object: Option<Kind>,
     ) -> Result<Kind, <Kind as Object>::Error>
     where
-        <Kind as Object>::Error: From<Error> + From<anyhow::Error>,
+        <Kind as Object>::Error: From<Error>,
     {
         let res = fetch_object_http(&self.0, data).await;
 
-        if let Err(Error::ObjectDeleted) = &res {
+        if let Err(Error::ObjectDeleted(url)) = res {
             if let Some(db_object) = db_object {
                 db_object.delete(data).await?;
             }
-            return Err(anyhow!("Fetched remote object {} which was deleted", self).into());
+            return Err(Error::ObjectDeleted(url).into());
         }
 
         let res = res?;
