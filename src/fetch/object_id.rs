@@ -65,12 +65,8 @@ where
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
 {
     /// Construct a new objectid instance
-    pub fn parse<T>(url: T) -> Result<Self, url::ParseError>
-    where
-        T: TryInto<Url>,
-        url::ParseError: From<<T as TryInto<Url>>::Error>,
-    {
-        Ok(ObjectId(Box::new(url.try_into()?), PhantomData::<Kind>))
+    pub fn parse(url: &str) -> Result<Self, url::ParseError> {
+        Ok(Self(Box::new(Url::parse(url)?), PhantomData::<Kind>))
     }
 
     /// Returns a reference to the wrapped URL value
