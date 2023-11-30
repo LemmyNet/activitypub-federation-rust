@@ -8,6 +8,12 @@ license = "AGPL-3.0"
 repository = "https://github.com/LemmyNet/activitypub-federation-rust"
 documentation = "https://docs.rs/activitypub_federation/"
 
+[features]
+default = ["actix-web", "axum"]
+actix-web = ["dep:actix-web"]
+axum = ["dep:axum", "dep:tower", "dep:hyper"]
+diesel = ["dep:diesel"]
+
 [dependencies]
 chrono = { version = "0.4.31", features = ["clock"], default-features = false }
 serde = { version = "1.0.189", features = ["derive"] }
@@ -44,6 +50,7 @@ tokio = { version = "1.33.0", features = [
   "rt-multi-thread",
   "time",
 ] }
+diesel = { version = "2.1.4", features = ["postgres"], default-features = false, optional = true }
 
 # Actix-web
 actix-web = { version = "4.4.0", default-features = false, optional = true }
@@ -57,11 +64,6 @@ tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
 futures = "0.3.28"
 moka = { version = "0.11.3", features = ["future"] }
-
-[features]
-default = ["actix-web", "axum"]
-actix-web = ["dep:actix-web"]
-axum = ["dep:axum", "dep:tower", "dep:hyper"]
 
 [dev-dependencies]
 anyhow = "1.0.75"

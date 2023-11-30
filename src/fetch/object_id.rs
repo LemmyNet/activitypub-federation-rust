@@ -57,12 +57,12 @@ where
 pub struct ObjectId<Kind>(Box<Url>, PhantomData<Kind>)
 where
     Kind: Object,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>;
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>;
 
 impl<Kind> ObjectId<Kind>
 where
     Kind: Object + Send + Debug + 'static,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     /// Construct a new objectid instance
     pub fn parse(url: &str) -> Result<Self, url::ParseError> {
@@ -163,7 +163,7 @@ where
 impl<Kind> Clone for ObjectId<Kind>
 where
     Kind: Object,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     fn clone(&self) -> Self {
         ObjectId(self.0.clone(), self.1)
@@ -190,7 +190,7 @@ fn should_refetch_object(last_refreshed: DateTime<Utc>) -> bool {
 impl<Kind> Display for ObjectId<Kind>
 where
     Kind: Object,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())
@@ -200,7 +200,7 @@ where
 impl<Kind> Debug for ObjectId<Kind>
 where
     Kind: Object,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())
@@ -210,7 +210,7 @@ where
 impl<Kind> From<ObjectId<Kind>> for Url
 where
     Kind: Object,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     fn from(id: ObjectId<Kind>) -> Self {
         *id.0
@@ -220,7 +220,7 @@ where
 impl<Kind> From<Url> for ObjectId<Kind>
 where
     Kind: Object + Send + 'static,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     fn from(url: Url) -> Self {
         ObjectId(Box::new(url), PhantomData::<Kind>)
@@ -230,12 +230,102 @@ where
 impl<Kind> PartialEq for ObjectId<Kind>
 where
     Kind: Object,
-    for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
+    for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0) && self.1 == other.1
     }
 }
+
+//#[cfg(feature = "diesel")]
+const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
+    use diesel::{
+        backend::Backend,
+        deserialize::{FromSql, FromStaticSqlRow},
+        expression::AsExpression,
+        internal::derives::as_expression::Bound,
+        pg::Pg,
+        query_builder::QueryId,
+        serialize,
+        serialize::{Output, ToSql},
+        sql_types::{HasSqlType, SingleValue, Text},
+        Expression,
+        Queryable,
+    };
+
+    // TODO: this impl only works for Postgres db because of to_string() call which requires reborrow
+    impl<Kind, ST> ToSql<ST, Pg> for ObjectId<Kind>
+    where
+        Kind: Object,
+        for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
+        String: ToSql<ST, Pg>,
+    {
+        fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+            let v = self.0.to_string();
+            <String as ToSql<Text, Pg>>::to_sql(&v, &mut out.reborrow())
+        }
+    }
+    impl<'expr, Kind, ST> AsExpression<ST> for &'expr ObjectId<Kind>
+    where
+        Kind: Object,
+        for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
+        Bound<ST, String>: Expression<SqlType = ST>,
+        ST: SingleValue,
+    {
+        type Expression = Bound<ST, &'expr str>;
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self.0.as_str())
+        }
+    }
+    impl<Kind, ST> AsExpression<ST> for ObjectId<Kind>
+    where
+        Kind: Object,
+        for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
+        Bound<ST, String>: Expression<SqlType = ST>,
+        ST: SingleValue,
+    {
+        type Expression = Bound<ST, String>;
+        fn as_expression(self) -> Self::Expression {
+            // TODO: deprecated in favor of `.into()` but that fails to compile
+            Bound::new(self.0.into_string())
+        }
+    }
+    impl<Kind, ST, DB> FromSql<ST, DB> for ObjectId<Kind>
+    where
+        Kind: Object + Send + 'static,
+        for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
+        String: FromSql<ST, DB>,
+        DB: Backend,
+        DB: HasSqlType<ST>,
+    {
+        fn from_sql(
+            raw: DB::RawValue<'_>,
+        ) -> Result<Self, Box<dyn ::std::error::Error + Send + Sync>> {
+            let string: String = FromSql::<ST, DB>::from_sql(raw)?;
+            Ok(ObjectId::parse(&string)?)
+        }
+    }
+    impl<Kind, ST, DB> Queryable<ST, DB> for ObjectId<Kind>
+    where
+        Kind: Object + Send + 'static,
+        for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
+        String: FromStaticSqlRow<ST, DB>,
+        DB: Backend,
+        DB: HasSqlType<ST>,
+    {
+        type Row = String;
+        fn build(row: Self::Row) -> diesel::deserialize::Result<Self> {
+            Ok(ObjectId::parse(&row)?)
+        }
+    }
+    impl<Kind> QueryId for ObjectId<Kind>
+    where
+        Kind: Object + 'static,
+        for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
+    {
+        type QueryId = Self;
+    }
+};
 
 #[cfg(test)]
 pub mod tests {
