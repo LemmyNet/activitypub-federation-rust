@@ -6,6 +6,8 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use itertools::Itertools;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 use tracing::debug;
@@ -114,41 +116,20 @@ pub fn extract_webfinger_name<'i, T>(query: &'i str, data: &Data<T>) -> Result<&
 where
     T: Clone,
 {
-    /// Acceptable characters for a webfinger are the `Letter` unicode category, underscores and dashes.
-    fn accept_char_name(c: char) -> bool {
-        use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
-        c == '_' || c.is_digit(10) || c.general_category_group() == GeneralCategoryGroup::Letter
+    static WEBFINGER_REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@\(.*)$")).unwrap());
+    // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
+    // TODO: This should use a URL parser
+    let captures = WEBFINGER_REGEX
+        .captures(query)
+        .ok_or_else(|| WebFingerError::WrongFormat)?;
+
+    let account_name = captures.get(1).ok_or_else(|| WebFingerError::WrongFormat)?;
+
+    if captures.get(2).map(|m| m.as_str()) != Some(data.domain()) {
+        return Err(WebFingerError::WrongDomain.into());
     }
-
-    let Some(rem) = query.strip_prefix("acct:") else {
-        return Err(WebFingerError::WrongFormat.to_crate_error());
-    };
-
-    let mut rem_iter = rem.char_indices();
-
-    while let Some((idx, c)) = rem_iter.next() {
-        if c == '@' {
-            if idx == 0 {
-                // This means the webfinger query looked like `acct:@domain.com`
-                return Err(WebFingerError::WrongFormat.into());
-            }
-
-            let (account_name, domain_with_at) = rem.split_at(idx);
-
-            // Get rid of the `@`
-            if &domain_with_at[1..] != data.domain() {
-                // Only accept webfinger requests for our own domain
-                return Err(WebFingerError::WrongDomain.into());
-            }
-
-            return Ok(account_name);
-        } else if !accept_char_name(c) {
-            // The account name contains an unnaceptable character
-            return Err(WebFingerError::WrongFormat.into());
-        }
-    }
-
-    return Err(WebFingerError::WrongFormat.into());
+    Ok(account_name.as_str())
 }
 
 /// Builds a basic webfinger response for the actor.
