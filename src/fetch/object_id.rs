@@ -112,6 +112,22 @@ where
         }
     }
 
+    /// If this is a remote object, fetch it from origin instance unconditionally to get the
+    /// latest version, regardless of refresh interval.
+    pub async fn dereference_forced(
+        &self,
+        data: &Data<<Kind as Object>::DataType>,
+    ) -> Result<Kind, <Kind as Object>::Error>
+    where
+        <Kind as Object>::Error: From<Error>,
+    {
+        if data.config.is_local_url(&self.0) {
+            self.dereference_from_db(data).await.map(|o| o.ok_or(Error::NotFound.into()))?
+        } else {
+            self.dereference_from_http(data, None).await
+        }
+    }
+
     /// Fetch an object from the local db. Instead of falling back to http, this throws an error if
     /// the object is not found in the database.
     pub async fn dereference_local(
