@@ -237,7 +237,7 @@ where
     }
 }
 
-//#[cfg(feature = "diesel")]
+#[cfg(feature = "diesel")]
 const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
     use diesel::{
         backend::Backend,
