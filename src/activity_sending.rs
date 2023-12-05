@@ -13,11 +13,13 @@ use crate::{
 
 use bytes::Bytes;
 use futures::StreamExt;
-use http::{header::HeaderName, HeaderMap, HeaderValue};
 use httpdate::fmt_http_date;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
-use reqwest::Request;
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Request,
+};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{

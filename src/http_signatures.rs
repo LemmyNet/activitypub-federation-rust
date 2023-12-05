@@ -15,7 +15,10 @@ use crate::{
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
 use bytes::Bytes;
 use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
-use http_signature_normalization_reqwest::prelude::{Config, SignExt};
+use http_signature_normalization_reqwest::{
+    prelude::{Config, SignExt},
+    DefaultSpawner,
+};
 use once_cell::sync::Lazy;
 use openssl::{
     hash::MessageDigest,
@@ -83,7 +86,8 @@ pub(crate) async fn sign_request(
     private_key: PKey<Private>,
     http_signature_compat: bool,
 ) -> Result<Request, Error> {
-    static CONFIG: Lazy<Config> = Lazy::new(|| Config::new().set_expiration(EXPIRES_AFTER));
+    static CONFIG: Lazy<Config<DefaultSpawner>> =
+        Lazy::new(|| Config::new().set_expiration(EXPIRES_AFTER));
     static CONFIG_COMPAT: Lazy<Config> = Lazy::new(|| {
         Config::new()
             .mastodon_compat()
