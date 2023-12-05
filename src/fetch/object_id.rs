@@ -302,8 +302,7 @@ const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
     {
         type Expression = Bound<ST, String>;
         fn as_expression(self) -> Self::Expression {
-            // TODO: deprecated in favor of `.into()` but that fails to compile
-            Bound::new(self.0.into_string())
+            Bound::new(self.0.to_string())
         }
     }
     impl<Kind, ST, DB> FromSql<ST, DB> for ObjectId<Kind>
