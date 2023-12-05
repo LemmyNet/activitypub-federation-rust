@@ -122,7 +122,9 @@ where
         <Kind as Object>::Error: From<Error>,
     {
         if data.config.is_local_url(&self.0) {
-            self.dereference_from_db(data).await.map(|o| o.ok_or(Error::NotFound.into()))?
+            self.dereference_from_db(data)
+                .await
+                .map(|o| o.ok_or(Error::NotFound.into()))?
         } else {
             self.dereference_from_http(data, None).await
         }
