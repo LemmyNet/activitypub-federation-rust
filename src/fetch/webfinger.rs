@@ -1,16 +1,37 @@
 use crate::{
     config::Data,
-    error::{Error, Error::WebfingerResolveFailed},
+    error::Error,
     fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 use tracing::debug;
 use url::Url;
+
+/// Errors relative to webfinger handling
+#[derive(thiserror::Error, Debug)]
+pub enum WebFingerError {
+    /// The webfinger identifier is invalid
+    #[error("The webfinger identifier is invalid")]
+    WrongFormat,
+    /// The webfinger identifier doesn't match the expected instance domain name
+    #[error("The webfinger identifier doesn't match the expected instance domain name")]
+    WrongDomain,
+    /// The wefinger object did not contain any link to an activitypub item
+    #[error("The webfinger object did not contain any link to an activitypub item")]
+    NoValidLink,
+}
+
+impl WebFingerError {
+    fn into_crate_error(self) -> Error {
+        self.into()
+    }
+}
 
 /// Takes an identifier of the form `name@example.com`, and returns an object of `Kind`.
 ///
@@ -23,12 +44,12 @@ pub async fn webfinger_resolve_actor<T: Clone, Kind>(
 where
     Kind: Object + Actor + Send + 'static + Object<DataType = T>,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
-    <Kind as Object>::Error: From<crate::error::Error> + Send + Sync,
+    <Kind as Object>::Error: From<crate::error::Error> + Send + Sync + Display,
 {
     let (_, domain) = identifier
         .splitn(2, '@')
         .collect_tuple()
-        .ok_or(WebfingerResolveFailed)?;
+        .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
     let protocol = if data.config.debug { "http" } else { "https" };
     let fetch_url =
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
@@ -55,13 +76,15 @@ where
         })
         .filter_map(|l| l.href.clone())
         .collect();
+
     for l in links {
         let object = ObjectId::<Kind>::from(l).dereference(data).await;
-        if object.is_ok() {
-            return object;
+        match object {
+            Ok(obj) => return Ok(obj),
+            Err(error) => debug!(%error, "Failed to dereference link"),
         }
     }
-    Err(WebfingerResolveFailed.into())
+    Err(WebFingerError::NoValidLink.into_crate_error().into())
 }
 
 /// Extracts username from a webfinger resource parameter.
@@ -89,22 +112,24 @@ where
 /// # Ok::<(), anyhow::Error>(())
 /// }).unwrap();
 ///```
-pub fn extract_webfinger_name<T>(query: &str, data: &Data<T>) -> Result<String, Error>
+pub fn extract_webfinger_name<'i, T>(query: &'i str, data: &Data<T>) -> Result<&'i str, Error>
 where
     T: Clone,
 {
+    static WEBFINGER_REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^acct:([\p{L}0-9_]+)@(.*)$").expect("compile regex"));
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
-    // TODO: would be nice if we could implement this without regex and remove the dependency
-    let result = Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@{}$", data.domain()))
-        .map_err(|_| Error::WebfingerRegexFailed)
-        .and_then(|regex| {
-            regex
-                .captures(query)
-                .and_then(|c| c.get(1))
-                .ok_or_else(|| Error::WebfingerRegexFailed)
-        })?;
+    // TODO: This should use a URL parser
+    let captures = WEBFINGER_REGEX
+        .captures(query)
+        .ok_or(WebFingerError::WrongFormat)?;
 
-    return Ok(result.as_str().to_string());
+    let account_name = captures.get(1).ok_or(WebFingerError::WrongFormat)?;
+
+    if captures.get(2).map(|m| m.as_str()) != Some(data.domain()) {
+        return Err(WebFingerError::WrongDomain.into());
+    }
+    Ok(account_name.as_str())
 }
 
 /// Builds a basic webfinger response for the actor.
@@ -252,15 +277,15 @@ mod tests {
             request_counter: Default::default(),
         };
         assert_eq!(
-            Ok("test123".to_string()),
+            Ok("test123"),
             extract_webfinger_name("acct:test123@example.com", &data)
         );
         assert_eq!(
-            Ok("Владимир".to_string()),
+            Ok("Владимир"),
             extract_webfinger_name("acct:Владимир@example.com", &data)
         );
         assert_eq!(
-            Ok("تجريب".to_string()),
+            Ok("تجريب"),
             extract_webfinger_name("acct:تجريب@example.com", &data)
         );
         Ok(())
