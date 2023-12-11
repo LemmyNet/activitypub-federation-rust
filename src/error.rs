@@ -39,11 +39,17 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     /// Reqwest Middleware Error
-    #[error(transparent)]
-    ReqwestMiddleware(#[from] reqwest_middleware::Error),
+    //#[error(transparent)]
+    //ReqwestMiddleware(#[from] reqwest_middleware::Error),
     /// Reqwest Error
+    //#[error(transparent)]
+    //Reqwest(#[from] reqwest::Error),
+    #[error("Failed to fetch object from {0}: {1}")]
+    FetchError(Url, reqwest_middleware::Error),
+    #[error("Failed to send activity to {0}: {1}")]
+    SendActivityError(Url, reqwest::Error),
     #[error(transparent)]
-    Reqwest(#[from] reqwest::Error),
+    ReqwestPollStreamError(reqwest::Error),
     /// UTF-8 error
     #[error(transparent)]
     Utf8(#[from] FromUtf8Error),

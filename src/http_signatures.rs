@@ -100,6 +100,7 @@ pub(crate) async fn sign_request(
         true => CONFIG_COMPAT.clone(),
     };
     request_builder
+        // TODO: this should simply return SignError and wrap reqwest::Error
         .signature_with_digest(
             sig_conf.clone(),
             key_id,

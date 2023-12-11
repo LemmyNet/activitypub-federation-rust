@@ -30,7 +30,10 @@ impl Future for BytesFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
             let this = self.as_mut().project();
-            if let Some(chunk) = ready!(this.stream.poll_next(cx)).transpose()? {
+            if let Some(chunk) = ready!(this.stream.poll_next(cx))
+                .transpose()
+                .map_err(Error::ReqwestPollStreamError)?
+            {
                 this.aggregator.put(chunk);
                 if this.aggregator.len() > *this.limit {
                     return Poll::Ready(Err(Error::ResponseBodyLimit));
