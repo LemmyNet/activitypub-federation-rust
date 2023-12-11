@@ -49,13 +49,13 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    let activity: Activity = serde_json::from_slice(&body).map_err(|e| {
+    let activity: Activity = serde_json::from_slice(body).map_err(|e| {
         // Attempt to parse only activity id for error message
         #[derive(Deserialize)]
         struct Id {
             id: Url,
         }
-        match serde_json::from_slice::<Id>(&body) {
+        match serde_json::from_slice::<Id>(body) {
             Ok(id) => Error::ParseReceivedActivity(id.id, e),
             Err(e) => Error::Json(e),
         }
