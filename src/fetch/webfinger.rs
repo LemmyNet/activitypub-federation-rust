@@ -28,7 +28,7 @@ pub enum WebFingerError {
 }
 
 impl WebFingerError {
-    fn to_crate_error(self) -> Error {
+    fn into_crate_error(self) -> Error {
         self.into()
     }
 }
@@ -49,7 +49,7 @@ where
     let (_, domain) = identifier
         .splitn(2, '@')
         .collect_tuple()
-        .ok_or(WebFingerError::WrongFormat.to_crate_error())?;
+        .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
     let protocol = if data.config.debug { "http" } else { "https" };
     let fetch_url =
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
@@ -84,7 +84,7 @@ where
             Err(error) => debug!(%error, "Failed to dereference link"),
         }
     }
-    Err(WebFingerError::NoValidLink.to_crate_error().into())
+    Err(WebFingerError::NoValidLink.into_crate_error().into())
 }
 
 /// Extracts username from a webfinger resource parameter.
@@ -117,14 +117,14 @@ where
     T: Clone,
 {
     static WEBFINGER_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(&format!(r"^acct:([\p{{L}}0-9_]+)@\(.*)$")).unwrap());
+        Lazy::new(|| Regex::new(r"^acct:([\p{L}0-9_]+)@(.*)$").unwrap());
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: This should use a URL parser
     let captures = WEBFINGER_REGEX
         .captures(query)
-        .ok_or_else(|| WebFingerError::WrongFormat)?;
+        .ok_or(WebFingerError::WrongFormat)?;
 
-    let account_name = captures.get(1).ok_or_else(|| WebFingerError::WrongFormat)?;
+    let account_name = captures.get(1).ok_or(WebFingerError::WrongFormat)?;
 
     if captures.get(2).map(|m| m.as_str()) != Some(data.domain()) {
         return Err(WebFingerError::WrongDomain.into());

@@ -78,7 +78,7 @@ async fn webfinger(
     data: Data<DatabaseHandle>,
 ) -> Result<Json<Webfinger>, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
-    let db_user = data.read_user(&name)?;
+    let db_user = data.read_user(name)?;
     Ok(Json(build_webfinger_response(
         query.resource,
         db_user.ap_id.into_inner(),
