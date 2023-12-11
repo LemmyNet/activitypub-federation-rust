@@ -102,3 +102,92 @@ where
         self.0.eq(&other.0) && self.1 == other.1
     }
 }
+
+#[cfg(feature = "diesel")]
+const _IMPL_DIESEL_NEW_TYPE_FOR_COLLECTION_ID: () = {
+    use diesel::{
+        backend::Backend,
+        deserialize::{FromSql, FromStaticSqlRow},
+        expression::AsExpression,
+        internal::derives::as_expression::Bound,
+        pg::Pg,
+        query_builder::QueryId,
+        serialize,
+        serialize::{Output, ToSql},
+        sql_types::{HasSqlType, SingleValue, Text},
+        Expression,
+        Queryable,
+    };
+
+    // TODO: this impl only works for Postgres db because of to_string() call which requires reborrow
+    impl<Kind, ST> ToSql<ST, Pg> for CollectionId<Kind>
+    where
+        Kind: Collection,
+        for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
+        String: ToSql<ST, Pg>,
+    {
+        fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, Pg>) -> serialize::Result {
+            let v = self.0.to_string();
+            <String as ToSql<Text, Pg>>::to_sql(&v, &mut out.reborrow())
+        }
+    }
+    impl<'expr, Kind, ST> AsExpression<ST> for &'expr CollectionId<Kind>
+    where
+        Kind: Collection,
+        for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
+        Bound<ST, String>: Expression<SqlType = ST>,
+        ST: SingleValue,
+    {
+        type Expression = Bound<ST, &'expr str>;
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self.0.as_str())
+        }
+    }
+    impl<Kind, ST> AsExpression<ST> for CollectionId<Kind>
+    where
+        Kind: Collection,
+        for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
+        Bound<ST, String>: Expression<SqlType = ST>,
+        ST: SingleValue,
+    {
+        type Expression = Bound<ST, String>;
+        fn as_expression(self) -> Self::Expression {
+            Bound::new(self.0.to_string())
+        }
+    }
+    impl<Kind, ST, DB> FromSql<ST, DB> for CollectionId<Kind>
+    where
+        Kind: Collection + Send + 'static,
+        for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
+        String: FromSql<ST, DB>,
+        DB: Backend,
+        DB: HasSqlType<ST>,
+    {
+        fn from_sql(
+            raw: DB::RawValue<'_>,
+        ) -> Result<Self, Box<dyn ::std::error::Error + Send + Sync>> {
+            let string: String = FromSql::<ST, DB>::from_sql(raw)?;
+            Ok(CollectionId::parse(&string)?)
+        }
+    }
+    impl<Kind, ST, DB> Queryable<ST, DB> for CollectionId<Kind>
+    where
+        Kind: Collection + Send + 'static,
+        for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
+        String: FromStaticSqlRow<ST, DB>,
+        DB: Backend,
+        DB: HasSqlType<ST>,
+    {
+        type Row = String;
+        fn build(row: Self::Row) -> diesel::deserialize::Result<Self> {
+            Ok(CollectionId::parse(&row)?)
+        }
+    }
+    impl<Kind> QueryId for CollectionId<Kind>
+    where
+        Kind: Collection + 'static,
+        for<'de2> <Kind as Collection>::Kind: Deserialize<'de2>,
+    {
+        type QueryId = Self;
+    }
+};

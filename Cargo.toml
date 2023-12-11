@@ -12,6 +12,7 @@ documentation = "https://docs.rs/activitypub_federation/"
 default = ["actix-web", "axum"]
 actix-web = ["dep:actix-web"]
 axum = ["dep:axum", "dep:tower", "dep:hyper", "dep:http-body-util"]
+diesel = ["dep:diesel"]
 
 [dependencies]
 chrono = { version = "0.4.31", features = ["clock"], default-features = false }
@@ -50,6 +51,7 @@ tokio = { version = "1.34.0", features = [
   "rt-multi-thread",
   "time",
 ] }
+diesel = { version = "2.1.4", features = ["postgres"], default-features = false, optional = true }
 futures = "0.3.29"
 moka = { version = "0.12.1", features = ["future"] }
 
