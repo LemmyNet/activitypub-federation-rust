@@ -38,6 +38,9 @@ pub enum Error {
     /// JSON Error
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    /// Failed to parse an activity received from another instance
+    #[error("Failed to parse incoming activity with id {0}: {1}")]
+    ParseReceivedActivity(Url, serde_json::Error),
     /// Reqwest Middleware Error
     #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),

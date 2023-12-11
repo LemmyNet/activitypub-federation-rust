@@ -3,8 +3,8 @@
 use crate::{
     config::Data,
     error::Error,
-    fetch::object_id::ObjectId,
     http_signatures::{verify_body_hash, verify_signature},
+    parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
@@ -29,11 +29,7 @@ where
 {
     verify_body_hash(request.headers().get("Digest"), &body)?;
 
-    let activity: Activity = serde_json::from_slice(&body).map_err(Error::Json)?;
-    data.config.verify_url_and_domain(&activity).await?;
-    let actor = ObjectId::<ActorT>::from(activity.actor().clone())
-        .dereference(data)
-        .await?;
+    let (activity, actor) = parse_received_activity::<Activity, ActorT, _>(&body, data).await?;
 
     verify_signature(
         request.headers(),
@@ -54,6 +50,7 @@ mod test {
     use crate::{
         activity_sending::generate_request_headers,
         config::FederationConfig,
+        fetch::object_id::ObjectId,
         http_signatures::sign_request,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},
     };
