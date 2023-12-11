@@ -117,7 +117,7 @@ where
     T: Clone,
 {
     static WEBFINGER_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"^acct:([\p{L}0-9_]+)@(.*)$").unwrap());
+        Lazy::new(|| Regex::new(r"^acct:([\p{L}0-9_]+)@(.*)$").expect("compile regex"));
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: This should use a URL parser
     let captures = WEBFINGER_REGEX
