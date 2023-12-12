@@ -122,17 +122,15 @@ mod test {
         let incoming_request = construct_request(&body, &actor).await;
 
         // intentionally cause a parse error by using wrong type for deser
-        let err = receive_activity::<Follow, DbUser, DbConnection>(
+        let res = receive_activity::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
             body,
             &config.to_request_data(),
         )
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        match err {
-            Error::ParseReceivedActivity(url, _) => {
+        match res {
+            Err(Error::ParseReceivedActivity(url, _)) => {
                 assert_eq!(id, url.as_str());
             }
             _ => unreachable!(),

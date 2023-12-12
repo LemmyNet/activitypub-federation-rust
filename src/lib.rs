@@ -37,6 +37,8 @@ use url::Url;
 /// Mime type for Activitypub data, used for `Accept` and `Content-Type` HTTP headers
 pub static FEDERATION_CONTENT_TYPE: &str = "application/activity+json";
 
+/// Deserialize incoming inbox activity to the given type, perform basic
+/// validation and extract the actor.
 async fn parse_received_activity<Activity, ActorT, Datatype>(
     body: &[u8],
     data: &Data<Datatype>,
@@ -50,7 +52,7 @@ where
     Datatype: Clone,
 {
     let activity: Activity = serde_json::from_slice(body).map_err(|e| {
-        // Attempt to parse only activity id for error message
+        // Attempt to include activity id in error message
         #[derive(Deserialize)]
         struct Id {
             id: Url,
