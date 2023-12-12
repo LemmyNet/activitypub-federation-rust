@@ -16,16 +16,12 @@ use futures::StreamExt;
 use httpdate::fmt_http_date;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
-use reqwest::{
-    header::{HeaderMap, HeaderName, HeaderValue},
-    Request,
-};
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Serialize;
 use std::{
     self,
     fmt::{Debug, Display},
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 use tracing::debug;
 use url::Url;
@@ -96,33 +92,19 @@ impl SendActivityTask<'_> {
 
     /// convert a sendactivitydata to a request, signing and sending it
     pub async fn sign_and_send<Datatype: Clone>(&self, data: &Data<Datatype>) -> Result<(), Error> {
-        let req = self
-            .sign(&data.config.client, data.config.request_timeout)
-            .await?;
-        self.send(&data.config.client, req).await
-    }
-    async fn sign(
-        &self,
-        client: &ClientWithMiddleware,
-        timeout: Duration,
-    ) -> Result<Request, Error> {
-        let task = self;
+        let client = &data.config.client;
         let request_builder = client
-            .post(task.inbox.to_string())
-            .timeout(timeout)
-            .headers(generate_request_headers(&task.inbox));
+            .post(self.inbox.to_string())
+            .timeout(data.config.request_timeout)
+            .headers(generate_request_headers(&self.inbox));
         let request = sign_request(
             request_builder,
-            task.actor_id,
-            task.activity.clone(),
-            task.private_key.clone(),
-            task.http_signature_compat,
+            self.actor_id,
+            self.activity.clone(),
+            self.private_key.clone(),
+            self.http_signature_compat,
         )
         .await?;
-        Ok(request)
-    }
-
-    async fn send(&self, client: &ClientWithMiddleware, request: Request) -> Result<(), Error> {
         let response = client.execute(request).await?;
 
         match response {
@@ -286,7 +268,7 @@ mod tests {
         let start = Instant::now();
 
         for _ in 0..num_messages {
-            message.sign_and_send(&data).await?;
+            message.clone().sign_and_send(&data).await?;
         }
 
         info!("Queue Sent: {:?}", start.elapsed());
