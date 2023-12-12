@@ -91,7 +91,7 @@ impl SendActivityTask<'_> {
     }
 
     /// convert a sendactivitydata to a request, signing and sending it
-    pub async fn sign_and_send<Datatype: Clone>(self, data: &Data<Datatype>) -> Result<(), Error> {
+    pub async fn sign_and_send<Datatype: Clone>(&self, data: &Data<Datatype>) -> Result<(), Error> {
         let client = &data.config.client;
         let request_builder = client
             .post(self.inbox.to_string())
