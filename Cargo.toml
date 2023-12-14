@@ -11,7 +11,7 @@ documentation = "https://docs.rs/activitypub_federation/"
 [features]
 default = ["actix-web", "axum"]
 actix-web = ["dep:actix-web"]
-axum = ["dep:axum", "dep:tower", "dep:hyper", "dep:http-body-util"]
+axum = ["dep:axum", "dep:tower", "dep:hyper"]
 diesel = ["dep:diesel"]
 
 [dependencies]
@@ -70,7 +70,6 @@ axum = { git = "https://github.com/tokio-rs/axum.git", rev = "30afe97e99303fffc4
 ], default-features = false, optional = true }
 tower = { version = "*", optional = true }
 hyper = { version = "*", optional = true }
-http-body-util = { version = "0.1.0", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.75"
