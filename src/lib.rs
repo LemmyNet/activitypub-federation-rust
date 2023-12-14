@@ -23,7 +23,48 @@ pub mod protocol;
 pub(crate) mod reqwest_shim;
 pub mod traits;
 
+use crate::{
+    config::Data,
+    error::Error,
+    fetch::object_id::ObjectId,
+    traits::{ActivityHandler, Actor, Object},
+};
 pub use activitystreams_kinds as kinds;
+
+use serde::{de::DeserializeOwned, Deserialize};
+use url::Url;
 
 /// Mime type for Activitypub data, used for `Accept` and `Content-Type` HTTP headers
 pub static FEDERATION_CONTENT_TYPE: &str = "application/activity+json";
+
+/// Deserialize incoming inbox activity to the given type, perform basic
+/// validation and extract the actor.
+async fn parse_received_activity<Activity, ActorT, Datatype>(
+    body: &[u8],
+    data: &Data<Datatype>,
+) -> Result<(Activity, ActorT), <Activity as ActivityHandler>::Error>
+where
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
+    Datatype: Clone,
+{
+    let activity: Activity = serde_json::from_slice(body).map_err(|e| {
+        // Attempt to include activity id in error message
+        #[derive(Deserialize)]
+        struct Id {
+            id: Url,
+        }
+        match serde_json::from_slice::<Id>(body) {
+            Ok(id) => Error::ParseReceivedActivity(id.id, e),
+            Err(e) => Error::Json(e),
+        }
+    })?;
+    data.config.verify_url_and_domain(&activity).await?;
+    let actor = ObjectId::<ActorT>::from(activity.actor().clone())
+        .dereference(data)
+        .await?;
+    Ok((activity, actor))
+}

@@ -5,8 +5,8 @@
 use crate::{
     config::Data,
     error::Error,
-    fetch::object_id::ObjectId,
-    http_signatures::{verify_body_hash, verify_signature},
+    http_signatures::verify_signature,
+    parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
 use axum::{
@@ -33,13 +33,8 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    verify_body_hash(activity_data.headers.get("Digest"), &activity_data.body)?;
-
-    let activity: Activity = serde_json::from_slice(&activity_data.body).map_err(Error::Json)?;
-    data.config.verify_url_and_domain(&activity).await?;
-    let actor = ObjectId::<ActorT>::from(activity.actor().clone())
-        .dereference(data)
-        .await?;
+    let (activity, actor) =
+        parse_received_activity::<Activity, ActorT, _>(&activity_data.body, data).await?;
 
     // verify_signature(
     //     &activity_data.headers,
