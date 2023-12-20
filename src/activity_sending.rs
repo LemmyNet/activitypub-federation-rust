@@ -56,14 +56,16 @@ impl SendActivityTask<'_> {
         data: &Data<Datatype>,
     ) -> Result<Vec<SendActivityTask<'a>>, Error>
     where
-        Activity: ActivityHandler + Serialize,
+        Activity: ActivityHandler + Serialize + Debug,
         Datatype: Clone,
         ActorType: Actor,
     {
         let config = &data.config;
         let actor_id = activity.actor();
         let activity_id = activity.id();
-        let activity_serialized: Bytes = serde_json::to_vec(&activity).map_err(Error::Json)?.into();
+        let activity_serialized: Bytes = serde_json::to_vec(&activity)
+            .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
+            .into();
         let private_key = get_pkey_cached(data, actor).await?;
 
         Ok(futures::stream::iter(

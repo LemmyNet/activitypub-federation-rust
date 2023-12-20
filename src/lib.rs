@@ -57,10 +57,8 @@ where
         struct Id {
             id: Url,
         }
-        match serde_json::from_slice::<Id>(body) {
-            Ok(id) => Error::ParseReceivedActivity(id.id, e),
-            Err(e) => Error::Json(e),
-        }
+        let id = serde_json::from_slice::<Id>(body).ok();
+        Error::ParseReceivedActivity(e, id.map(|i| i.id))
     })?;
     data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())

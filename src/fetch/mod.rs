@@ -4,7 +4,7 @@
 
 use crate::{
     config::Data,
-    error::Error,
+    error::{Error, Error::ParseFetchedObject},
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     FEDERATION_CONTENT_TYPE,
@@ -93,8 +93,13 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     }
 
     let url = res.url().clone();
-    Ok(FetchObjectResponse {
-        object: res.json_limited().await?,
-        url,
-    })
+    let text = res.bytes_limited().await?;
+    match serde_json::from_slice(&text) {
+        Ok(object) => Ok(FetchObjectResponse { object, url }),
+        Err(e) => Err(ParseFetchedObject(
+            e,
+            url,
+            String::from_utf8(Vec::from(text))?,
+        )),
+    }
 }
