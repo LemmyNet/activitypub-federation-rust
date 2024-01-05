@@ -61,7 +61,7 @@ where
 ///
 /// let note = serde_json::from_str::<Note>(r#"{"to": ["https://example.com/u/alice"] }"#);
 /// assert!(note.is_ok());
-pub fn deserialize_one<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+pub fn deserialize_one<'de, T, D>(deserializer: D) -> Result<[T; 1], D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
@@ -75,8 +75,8 @@ where
 
     let result: MaybeArray<T> = Deserialize::deserialize(deserializer)?;
     Ok(match result {
-        MaybeArray::Simple(value) => value,
-        MaybeArray::Array([value]) => value,
+        MaybeArray::Simple(value) => [value],
+        MaybeArray::Array([value]) => [value],
     })
 }
 
