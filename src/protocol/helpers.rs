@@ -56,7 +56,7 @@ where
 /// #[derive(serde::Deserialize)]
 /// struct Note {
 ///     #[serde(deserialize_with = "deserialize_one")]
-///     to: Url
+///     to: [Url; 1]
 /// }
 ///
 /// let note = serde_json::from_str::<Note>(r#"{"to": ["https://example.com/u/alice"] }"#);
@@ -125,7 +125,7 @@ mod tests {
         #[derive(serde::Deserialize)]
         struct Note {
             #[serde(deserialize_with = "deserialize_one")]
-            _to: Url,
+            _to: [Url; 1],
         }
 
         let note = serde_json::from_str::<Note>(
