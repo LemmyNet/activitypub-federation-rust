@@ -35,12 +35,18 @@ pub enum Error {
     /// Failed to resolve actor via webfinger
     #[error("Failed to resolve actor via webfinger")]
     WebfingerResolveFailed(#[from] WebFingerError),
-    /// JSON Error
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
+    /// Failed to serialize outgoing activity
+    #[error("Failed to serialize outgoing activity {1}: {0}")]
+    SerializeOutgoingActivity(serde_json::Error, String),
+    /// Failed to parse an object fetched from url
+    #[error("Failed to parse object {1} with content {2}: {0}")]
+    ParseFetchedObject(serde_json::Error, Url, String),
     /// Failed to parse an activity received from another instance
-    #[error("Failed to parse incoming activity with id {0}: {1}")]
-    ParseReceivedActivity(Url, serde_json::Error),
+    #[error("Failed to parse incoming activity {}: {0}", match .1 {
+        Some(t) => format!("with id {t}"),
+        None => String::new(),
+    })]
+    ParseReceivedActivity(serde_json::Error, Option<Url>),
     /// Reqwest Middleware Error
     #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),

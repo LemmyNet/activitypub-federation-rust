@@ -15,11 +15,11 @@
 //! };
 //! let note_with_context = WithContext::new_default(note);
 //! let serialized = serde_json::to_string(&note_with_context)?;
-//! assert_eq!(serialized, r#"{"@context":["https://www.w3.org/ns/activitystreams"],"content":"Hello world"}"#);
+//! assert_eq!(serialized, r#"{"@context":"https://www.w3.org/ns/activitystreams","content":"Hello world"}"#);
 //! Ok::<(), serde_json::error::Error>(())
 //! ```
 
-use crate::{config::Data, protocol::helpers::deserialize_one_or_many, traits::ActivityHandler};
+use crate::{config::Data, traits::ActivityHandler};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
@@ -32,8 +32,7 @@ const DEFAULT_SECURITY_CONTEXT: &str = "https://w3id.org/security/v1";
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WithContext<T> {
     #[serde(rename = "@context")]
-    #[serde(deserialize_with = "deserialize_one_or_many")]
-    context: Vec<Value>,
+    context: Value,
     #[serde(flatten)]
     inner: T,
 }
@@ -49,7 +48,7 @@ impl<T> WithContext<T> {
     }
 
     /// Create new wrapper with custom context. Use this in case you are implementing extensions.
-    pub fn new(inner: T, context: Vec<Value>) -> WithContext<T> {
+    pub fn new(inner: T, context: Value) -> WithContext<T> {
         WithContext { context, inner }
     }
 
