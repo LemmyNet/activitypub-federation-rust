@@ -60,8 +60,9 @@ moka = { version = "0.12.2", features = ["future"] }
 actix-web = { version = "4.4.1", default-features = false, optional = true }
 
 # Axum
-axum = { git = "https://github.com/tokio-rs/axum.git", rev = "30afe97e99303fffc4bf2f411a93022b5bc1ba35", features = [
+axum = { version = "0.6.20", features = [
   "json",
+  "headers",
 ], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
 hyper = { version = "0.14", optional = true }
