@@ -11,9 +11,8 @@ use crate::{
 };
 use axum::{
     async_trait,
-    body::Body,
-    extract::FromRequest,
-    http::{Request, StatusCode},
+    extract::{FromRequest, Request},
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use http::{HeaderMap, Method, Uri};
@@ -65,18 +64,20 @@ where
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request<Body>, _state: &S) -> Result<Self, Self::Rejection> {
-        let (parts, body) = req.into_parts();
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let headers = req.headers().clone();
+        let method = req.method().clone();
+        let uri = req.uri().clone();
 
         // this wont work if the body is an long running stream
-        let bytes = hyper::body::to_bytes(body)
+        let bytes = hyper::body::Bytes::from_request(req, state)
             .await
             .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())?;
 
         Ok(Self {
-            headers: parts.headers,
-            method: parts.method,
-            uri: parts.uri,
+            headers,
+            method,
+            uri,
             body: bytes.to_vec(),
         })
     }

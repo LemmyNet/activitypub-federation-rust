@@ -9,6 +9,7 @@ use crate::{
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
+use std::str::FromStr;
 use tracing::debug;
 
 /// Handles incoming activities, verifying HTTP signatures and other checks
@@ -34,7 +35,7 @@ where
     verify_signature(
         request.headers(),
         request.method(),
-        request.uri(),
+        &http::Uri::from_str(&request.uri().to_string()).unwrap(),
         actor.public_key_pem(),
     )?;
 

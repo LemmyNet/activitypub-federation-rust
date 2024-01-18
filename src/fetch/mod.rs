@@ -88,7 +88,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
         req.send().await?
     };
 
-    if res.status() == StatusCode::GONE {
+    if res.status().as_u16() == StatusCode::GONE.as_u16() {
         return Err(Error::ObjectDeleted(url.clone()));
     }
 

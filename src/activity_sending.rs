@@ -205,7 +205,7 @@ mod tests {
     // This will periodically send back internal errors to test the retry
     async fn dodgy_handler(
         State(state): State<Arc<AtomicUsize>>,
-        headers: HeaderMap,
+        headers: http::HeaderMap,
         body: Bytes,
     ) -> Result<(), StatusCode> {
         debug!("Headers:{:?}", headers);

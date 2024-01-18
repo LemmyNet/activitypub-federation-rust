@@ -14,7 +14,7 @@ use crate::{
 };
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
 use bytes::Bytes;
-use http::{header::HeaderName, uri::PathAndQuery, HeaderValue, Method, Uri};
+use http::{uri::PathAndQuery, Uri};
 use http_signature_normalization_reqwest::{
     prelude::{Config, SignExt},
     DefaultSpawner,
@@ -26,7 +26,11 @@ use openssl::{
     rsa::Rsa,
     sign::{Signer, Verifier},
 };
-use reqwest::Request;
+use reqwest::{
+    header::{HeaderName, HeaderValue},
+    Method,
+    Request,
+};
 use reqwest_middleware::RequestBuilder;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -292,7 +296,7 @@ pub mod test {
         // use hardcoded date in order to test against hardcoded signature
         headers.insert(
             "date",
-            HeaderValue::from_str("Tue, 28 Mar 2023 21:03:44 GMT").unwrap(),
+            reqwest::header::HeaderValue::from_str("Tue, 28 Mar 2023 21:03:44 GMT").unwrap(),
         );
 
         let request_builder = ClientWithMiddleware::from(Client::new())
