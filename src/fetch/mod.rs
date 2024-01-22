@@ -4,7 +4,7 @@
 
 use crate::{
     config::Data,
-    error::Error,
+    error::{Error, Error::ParseFetchedObject},
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     FEDERATION_CONTENT_TYPE,
@@ -63,10 +63,10 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     config.verify_url_valid(url).await?;
     info!("Fetching remote object {}", url.to_string());
 
-    let counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
-    if counter > config.http_fetch_limit {
-        return Err(Error::RequestLimit);
-    }
+    // let counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    // if counter > config.http_fetch_limit {
+    //     return Err(Error::RequestLimit);
+    // }
 
     let req = config
         .client
@@ -83,18 +83,23 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
             data.config.http_signature_compat,
         )
         .await?;
-        config.client.execute(req).await.map_err(Error::other)?
+        config.client.execute(req).await?
     } else {
-        req.send().await.map_err(Error::other)?
+        req.send().await?
     };
 
-    if res.status() == StatusCode::GONE {
-        return Err(Error::ObjectDeleted);
+    if res.status().as_u16() == StatusCode::GONE.as_u16() {
+        return Err(Error::ObjectDeleted(url.clone()));
     }
 
     let url = res.url().clone();
-    Ok(FetchObjectResponse {
-        object: res.json_limited().await?,
-        url,
-    })
+    let text = res.bytes_limited().await?;
+    match serde_json::from_slice(&text) {
+        Ok(object) => Ok(FetchObjectResponse { object, url }),
+        Err(e) => Err(ParseFetchedObject(
+            e,
+            url,
+            String::from_utf8(Vec::from(text))?,
+        )),
+    }
 }

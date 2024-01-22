@@ -6,7 +6,7 @@ use url::Url;
 /// Public key of actors which is used for HTTP signatures.
 ///
 /// This needs to be federated in the `public_key` field of all actors.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicKey {
     /// Id of this private key.

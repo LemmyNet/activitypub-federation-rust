@@ -9,7 +9,7 @@
 //! # use activitypub_federation::traits::Object;
 //! # use activitypub_federation::traits::tests::{DbConnection, DbUser, Person};
 //! async fn http_get_user(Path(name): Path<String>, data: Data<DbConnection>) -> Result<FederationJson<WithContext<Person>>, Error> {
-//!     let user: DbUser = data.read_local_user(name).await?;
+//!     let user: DbUser = data.read_local_user(&name).await?;
 //!     let person = user.into_json(&data).await?;
 //!
 //!     Ok(FederationJson(WithContext::new_default(person)))

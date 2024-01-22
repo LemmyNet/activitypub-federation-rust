@@ -1,5 +1,13 @@
 //! Error messages returned by this library
 
+use std::string::FromUtf8Error;
+
+use http_signature_normalization_reqwest::SignError;
+use openssl::error::ErrorStack;
+use url::Url;
+
+use crate::fetch::webfinger::WebFingerError;
+
 /// Error messages returned by this library
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -13,11 +21,11 @@ pub enum Error {
     #[error("Response body limit was reached during fetch")]
     ResponseBodyLimit,
     /// Object to be fetched was deleted
-    #[error("Object to be fetched was deleted")]
-    ObjectDeleted,
+    #[error("Fetched remote object {0} which was deleted")]
+    ObjectDeleted(Url),
     /// url verification error
     #[error("URL failed verification: {0}")]
-    UrlVerificationError(anyhow::Error),
+    UrlVerificationError(&'static str),
     /// Incoming activity has invalid digest for body
     #[error("Incoming activity has invalid digest for body")]
     ActivityBodyDigestInvalid,
@@ -26,18 +34,42 @@ pub enum Error {
     ActivitySignatureInvalid,
     /// Failed to resolve actor via webfinger
     #[error("Failed to resolve actor via webfinger")]
-    WebfingerResolveFailed,
-    /// other error
+    WebfingerResolveFailed(#[from] WebFingerError),
+    /// Failed to serialize outgoing activity
+    #[error("Failed to serialize outgoing activity {1}: {0}")]
+    SerializeOutgoingActivity(serde_json::Error, String),
+    /// Failed to parse an object fetched from url
+    #[error("Failed to parse object {1} with content {2}: {0}")]
+    ParseFetchedObject(serde_json::Error, Url, String),
+    /// Failed to parse an activity received from another instance
+    #[error("Failed to parse incoming activity {}: {0}", match .1 {
+        Some(t) => format!("with id {t}"),
+        None => String::new(),
+    })]
+    ParseReceivedActivity(serde_json::Error, Option<Url>),
+    /// Reqwest Middleware Error
     #[error(transparent)]
-    Other(#[from] anyhow::Error),
+    ReqwestMiddleware(#[from] reqwest_middleware::Error),
+    /// Reqwest Error
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+    /// UTF-8 error
+    #[error(transparent)]
+    Utf8(#[from] FromUtf8Error),
+    /// Url Parse
+    #[error(transparent)]
+    UrlParse(#[from] url::ParseError),
+    /// Signing errors
+    #[error(transparent)]
+    SignError(#[from] SignError),
+    /// Other generic errors
+    #[error("{0}")]
+    Other(String),
 }
 
-impl Error {
-    pub(crate) fn other<T>(error: T) -> Self
-    where
-        T: Into<anyhow::Error>,
-    {
-        Error::Other(error.into())
+impl From<ErrorStack> for Error {
+    fn from(value: ErrorStack) -> Self {
+        Error::Other(value.to_string())
     }
 }
 

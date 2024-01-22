@@ -38,7 +38,7 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     let addr = tokio::net::TcpListener::from_std(TcpListener::bind(hostname)?)?;
     let server = axum::serve(addr, app.into_make_service());
 
-    tokio::spawn(server);
+    tokio::spawn(async move { server.await.unwrap() });
     Ok(())
 }
 
@@ -75,7 +75,7 @@ async fn webfinger(
     data: Data<DatabaseHandle>,
 ) -> Result<Json<Webfinger>, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
-    let db_user = data.read_user(&name)?;
+    let db_user = data.read_user(name)?;
     Ok(Json(build_webfinger_response(
         query.resource,
         db_user.ap_id.into_inner(),

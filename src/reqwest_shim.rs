@@ -3,10 +3,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures_core::{ready, stream::BoxStream, Stream};
 use pin_project_lite::pin_project;
 use reqwest::Response;
-use serde::de::DeserializeOwned;
 use std::{
     future::Future,
-    marker::PhantomData,
     mem,
     pin::Pin,
     task::{Context, Poll},
@@ -30,10 +28,7 @@ impl Future for BytesFuture {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
             let this = self.as_mut().project();
-            if let Some(chunk) = ready!(this.stream.poll_next(cx))
-                .transpose()
-                .map_err(Error::other)?
-            {
+            if let Some(chunk) = ready!(this.stream.poll_next(cx)).transpose()? {
                 this.aggregator.put(chunk);
                 if this.aggregator.len() > *this.limit {
                     return Poll::Ready(Err(Error::ResponseBodyLimit));
@@ -50,27 +45,6 @@ impl Future for BytesFuture {
 }
 
 pin_project! {
-    pub struct JsonFuture<T> {
-        _t: PhantomData<T>,
-        #[pin]
-        future: BytesFuture,
-    }
-}
-
-impl<T> Future for JsonFuture<T>
-where
-    T: DeserializeOwned,
-{
-    type Output = Result<T, Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
-        let bytes = ready!(this.future.poll(cx))?;
-        Poll::Ready(serde_json::from_slice(&bytes).map_err(Error::other))
-    }
-}
-
-pin_project! {
     pub struct TextFuture {
         #[pin]
         future: BytesFuture,
@@ -83,7 +57,7 @@ impl Future for TextFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         let bytes = ready!(this.future.poll(cx))?;
-        Poll::Ready(String::from_utf8(bytes.to_vec()).map_err(Error::other))
+        Poll::Ready(String::from_utf8(bytes.to_vec()).map_err(Error::Utf8))
     }
 }
 
@@ -97,20 +71,16 @@ impl Future for TextFuture {
 /// TODO: Remove this shim as soon as reqwest gets support for size-limited bodies.
 pub trait ResponseExt {
     type BytesFuture;
-    type JsonFuture<T>;
     type TextFuture;
 
     /// Size limited version of `bytes` to work around a reqwest issue. Check [`ResponseExt`] docs for details.
     fn bytes_limited(self) -> Self::BytesFuture;
-    /// Size limited version of `json` to work around a reqwest issue. Check [`ResponseExt`] docs for details.
-    fn json_limited<T>(self) -> Self::JsonFuture<T>;
     /// Size limited version of `text` to work around a reqwest issue. Check [`ResponseExt`] docs for details.
     fn text_limited(self) -> Self::TextFuture;
 }
 
 impl ResponseExt for Response {
     type BytesFuture = BytesFuture;
-    type JsonFuture<T> = JsonFuture<T>;
     type TextFuture = TextFuture;
 
     fn bytes_limited(self) -> Self::BytesFuture {
@@ -118,13 +88,6 @@ impl ResponseExt for Response {
             stream: Box::pin(self.bytes_stream()),
             limit: MAX_BODY_SIZE,
             aggregator: BytesMut::new(),
-        }
-    }
-
-    fn json_limited<T>(self) -> Self::JsonFuture<T> {
-        JsonFuture {
-            _t: PhantomData,
-            future: self.bytes_limited(),
         }
     }
 

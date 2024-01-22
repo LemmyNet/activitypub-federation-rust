@@ -5,15 +5,14 @@
 use crate::{
     config::Data,
     error::Error,
-    fetch::object_id::ObjectId,
-    http_signatures::{verify_body_hash, verify_signature},
+    http_signatures::verify_signature,
+    parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
 use axum::{
     async_trait,
-    body::Body,
-    extract::FromRequest,
-    http::{Request, StatusCode},
+    extract::{FromRequest, Request},
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use http::{HeaderMap, Method, Uri};
@@ -29,27 +28,19 @@ where
     Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<anyhow::Error>
-        + From<Error>
-        + From<<ActorT as Object>::Error>
-        + From<serde_json::Error>,
-    <ActorT as Object>::Error: From<Error> + From<anyhow::Error>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    verify_body_hash(activity_data.headers.get("Digest"), &activity_data.body)?;
+    let (activity, actor) =
+        parse_received_activity::<Activity, ActorT, _>(&activity_data.body, data).await?;
 
-    let activity: Activity = serde_json::from_slice(&activity_data.body)?;
-    data.config.verify_url_and_domain(&activity).await?;
-    let actor = ObjectId::<ActorT>::from(activity.actor().clone())
-        .dereference(data)
-        .await?;
-
-    verify_signature(
-        &activity_data.headers,
-        &activity_data.method,
-        &activity_data.uri,
-        actor.public_key_pem(),
-    )?;
+    // verify_signature(
+    //     &activity_data.headers,
+    //     &activity_data.method,
+    //     &activity_data.uri,
+    //     actor.public_key_pem(),
+    // )?;
 
     debug!("Receiving activity {}", activity.id().to_string());
     activity.verify(data).await?;
@@ -73,18 +64,20 @@ where
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request<Body>, _state: &S) -> Result<Self, Self::Rejection> {
-        let (parts, body) = req.into_parts();
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let headers = req.headers().clone();
+        let method = req.method().clone();
+        let uri = req.uri().clone();
 
         // this wont work if the body is an long running stream
-        let bytes = hyper::body::to_bytes(body)
+        let bytes = hyper::body::Bytes::from_request(req, state)
             .await
             .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())?;
 
         Ok(Self {
-            headers: parts.headers,
-            method: parts.method,
-            uri: parts.uri,
+            headers,
+            method,
+            uri,
             body: bytes.to_vec(),
         })
     }

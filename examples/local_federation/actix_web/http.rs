@@ -89,7 +89,7 @@ pub async fn webfinger(
     data: Data<DatabaseHandle>,
 ) -> Result<HttpResponse, Error> {
     let name = extract_webfinger_name(&query.resource, &data)?;
-    let db_user = data.read_user(&name)?;
+    let db_user = data.read_user(name)?;
     Ok(HttpResponse::Ok().json(build_webfinger_response(
         query.resource.clone(),
         db_user.ap_id.into_inner(),

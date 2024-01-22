@@ -340,12 +340,12 @@ pub trait Collection: Sized {
 pub mod tests {
     use super::*;
     use crate::{
+        error::Error,
         fetch::object_id::ObjectId,
         http_signatures::{generate_actor_keypair, Keypair},
         protocol::{public_key::PublicKey, verification::verify_domains_match},
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};
-    use anyhow::Error;
     use once_cell::sync::Lazy;
     use serde::{Deserialize, Serialize};
 
@@ -356,7 +356,7 @@ pub mod tests {
         pub async fn read_post_from_json_id<T>(&self, _: Url) -> Result<Option<T>, Error> {
             Ok(None)
         }
-        pub async fn read_local_user(&self, _: String) -> Result<DbUser, Error> {
+        pub async fn read_local_user(&self, _: &str) -> Result<DbUser, Error> {
             todo!()
         }
         pub async fn upsert<T>(&self, _: &T) -> Result<(), Error> {
