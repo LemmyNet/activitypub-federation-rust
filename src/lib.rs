@@ -10,6 +10,7 @@
 #![doc = include_str!("../docs/10_fetching_objects_with_unknown_type.md")]
 #![deny(missing_docs)]
 
+pub mod activity_queue;
 pub mod activity_sending;
 #[cfg(feature = "actix-web")]
 pub mod actix_web;

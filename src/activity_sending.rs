@@ -29,12 +29,12 @@ use url::Url;
 #[derive(Clone, Debug)]
 /// all info needed to send one activity to one inbox
 pub struct SendActivityTask<'a> {
-    actor_id: &'a Url,
-    activity_id: &'a Url,
-    activity: Bytes,
-    inbox: Url,
-    private_key: PKey<Private>,
-    http_signature_compat: bool,
+    pub(crate) actor_id: &'a Url,
+    pub(crate) activity_id: &'a Url,
+    pub(crate) activity: Bytes,
+    pub(crate) inbox: Url,
+    pub(crate) private_key: PKey<Private>,
+    pub(crate) http_signature_compat: bool,
 }
 impl Display for SendActivityTask<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -131,7 +131,7 @@ impl SendActivityTask<'_> {
     }
 }
 
-async fn get_pkey_cached<ActorType>(
+pub(crate) async fn get_pkey_cached<ActorType>(
     data: &Data<impl Clone>,
     actor: &ActorType,
 ) -> Result<PKey<Private>, Error>

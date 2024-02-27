@@ -1,9 +1,9 @@
 //! Error messages returned by this library
 
-use std::string::FromUtf8Error;
-
 use http_signature_normalization_reqwest::SignError;
 use openssl::error::ErrorStack;
+use std::string::FromUtf8Error;
+use tokio::task::JoinError;
 use url::Url;
 
 use crate::fetch::webfinger::WebFingerError;
@@ -62,6 +62,12 @@ pub enum Error {
     /// Signing errors
     #[error(transparent)]
     SignError(#[from] SignError),
+    /// Failed to queue activity for sending
+    #[error("Failed to queue activity {0} for sending")]
+    ActivityQueueError(Url),
+    /// Stop activity queue
+    #[error(transparent)]
+    StopActivityQueue(#[from] JoinError),
     /// Other generic errors
     #[error("{0}")]
     Other(String),
