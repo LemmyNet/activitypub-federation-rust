@@ -576,7 +576,7 @@ mod tests {
             .route("/", post(dodgy_handler))
             .with_state(state);
 
-        axum::Server::bind(&"0.0.0.0:8001".parse().unwrap())
+        axum::Server::bind(&"0.0.0.0:8002".parse().unwrap())
             .serve(app.into_make_service())
             .await
             .unwrap();
@@ -613,10 +613,10 @@ mod tests {
         let keypair = generate_actor_keypair().unwrap();
 
         let message = SendActivityTask {
-            actor_id: "http://localhost:8001".parse().unwrap(),
-            activity_id: "http://localhost:8001/activity".parse().unwrap(),
+            actor_id: "http://localhost:8002".parse().unwrap(),
+            activity_id: "http://localhost:8002/activity".parse().unwrap(),
             activity: "{}".into(),
-            inbox: "http://localhost:8001".parse().unwrap(),
+            inbox: "http://localhost:8002".parse().unwrap(),
             private_key: keypair.private_key().unwrap(),
             http_signature_compat: true,
         };
