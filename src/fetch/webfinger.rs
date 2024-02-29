@@ -5,6 +5,7 @@ use crate::{
     traits::{Actor, Object},
     FEDERATION_CONTENT_TYPE,
 };
+use http::HeaderValue;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -33,6 +34,9 @@ impl WebFingerError {
     }
 }
 
+/// The content-type for webfinger responses.
+pub const WEBFINGER_CONTENT_TYPE: HeaderValue = HeaderValue::from_static("application/jrd+json");
+
 /// Takes an identifier of the form `name@example.com`, and returns an object of `Kind`.
 ///
 /// For this the identifier is first resolved via webfinger protocol to an Activitypub ID. This ID
@@ -58,7 +62,7 @@ where
     let res: Webfinger = fetch_object_http_with_accept(
         &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
         data,
-        "application/jrd+json",
+        &WEBFINGER_CONTENT_TYPE,
     )
     .await?
     .object;

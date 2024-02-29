@@ -5,12 +5,13 @@
 use crate::{
     config::Data,
     error::{Error, Error::ParseFetchedObject},
+    extract_id,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
-use http::StatusCode;
+use http::{HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
@@ -29,6 +30,8 @@ pub struct FetchObjectResponse<Kind> {
     pub object: Kind,
     /// Contains the final URL (different from request URL in case of redirect)
     pub url: Url,
+    content_type: Option<HeaderValue>,
+    object_id: Option<Url>,
 }
 
 /// Fetch a remote object over HTTP and convert to `Kind`.
@@ -42,12 +45,30 @@ pub struct FetchObjectResponse<Kind> {
 /// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
 /// infinite, recursive fetching of data.
 ///
-/// The `Accept` header will be set to the content of [`FEDERATION_CONTENT_TYPE`].
+/// The `Accept` header will be set to the content of [`FEDERATION_CONTENT_TYPE`]. It ensures that
+/// the response has a valid `Content-Type` header as defined by ActivityPub, to prevent security
+/// vulnerabilities like [this one](https://github.com/mastodon/mastodon/security/advisories/GHSA-jhrq-qvrm-qr36).
+/// Additionally it checks that the `id` field is identical to the fetch URL (after redirects).
 pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
-    fetch_object_http_with_accept(url, data, FEDERATION_CONTENT_TYPE).await
+    const CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
+    const ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
+        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams"#,
+    );
+    let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
+
+    // Ensure correct content-type to prevent vulnerabilities.
+    if res.content_type != Some(CONTENT_TYPE) && res.content_type != Some(ALT_CONTENT_TYPE) {
+        return Err(Error::FetchInvalidContentType(res.url));
+    }
+
+    // Ensure id field matches final url
+    if res.object_id.as_ref() != Some(&res.url) {
+        return Err(Error::FetchWrongId(res.url));
+    }
+    Ok(res)
 }
 
 /// Fetch a remote object over HTTP and convert to `Kind`. This function works exactly as
@@ -55,7 +76,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
 async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
-    content_type: &str,
+    content_type: &HeaderValue,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
     let config = &data.config;
     // dont fetch local objects this way
@@ -93,9 +114,17 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     }
 
     let url = res.url().clone();
+    let content_type = res.headers().get("Content-Type").cloned();
     let text = res.bytes_limited().await?;
+    let object_id = extract_id(&text).ok();
+
     match serde_json::from_slice(&text) {
-        Ok(object) => Ok(FetchObjectResponse { object, url }),
+        Ok(object) => Ok(FetchObjectResponse {
+            object,
+            url,
+            content_type,
+            object_id,
+        }),
         Err(e) => Err(ParseFetchedObject(
             e,
             url,
