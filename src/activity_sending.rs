@@ -10,11 +10,11 @@ use crate::{
     traits::{ActivityHandler, Actor},
     FEDERATION_CONTENT_TYPE,
 };
-
+use crate::config::FederationConfig;
 use bytes::Bytes;
-use futures::StreamExt;
+use futures::{StreamExt};
 use httpdate::fmt_http_date;
-use itertools::Itertools;
+use itertools::{Itertools};
 use openssl::pkey::{PKey, Private};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::Serialize;
@@ -67,28 +67,21 @@ impl SendActivityTask<'_> {
         let activity_serialized = serialize_activity(activity)?;
         let private_key = get_pkey_cached(data, actor).await?;
 
-        Ok(futures::stream::iter(
-            inboxes
-                .into_iter()
-                .unique()
-                .filter(|i| !config.is_local_url(i)),
-        )
-        .filter_map(|inbox| async {
-            if let Err(err) = config.verify_url_valid(&inbox).await {
-                debug!("inbox url invalid, skipping: {inbox}: {err}");
-                return None;
-            };
-            Some(SendActivityTask {
-                actor_id,
-                activity_id,
-                inbox,
-                activity: activity_serialized.clone(),
-                private_key: private_key.clone(),
-                http_signature_compat: config.http_signature_compat,
+        Ok(futures::stream::iter(inboxes.into_iter().unique())
+            .filter_map(|inbox| async {
+                filter_inboxes(&inbox, config)
+                    .await
+                    .then(|| SendActivityTask {
+                        actor_id,
+                        activity_id,
+                        inbox,
+                        activity: activity_serialized.clone(),
+                        private_key: private_key.clone(),
+                        http_signature_compat: config.http_signature_compat,
+                    })
             })
-        })
-        .collect()
-        .await)
+            .collect()
+            .await)
     }
 
     /// convert a sendactivitydata to a request, signing and sending it
@@ -130,10 +123,26 @@ impl SendActivityTask<'_> {
     }
 }
 
-pub(crate) fn serialize_activity<Activity: Serialize + Debug>(activity: &Activity) -> Result<Bytes, Error> {
-Ok(serde_json::to_vec(activity)
-.map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
-.into())
+pub(crate) fn serialize_activity<Activity: Serialize + Debug>(
+    activity: &Activity,
+) -> Result<Bytes, Error> {
+    Ok(serde_json::to_vec(activity)
+        .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
+        .into())
+}
+
+pub(crate) async fn filter_inboxes<Data: Clone>(
+    inbox: &Url,
+    config: &FederationConfig<Data>,
+) -> bool {
+    if config.is_local_url(inbox) {
+        false
+    } else if let Err(e) = config.verify_url_valid(inbox).await {
+        debug!("inbox url invalid, skipping: {inbox}: {e}");
+        false
+    } else {
+        true
+    }
 }
 
 pub(crate) async fn get_pkey_cached<ActorType>(

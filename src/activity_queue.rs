@@ -3,7 +3,12 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    activity_sending::{generate_request_headers, get_pkey_cached},
+    activity_sending::{
+        filter_inboxes,
+        generate_request_headers,
+        get_pkey_cached,
+        serialize_activity,
+    },
     config::Data,
     error::Error,
     http_signatures::sign_request,
@@ -11,6 +16,7 @@ use crate::{
     traits::{ActivityHandler, Actor},
 };
 use bytes::Bytes;
+use futures::StreamExt;
 use futures_core::Future;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
@@ -31,7 +37,6 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 use url::Url;
-use crate::activity_sending::serialize_activity;
 
 /// Send a new activity to the given inboxes with automatic retry on failure. Alternatively you
 /// can implement your own queue and then send activities using [[crate::activity_sending::SendActivityTask]].
@@ -59,35 +64,33 @@ where
     let activity_serialized = serialize_activity(&activity)?;
     let private_key = get_pkey_cached(data, actor).await?;
 
-    let inboxes: Vec<Url> = inboxes
-        .into_iter()
-        .unique()
-        .filter(|i| !config.is_local_url(i))
-        .collect();
     // This field is only optional to make builder work, its always present at this point
     let activity_queue = config
         .activity_queue
         .as_ref()
         .expect("Config has activity queue");
-    for inbox in inboxes {
-        if let Err(err) = config.verify_url_valid(&inbox).await {
-            debug!("inbox url invalid, skipping: {inbox}: {err}");
-            continue;
-        }
 
-        let message = SendActivityTask {
-            actor_id: actor_id.clone(),
-            activity_id: activity_id.clone(),
-            inbox,
-            activity: activity_serialized.clone(),
-            private_key: private_key.clone(),
-            http_signature_compat: config.http_signature_compat,
-        };
+    let tasks = futures::stream::iter(inboxes.into_iter().unique())
+        .filter_map(|inbox| async {
+            filter_inboxes(&inbox, config)
+                .await
+                .then(|| SendActivityTask {
+                    actor_id: actor_id.clone(),
+                    activity_id: activity_id.clone(),
+                    inbox,
+                    activity: activity_serialized.clone(),
+                    private_key: private_key.clone(),
+                    http_signature_compat: config.http_signature_compat,
+                })
+        })
+        .collect::<Vec<_>>()
+        .await;
 
+    for task in tasks {
         // Don't use the activity queue if this is in debug mode, send and wait directly
         if config.debug {
             if let Err(err) = sign_and_send(
-                &message,
+                &task,
                 &config.client,
                 config.request_timeout,
                 Default::default(),
@@ -97,7 +100,7 @@ where
                 warn!("{err}");
             }
         } else {
-            activity_queue.queue(message).await?;
+            activity_queue.queue(task).await?;
             let stats = activity_queue.get_stats();
             let running = stats.running.load(Ordering::Relaxed);
             if running == config.queue_worker_count && config.queue_worker_count != 0 {
@@ -108,7 +111,6 @@ where
             }
         }
     }
-
     Ok(())
 }
 
@@ -519,7 +521,7 @@ mod tests {
     use axum::extract::State;
     use bytes::Bytes;
     use http::StatusCode;
-    use std::time::Instant;
+    use std::time::Instant;use http::HeaderMap;
 
     use crate::http_signatures::generate_actor_keypair;
 
