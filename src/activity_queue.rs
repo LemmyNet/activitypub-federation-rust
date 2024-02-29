@@ -31,6 +31,7 @@ use tokio::{
 };
 use tracing::{debug, info, warn};
 use url::Url;
+use crate::activity_sending::serialize_activity;
 
 /// Send a new activity to the given inboxes with automatic retry on failure. Alternatively you
 /// can implement your own queue and then send activities using [[crate::activity_sending::SendActivityTask]].
@@ -55,9 +56,7 @@ where
     let config = &data.config;
     let actor_id = activity.actor();
     let activity_id = activity.id();
-    let activity_serialized: Bytes = serde_json::to_vec(&activity)
-        .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
-        .into();
+    let activity_serialized = serialize_activity(&activity)?;
     let private_key = get_pkey_cached(data, actor).await?;
 
     let inboxes: Vec<Url> = inboxes

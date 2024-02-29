@@ -64,9 +64,7 @@ impl SendActivityTask<'_> {
         let config = &data.config;
         let actor_id = activity.actor();
         let activity_id = activity.id();
-        let activity_serialized: Bytes = serde_json::to_vec(&activity)
-            .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
-            .into();
+        let activity_serialized = serialize_activity(activity)?;
         let private_key = get_pkey_cached(data, actor).await?;
 
         Ok(futures::stream::iter(
@@ -130,6 +128,12 @@ impl SendActivityTask<'_> {
             }
         }
     }
+}
+
+pub(crate) fn serialize_activity<Activity: Serialize + Debug>(activity: &Activity) -> Result<Bytes, Error> {
+Ok(serde_json::to_vec(activity)
+.map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
+.into())
 }
 
 pub(crate) async fn get_pkey_cached<ActorType>(
