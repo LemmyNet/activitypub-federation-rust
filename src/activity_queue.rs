@@ -7,12 +7,12 @@ use crate::{
         filter_inboxes,
         generate_request_headers,
         get_pkey_cached,
+        send,
         serialize_activity,
     },
     config::Data,
     error::Error,
     http_signatures::sign_request,
-    reqwest_shim::ResponseExt,
     traits::{ActivityHandler, Actor},
 };
 use bytes::Bytes;
@@ -20,7 +20,6 @@ use futures::StreamExt;
 use futures_core::Future;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
-use reqwest::Request;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
@@ -125,6 +124,12 @@ pub(crate) struct SendActivityTask {
     http_signature_compat: bool,
 }
 
+impl Display for SendActivityTask {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} to {}", self.activity_id, self.inbox)
+    }
+}
+
 async fn sign_and_send(
     task: &SendActivityTask,
     client: &ClientWithMiddleware,
@@ -158,44 +163,6 @@ async fn sign_and_send(
         retry_strategy,
     )
     .await
-}
-
-async fn send(
-    task: &SendActivityTask,
-    client: &ClientWithMiddleware,
-    request: Request,
-) -> Result<(), Error> {
-    let response = client.execute(request).await;
-
-    match response {
-        Ok(o) if o.status().is_success() => {
-            debug!(
-                "Activity {} delivered successfully to {}",
-                task.activity_id, task.inbox
-            );
-            Ok(())
-        }
-        Ok(o) if o.status().is_client_error() => {
-            let text = o.text_limited().await?;
-            debug!(
-                "Activity {} was rejected by {}, aborting: {}",
-                task.activity_id, task.inbox, text,
-            );
-            Ok(())
-        }
-        Ok(o) => {
-            let status = o.status();
-            let text = o.text_limited().await?;
-            Err(Error::Other(format!(
-                "Queueing activity {} to {} for retry after failure with status {}: {}",
-                task.activity_id, task.inbox, status, text,
-            )))
-        }
-        Err(e) => Err(Error::Other(format!(
-            "Queueing activity {} to {} for retry after connection failure: {}",
-            task.activity_id, task.inbox, e
-        ))),
-    }
 }
 
 /// A simple activity queue which spawns tokio workers to send out requests
@@ -520,8 +487,8 @@ async fn retry<T, E: Display + Debug, F: Future<Output = Result<T, E>>, A: FnMut
 mod tests {
     use axum::extract::State;
     use bytes::Bytes;
-    use http::StatusCode;
-    use std::time::Instant;use http::HeaderMap;
+    use http::{HeaderMap, StatusCode};
+    use std::time::Instant;
 
     use crate::http_signatures::generate_actor_keypair;
 

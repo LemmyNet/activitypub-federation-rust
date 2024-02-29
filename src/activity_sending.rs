@@ -3,20 +3,23 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    config::Data,
+    config::{Data, FederationConfig},
     error::Error,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     traits::{ActivityHandler, Actor},
     FEDERATION_CONTENT_TYPE,
 };
-use crate::config::FederationConfig;
 use bytes::Bytes;
-use futures::{StreamExt};
+use futures::StreamExt;
 use httpdate::fmt_http_date;
-use itertools::{Itertools};
+use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Request,
+};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
     self,
@@ -37,6 +40,7 @@ pub struct SendActivityTask<'a> {
     pub(crate) private_key: PKey<Private>,
     pub(crate) http_signature_compat: bool,
 }
+
 impl Display for SendActivityTask<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} to {}", self.activity_id, self.inbox)
@@ -99,26 +103,35 @@ impl SendActivityTask<'_> {
             self.http_signature_compat,
         )
         .await?;
-        let response = client.execute(request).await?;
 
-        match response {
-            o if o.status().is_success() => {
-                debug!("Activity {self} delivered successfully");
-                Ok(())
-            }
-            o if o.status().is_client_error() => {
-                let text = o.text_limited().await?;
-                debug!("Activity {self} was rejected, aborting: {text}");
-                Ok(())
-            }
-            o => {
-                let status = o.status();
-                let text = o.text_limited().await?;
+        send(&self, client, request).await
+    }
+}
 
-                Err(Error::Other(format!(
-                    "Activity {self} failure with status {status}: {text}",
-                )))
-            }
+pub(crate) async fn send<T: Display>(
+    activity: &T,
+    client: &ClientWithMiddleware,
+    request: Request,
+) -> Result<(), Error> {
+    let response = client.execute(request).await?;
+
+    match response {
+        o if o.status().is_success() => {
+            debug!("Activity {activity} delivered successfully");
+            Ok(())
+        }
+        o if o.status().is_client_error() => {
+            let text = o.text_limited().await?;
+            debug!("Activity {activity} was rejected, aborting: {text}");
+            Ok(())
+        }
+        o => {
+            let status = o.status();
+            let text = o.text_limited().await?;
+
+            Err(Error::Other(format!(
+                "Activity {activity} failure with status {status}: {text}",
+            )))
         }
     }
 }
