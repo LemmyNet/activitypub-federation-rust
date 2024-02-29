@@ -53,8 +53,8 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
-    const CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
-    const ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
+    static CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
+    static ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
         r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams"#,
     );
     let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;

@@ -35,7 +35,7 @@ impl WebFingerError {
 }
 
 /// The content-type for webfinger responses.
-pub const WEBFINGER_CONTENT_TYPE: HeaderValue = HeaderValue::from_static("application/jrd+json");
+pub static WEBFINGER_CONTENT_TYPE: HeaderValue = HeaderValue::from_static("application/jrd+json");
 
 /// Takes an identifier of the form `name@example.com`, and returns an object of `Kind`.
 ///
