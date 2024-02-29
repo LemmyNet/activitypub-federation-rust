@@ -3,18 +3,15 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    activity_sending::get_pkey_cached,
+    activity_sending::{generate_request_headers, get_pkey_cached},
     config::Data,
     error::Error,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     traits::{ActivityHandler, Actor},
-    FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
 use futures_core::Future;
-use http::{header::HeaderName, HeaderMap, HeaderValue};
-use httpdate::fmt_http_date;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
 use reqwest::Request;
@@ -26,7 +23,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedSender},
@@ -35,7 +32,8 @@ use tokio::{
 use tracing::{debug, info, warn};
 use url::Url;
 
-/// Send a new activity to the given inboxes
+/// Send a new activity to the given inboxes with automatic retry on failure. Alternatively you
+/// can implement your own queue and then send activities using [[crate::activity_sending::SendActivityTask]].
 ///
 /// - `activity`: The activity to be sent, gets converted to json
 /// - `private_key`: Private key belonging to the actor who sends the activity, for signing HTTP
@@ -197,28 +195,6 @@ async fn send(
             task.activity_id, task.inbox, e
         ))),
     }
-}
-
-pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
-    let mut host = inbox_url.domain().expect("read inbox domain").to_string();
-    if let Some(port) = inbox_url.port() {
-        host = format!("{}:{}", host, port);
-    }
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        HeaderName::from_static("content-type"),
-        HeaderValue::from_static(FEDERATION_CONTENT_TYPE),
-    );
-    headers.insert(
-        HeaderName::from_static("host"),
-        HeaderValue::from_str(&host).expect("Hostname is valid"),
-    );
-    headers.insert(
-        "date",
-        HeaderValue::from_str(&fmt_http_date(SystemTime::now())).expect("Date is valid"),
-    );
-    headers
 }
 
 /// A simple activity queue which spawns tokio workers to send out requests

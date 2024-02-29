@@ -27,7 +27,8 @@ use tracing::debug;
 use url::Url;
 
 #[derive(Clone, Debug)]
-/// all info needed to send one activity to one inbox
+/// All info needed to sign and send one activity to one inbox. You should generally use
+/// [[crate::activity_queue::queue_activity]] unless you want implement your own queue.
 pub struct SendActivityTask<'a> {
     pub(crate) actor_id: &'a Url,
     pub(crate) activity_id: &'a Url,
@@ -43,7 +44,7 @@ impl Display for SendActivityTask<'_> {
 }
 
 impl SendActivityTask<'_> {
-    /// prepare an activity for sending
+    /// Prepare an activity for sending
     ///
     /// - `activity`: The activity to be sent, gets converted to json
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
