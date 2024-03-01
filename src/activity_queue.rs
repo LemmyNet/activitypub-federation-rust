@@ -3,23 +3,15 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    activity_sending::{
-        filter_inboxes,
-        generate_request_headers,
-        get_pkey_cached,
-        send,
-        serialize_activity,
-    },
+    activity_sending::{build_tasks, generate_request_headers, send, SendActivityTask},
     config::Data,
     error::Error,
     http_signatures::sign_request,
     traits::{ActivityHandler, Actor},
 };
-use bytes::Bytes;
-use futures::StreamExt;
+
 use futures_core::Future;
-use itertools::Itertools;
-use openssl::pkey::{PKey, Private};
+
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
@@ -47,7 +39,7 @@ use url::Url;
 ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
 ///              for each target actor.
 pub async fn queue_activity<Activity, Datatype, ActorType>(
-    activity: Activity,
+    activity: &Activity,
     actor: &ActorType,
     inboxes: Vec<Url>,
     data: &Data<Datatype>,
@@ -58,32 +50,7 @@ where
     ActorType: Actor,
 {
     let config = &data.config;
-    let actor_id = activity.actor();
-    let activity_id = activity.id();
-    let activity_serialized = serialize_activity(&activity)?;
-    let private_key = get_pkey_cached(data, actor).await?;
-
-    // This field is only optional to make builder work, its always present at this point
-    let activity_queue = config
-        .activity_queue
-        .as_ref()
-        .expect("Config has activity queue");
-
-    let tasks = futures::stream::iter(inboxes.into_iter().unique())
-        .filter_map(|inbox| async {
-            filter_inboxes(&inbox, config)
-                .await
-                .then(|| SendActivityTask {
-                    actor_id: actor_id.clone(),
-                    activity_id: activity_id.clone(),
-                    inbox,
-                    activity: activity_serialized.clone(),
-                    private_key: private_key.clone(),
-                    http_signature_compat: config.http_signature_compat,
-                })
-        })
-        .collect::<Vec<_>>()
-        .await;
+    let tasks = build_tasks(activity, actor, inboxes, data).await?;
 
     for task in tasks {
         // Don't use the activity queue if this is in debug mode, send and wait directly
@@ -99,6 +66,11 @@ where
                 warn!("{err}");
             }
         } else {
+            // This field is only optional to make builder work, its always present at this point
+            let activity_queue = config
+                .activity_queue
+                .as_ref()
+                .expect("Config has activity queue");
             activity_queue.queue(task).await?;
             let stats = activity_queue.get_stats();
             let running = stats.running.load(Ordering::Relaxed);
@@ -111,23 +83,6 @@ where
         }
     }
     Ok(())
-}
-
-// TODO: should use the existing struct but lifetimes are difficult
-#[derive(Clone, Debug)]
-pub(crate) struct SendActivityTask {
-    actor_id: Url,
-    activity_id: Url,
-    activity: Bytes,
-    inbox: Url,
-    private_key: PKey<Private>,
-    http_signature_compat: bool,
-}
-
-impl Display for SendActivityTask {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} to {}", self.activity_id, self.inbox)
-    }
 }
 
 async fn sign_and_send(

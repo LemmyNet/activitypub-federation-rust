@@ -117,7 +117,7 @@ impl DbUser {
         let activity = WithContext::new_default(activity);
         // Send through queue in some cases and bypass it in others to test both code paths
         if use_queue {
-            queue_activity(activity, self, recipients, data).await?;
+            queue_activity(&activity, self, recipients, data).await?;
         } else {
             let sends = SendActivityTask::prepare(&activity, self, recipients, data).await?;
             for send in sends {

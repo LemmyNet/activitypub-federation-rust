@@ -26,7 +26,7 @@ let activity = Follow {
 };
 let inboxes = vec![recipient.shared_inbox_or_inbox()];
 
-queue_activity(activity, &sender, inboxes, &data).await?;
+queue_activity(&activity, &sender, inboxes, &data).await?;
 # Ok::<(), anyhow::Error>(())
 # }).unwrap()
 ```
