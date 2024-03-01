@@ -60,7 +60,9 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
 
     // Ensure correct content-type to prevent vulnerabilities.
-    if res.content_type != Some(CONTENT_TYPE) && res.content_type != Some(ALT_CONTENT_TYPE) {
+    if res.content_type.as_ref() != Some(&CONTENT_TYPE)
+        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE)
+    {
         return Err(Error::FetchInvalidContentType(res.url));
     }
 
