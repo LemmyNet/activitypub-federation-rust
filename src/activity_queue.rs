@@ -3,10 +3,9 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    activity_sending::{build_tasks, generate_request_headers, SendActivityTask},
+    activity_sending::{build_tasks, SendActivityTask},
     config::Data,
     error::Error,
-    http_signatures::sign_request,
     traits::{ActivityHandler, Actor},
 };
 
@@ -26,7 +25,7 @@ use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedSender},
     task::{JoinHandle, JoinSet},
 };
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 use url::Url;
 
 /// Send a new activity to the given inboxes with automatic retry on failure. Alternatively you
@@ -418,16 +417,14 @@ async fn retry<T, E: Display + Debug, F: Future<Output = Result<T, E>>, A: FnMut
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::http_signatures::generate_actor_keypair;
     use axum::extract::State;
     use bytes::Bytes;
     use http::{HeaderMap, StatusCode};
     use std::time::Instant;
+    use tracing::debug;
 
-    use crate::http_signatures::generate_actor_keypair;
-
-    use super::*;
-
-    #[allow(unused)]
     // This will periodically send back internal errors to test the retry
     async fn dodgy_handler(
         State(state): State<Arc<AtomicUsize>>,

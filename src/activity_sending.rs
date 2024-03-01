@@ -15,10 +15,7 @@ use futures::StreamExt;
 use httpdate::fmt_http_date;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
-use reqwest::{
-    header::{HeaderMap, HeaderName, HeaderValue},
-    Request,
-};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
@@ -221,7 +218,8 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 
 #[cfg(test)]
 mod tests {
-    use axum::extract::State;
+    use super::*;
+    use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
     use bytes::Bytes;
     use http::StatusCode;
     use std::{
@@ -230,23 +228,10 @@ mod tests {
     };
     use tracing::info;
 
-    use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
-
-    use super::*;
-
-    #[allow(unused)]
     // This will periodically send back internal errors to test the retry
-    async fn dodgy_handler(
-        State(state): State<Arc<AtomicUsize>>,
-        headers: HeaderMap,
-        body: Bytes,
-    ) -> Result<(), StatusCode> {
+    async fn dodgy_handler(headers: HeaderMap, body: Bytes) -> Result<(), StatusCode> {
         debug!("Headers:{:?}", headers);
         debug!("Body len:{}", body.len());
-
-        /*if state.fetch_add(1, Ordering::Relaxed) % 20 == 0 {
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }*/
         Ok(())
     }
 
