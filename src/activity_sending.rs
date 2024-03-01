@@ -24,7 +24,7 @@ use serde::Serialize;
 use std::{
     self,
     fmt::{Debug, Display},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use tracing::debug;
 use url::Url;
@@ -70,10 +70,19 @@ impl SendActivityTask {
 
     /// convert a sendactivitydata to a request, signing and sending it
     pub async fn sign_and_send<Datatype: Clone>(&self, data: &Data<Datatype>) -> Result<(), Error> {
-        let client = &data.config.client;
+        self.sign_and_send_internal(&data.config.client, data.config.request_timeout)
+            .await
+    }
+
+    pub(crate) async fn sign_and_send_internal(
+        &self,
+        client: &ClientWithMiddleware,
+        timeout: Duration,
+    ) -> Result<(), Error> {
+        debug!("Sending {} to {}", self.activity_id, self.inbox,);
         let request_builder = client
             .post(self.inbox.to_string())
-            .timeout(data.config.request_timeout)
+            .timeout(timeout)
             .headers(generate_request_headers(&self.inbox));
         let request = sign_request(
             request_builder,
@@ -83,35 +92,26 @@ impl SendActivityTask {
             self.http_signature_compat,
         )
         .await?;
+        let response = client.execute(request).await?;
 
-        send(&self, client, request).await
-    }
-}
+        match response {
+            o if o.status().is_success() => {
+                debug!("Activity {self} delivered successfully");
+                Ok(())
+            }
+            o if o.status().is_client_error() => {
+                let text = o.text_limited().await?;
+                debug!("Activity {self} was rejected, aborting: {text}");
+                Ok(())
+            }
+            o => {
+                let status = o.status();
+                let text = o.text_limited().await?;
 
-pub(crate) async fn send<T: Display>(
-    activity: &T,
-    client: &ClientWithMiddleware,
-    request: Request,
-) -> Result<(), Error> {
-    let response = client.execute(request).await?;
-
-    match response {
-        o if o.status().is_success() => {
-            debug!("Activity {activity} delivered successfully");
-            Ok(())
-        }
-        o if o.status().is_client_error() => {
-            let text = o.text_limited().await?;
-            debug!("Activity {activity} was rejected, aborting: {text}");
-            Ok(())
-        }
-        o => {
-            let status = o.status();
-            let text = o.text_limited().await?;
-
-            Err(Error::Other(format!(
-                "Activity {activity} failure with status {status}: {text}",
-            )))
+                Err(Error::Other(format!(
+                    "Activity {self} failure with status {status}: {text}",
+                )))
+            }
         }
     }
 }

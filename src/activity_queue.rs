@@ -3,7 +3,7 @@
 #![doc = include_str!("../docs/09_sending_activities.md")]
 
 use crate::{
-    activity_sending::{build_tasks, generate_request_headers, send, SendActivityTask},
+    activity_sending::{build_tasks, generate_request_headers, SendActivityTask},
     config::Data,
     error::Error,
     http_signatures::sign_request,
@@ -91,30 +91,8 @@ async fn sign_and_send(
     timeout: Duration,
     retry_strategy: RetryStrategy,
 ) -> Result<(), Error> {
-    debug!("Sending {} to {}", task.activity_id, task.inbox,);
-    let request_builder = client
-        .post(task.inbox.to_string())
-        .timeout(timeout)
-        .headers(generate_request_headers(&task.inbox));
-    let request = sign_request(
-        request_builder,
-        &task.actor_id,
-        task.activity.clone(),
-        task.private_key.clone(),
-        task.http_signature_compat,
-    )
-    .await?;
-
     retry(
-        || {
-            send(
-                task,
-                client,
-                request
-                    .try_clone()
-                    .expect("The body of the request is not cloneable"),
-            )
-        },
+        || task.sign_and_send_internal(client, timeout),
         retry_strategy,
     )
     .await
