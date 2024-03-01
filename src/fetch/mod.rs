@@ -45,9 +45,9 @@ pub struct FetchObjectResponse<Kind> {
 /// [Error::RequestLimit]. This prevents denial of service attacks where an attack triggers
 /// infinite, recursive fetching of data.
 ///
-/// The `Accept` header will be set to the content of [`FEDERATION_CONTENT_TYPE`]. It ensures that
-/// the response has a valid `Content-Type` header as defined by ActivityPub, to prevent security
-/// vulnerabilities like [this one](https://github.com/mastodon/mastodon/security/advisories/GHSA-jhrq-qvrm-qr36).
+/// The `Accept` header will be set to the content of [`FEDERATION_CONTENT_TYPE`]. When parsing the
+/// response it ensures that it has a valid `Content-Type` header as defined by ActivityPub, to
+/// prevent security vulnerabilities like [this one](https://github.com/mastodon/mastodon/security/advisories/GHSA-jhrq-qvrm-qr36).
 /// Additionally it checks that the `id` field is identical to the fetch URL (after redirects).
 pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
