@@ -1,12 +1,10 @@
 //! Error messages returned by this library
 
-use std::string::FromUtf8Error;
-
+use crate::fetch::webfinger::WebFingerError;
 use http_signature_normalization_reqwest::SignError;
 use openssl::error::ErrorStack;
+use std::string::FromUtf8Error;
 use url::Url;
-
-use crate::fetch::webfinger::WebFingerError;
 
 /// Error messages returned by this library
 #[derive(thiserror::Error, Debug)]
@@ -62,6 +60,14 @@ pub enum Error {
     /// Signing errors
     #[error(transparent)]
     SignError(#[from] SignError),
+    /// Attempted to fetch object which doesn't have valid ActivityPub Content-Type
+    #[error(
+        "Attempted to fetch object from {0} which doesn't have valid ActivityPub Content-Type"
+    )]
+    FetchInvalidContentType(Url),
+    /// Attempted to fetch object but the response's id field doesn't match
+    #[error("Attempted to fetch object from {0} but the response's id field doesn't match")]
+    FetchWrongId(Url),
     /// Other generic errors
     #[error("{0}")]
     Other(String),
