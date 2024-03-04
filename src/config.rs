@@ -15,6 +15,7 @@
 //! ```
 
 use crate::{
+    activity_queue::{create_activity_queue, ActivityQueue},
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
@@ -85,6 +86,20 @@ pub struct FederationConfig<T: Clone> {
         setter(custom)
     )]
     pub(crate) actor_pkey_cache: Cache<Url, PKey<Private>>,
+    /// Queue for sending outgoing activities. Only optional to make builder work, its always
+    /// present once constructed.
+    #[builder(setter(skip))]
+    pub(crate) activity_queue: Option<Arc<ActivityQueue>>,
+    /// When sending with activity queue: Number of tasks that can be in-flight concurrently.
+    /// Tasks are retried once after a minute, then put into the retry queue.
+    /// Setting this count to `0` means that there is no limit to concurrency
+    #[builder(default = "0")]
+    pub(crate) queue_worker_count: usize,
+    /// When sending with activity queue: Number of concurrent tasks that are being retried
+    /// in-flight concurrently. Tasks are retried after an hour, then again in 60 hours.
+    /// Setting this count to `0` means that there is no limit to concurrency
+    #[builder(default = "0")]
+    pub(crate) queue_retry_count: usize,
 }
 
 impl<T: Clone> FederationConfig<T> {
@@ -197,7 +212,14 @@ impl<T: Clone> FederationConfigBuilder<T> {
     /// queue for outgoing activities, which is stored internally in the config struct.
     /// Requires a tokio runtime for the background queue.
     pub async fn build(&mut self) -> Result<FederationConfig<T>, FederationConfigBuilderError> {
-        let config = self.partial_build()?;
+        let mut config = self.partial_build()?;
+        let queue = create_activity_queue(
+            config.client.clone(),
+            config.queue_worker_count,
+            config.queue_retry_count,
+            config.request_timeout,
+        );
+        config.activity_queue = Some(Arc::new(queue));
         Ok(config)
     }
 }

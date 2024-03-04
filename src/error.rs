@@ -4,6 +4,7 @@ use crate::fetch::webfinger::WebFingerError;
 use http_signature_normalization_reqwest::SignError;
 use openssl::error::ErrorStack;
 use std::string::FromUtf8Error;
+use tokio::task::JoinError;
 use url::Url;
 
 /// Error messages returned by this library
@@ -60,6 +61,12 @@ pub enum Error {
     /// Signing errors
     #[error(transparent)]
     SignError(#[from] SignError),
+    /// Failed to queue activity for sending
+    #[error("Failed to queue activity {0} for sending")]
+    ActivityQueueError(Url),
+    /// Stop activity queue
+    #[error(transparent)]
+    StopActivityQueue(#[from] JoinError),
     /// Attempted to fetch object which doesn't have valid ActivityPub Content-Type
     #[error(
         "Attempted to fetch object from {0} which doesn't have valid ActivityPub Content-Type"
