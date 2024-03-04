@@ -36,7 +36,7 @@ use serde::{de::DeserializeOwned, Deserialize};
 use url::Url;
 
 /// Mime type for Activitypub data, used for `Accept` and `Content-Type` HTTP headers
-pub static FEDERATION_CONTENT_TYPE: &str = "application/activity+json";
+pub const FEDERATION_CONTENT_TYPE: &str = "application/activity+json";
 
 /// Deserialize incoming inbox activity to the given type, perform basic
 /// validation and extract the actor.
@@ -54,16 +54,21 @@ where
 {
     let activity: Activity = serde_json::from_slice(body).map_err(|e| {
         // Attempt to include activity id in error message
-        #[derive(Deserialize)]
-        struct Id {
-            id: Url,
-        }
-        let id = serde_json::from_slice::<Id>(body).ok();
-        Error::ParseReceivedActivity(e, id.map(|i| i.id))
+        let id = extract_id(body).ok();
+        Error::ParseReceivedActivity(e, id)
     })?;
     data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())
         .dereference(data)
         .await?;
     Ok((activity, actor))
+}
+
+/// Attempt to parse id field from serialized json
+fn extract_id(data: &[u8]) -> serde_json::Result<Url> {
+    #[derive(Deserialize)]
+    struct Id {
+        id: Url,
+    }
+    Ok(serde_json::from_slice::<Id>(data)?.id)
 }

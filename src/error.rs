@@ -1,12 +1,11 @@
 //! Error messages returned by this library
 
+use crate::fetch::webfinger::WebFingerError;
 use http_signature_normalization_reqwest::SignError;
 use openssl::error::ErrorStack;
 use std::string::FromUtf8Error;
 use tokio::task::JoinError;
 use url::Url;
-
-use crate::fetch::webfinger::WebFingerError;
 
 /// Error messages returned by this library
 #[derive(thiserror::Error, Debug)]
@@ -68,6 +67,14 @@ pub enum Error {
     /// Stop activity queue
     #[error(transparent)]
     StopActivityQueue(#[from] JoinError),
+    /// Attempted to fetch object which doesn't have valid ActivityPub Content-Type
+    #[error(
+        "Attempted to fetch object from {0} which doesn't have valid ActivityPub Content-Type"
+    )]
+    FetchInvalidContentType(Url),
+    /// Attempted to fetch object but the response's id field doesn't match
+    #[error("Attempted to fetch object from {0} but the response's id field doesn't match")]
+    FetchWrongId(Url),
     /// Other generic errors
     #[error("{0}")]
     Other(String),
