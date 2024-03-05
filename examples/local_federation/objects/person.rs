@@ -6,6 +6,7 @@ use crate::{
     utils::generate_object_id,
 };
 use activitypub_federation::{
+    activity_queue::queue_activity,
     activity_sending::SendActivityTask,
     config::Data,
     fetch::{object_id::ObjectId, webfinger::webfinger_resolve_actor},
@@ -85,7 +86,7 @@ impl DbUser {
         let other: DbUser = webfinger_resolve_actor(other, data).await?;
         let id = generate_object_id(data.domain())?;
         let follow = Follow::new(self.ap_id.clone(), other.ap_id.clone(), id.clone());
-        self.send(follow, vec![other.shared_inbox_or_inbox()], data)
+        self.send(follow, vec![other.shared_inbox_or_inbox()], false, data)
             .await?;
         Ok(())
     }
@@ -98,7 +99,7 @@ impl DbUser {
             let user: DbUser = ObjectId::from(f).dereference(data).await?;
             inboxes.push(user.shared_inbox_or_inbox());
         }
-        self.send(create, inboxes, data).await?;
+        self.send(create, inboxes, true, data).await?;
         Ok(())
     }
 
@@ -106,6 +107,7 @@ impl DbUser {
         &self,
         activity: Activity,
         recipients: Vec<Url>,
+        use_queue: bool,
         data: &Data<DatabaseHandle>,
     ) -> Result<(), Error>
     where
@@ -113,9 +115,14 @@ impl DbUser {
         <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
-        let sends = SendActivityTask::prepare(&activity, self, recipients, data).await?;
-        for send in sends {
-            send.sign_and_send(data).await?;
+        // Send through queue in some cases and bypass it in others to test both code paths
+        if use_queue {
+            queue_activity(&activity, self, recipients, data).await?;
+        } else {
+            let sends = SendActivityTask::prepare(&activity, self, recipients, data).await?;
+            for send in sends {
+                send.sign_and_send(data).await?;
+            }
         }
         Ok(())
     }
