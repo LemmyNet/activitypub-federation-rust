@@ -423,6 +423,7 @@ mod tests {
     use bytes::Bytes;
     use http::{HeaderMap, StatusCode};
     use std::time::Instant;
+    use tokio::net::TcpListener;
     use tracing::debug;
 
     // This will periodically send back internal errors to test the retry
@@ -450,10 +451,12 @@ mod tests {
             .route("/", post(dodgy_handler))
             .with_state(state);
 
-        axum::Server::bind(&"0.0.0.0:8002".parse().unwrap())
-            .serve(app.into_make_service())
-            .await
-            .unwrap();
+        axum::serve(
+            TcpListener::bind("0.0.0.0:8002").await.unwrap(),
+            app.into_make_service(),
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]

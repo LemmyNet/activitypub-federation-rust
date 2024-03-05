@@ -214,6 +214,7 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 mod tests {
     use super::*;
     use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
+    use axum::extract::State;
     use bytes::Bytes;
     use http::StatusCode;
     use std::{

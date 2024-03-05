@@ -94,7 +94,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let req = config
         .client
         .get(url.as_str())
-        .header("Accept", content_type)
+        .header("Accept", content_type.as_bytes())
         .timeout(config.request_timeout);
 
     let res = if let Some((actor_id, private_key_pem)) = config.signed_fetch_actor.as_deref() {
@@ -116,7 +116,11 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     }
 
     let url = res.url().clone();
-    let content_type = res.headers().get("Content-Type").cloned();
+    let content_type = res
+        .headers()
+        .get("Content-Type")
+        .cloned()
+        .and_then(|v| HeaderValue::from_maybe_shared(v).ok());
     let text = res.bytes_limited().await?;
     let object_id = extract_id(&text).ok();
 
