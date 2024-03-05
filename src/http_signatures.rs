@@ -1,7 +1,7 @@
 //! Generating keypairs, creating and verifying signatures
 //!
 //! Signature creation and verification is handled internally in the library. See
-//! [send_activity](crate::activity_sending::send_activity) and
+//! [send_activity](crate::activity_sending::SendActivityTask::sign_and_send) and
 //! [receive_activity (actix-web)](crate::actix_web::inbox::receive_activity) /
 //! [receive_activity (axum)](crate::axum::inbox::receive_activity).
 
