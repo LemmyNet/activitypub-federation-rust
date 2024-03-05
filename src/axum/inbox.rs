@@ -64,20 +64,18 @@ where
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let headers = req.headers().clone();
-        let method = req.method().clone();
-        let uri = req.uri().clone();
+    async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection> {
+        let (parts, body) = req.into_parts();
 
         // this wont work if the body is an long running stream
-        let bytes = hyper::body::Bytes::from_request(req, state)
+        let bytes = axum::body::to_bytes(body, usize::MAX)
             .await
             .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())?;
 
         Ok(Self {
-            headers,
-            method,
-            uri,
+            headers: parts.headers,
+            method: parts.method,
+            uri: parts.uri,
             body: bytes.to_vec(),
         })
     }

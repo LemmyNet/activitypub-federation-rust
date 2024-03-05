@@ -10,98 +10,80 @@ use crate::{
     traits::{ActivityHandler, Actor},
     FEDERATION_CONTENT_TYPE,
 };
-
 use bytes::Bytes;
 use futures::StreamExt;
 use httpdate::fmt_http_date;
 use itertools::Itertools;
 use openssl::pkey::{PKey, Private};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
     self,
     fmt::{Debug, Display},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 use tracing::debug;
 use url::Url;
 
 #[derive(Clone, Debug)]
-/// all info needed to send one activity to one inbox
-pub struct SendActivityTask<'a> {
-    actor_id: &'a Url,
-    activity_id: &'a Url,
-    activity: Bytes,
-    inbox: Url,
-    private_key: PKey<Private>,
-    http_signature_compat: bool,
+/// All info needed to sign and send one activity to one inbox. You should generally use
+/// [[crate::activity_queue::queue_activity]] unless you want implement your own queue.
+pub struct SendActivityTask {
+    pub(crate) actor_id: Url,
+    pub(crate) activity_id: Url,
+    pub(crate) activity: Bytes,
+    pub(crate) inbox: Url,
+    pub(crate) private_key: PKey<Private>,
+    pub(crate) http_signature_compat: bool,
 }
-impl Display for SendActivityTask<'_> {
+
+impl Display for SendActivityTask {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} to {}", self.activity_id, self.inbox)
     }
 }
 
-impl SendActivityTask<'_> {
-    /// prepare an activity for sending
+impl SendActivityTask {
+    /// Prepare an activity for sending
     ///
     /// - `activity`: The activity to be sent, gets converted to json
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
     ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
     ///              for each target actor.
-    pub async fn prepare<'a, Activity, Datatype, ActorType>(
-        activity: &'a Activity,
+    pub async fn prepare<Activity, Datatype, ActorType>(
+        activity: &Activity,
         actor: &ActorType,
         inboxes: Vec<Url>,
         data: &Data<Datatype>,
-    ) -> Result<Vec<SendActivityTask<'a>>, Error>
+    ) -> Result<Vec<SendActivityTask>, Error>
     where
         Activity: ActivityHandler + Serialize + Debug,
         Datatype: Clone,
         ActorType: Actor,
     {
-        let config = &data.config;
-        let actor_id = activity.actor();
-        let activity_id = activity.id();
-        let activity_serialized: Bytes = serde_json::to_vec(&activity)
-            .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
-            .into();
-        let private_key = get_pkey_cached(data, actor).await?;
-
-        Ok(futures::stream::iter(
-            inboxes
-                .into_iter()
-                .unique()
-                .filter(|i| !config.is_local_url(i)),
-        )
-        .filter_map(|inbox| async {
-            if let Err(err) = config.verify_url_valid(&inbox).await {
-                debug!("inbox url invalid, skipping: {inbox}: {err}");
-                return None;
-            };
-            Some(SendActivityTask {
-                actor_id,
-                activity_id,
-                inbox,
-                activity: activity_serialized.clone(),
-                private_key: private_key.clone(),
-                http_signature_compat: config.http_signature_compat,
-            })
-        })
-        .collect()
-        .await)
+        build_tasks(activity, actor, inboxes, data).await
     }
 
     /// convert a sendactivitydata to a request, signing and sending it
     pub async fn sign_and_send<Datatype: Clone>(&self, data: &Data<Datatype>) -> Result<(), Error> {
-        let client = &data.config.client;
+        self.sign_and_send_internal(&data.config.client, data.config.request_timeout)
+            .await
+    }
+
+    pub(crate) async fn sign_and_send_internal(
+        &self,
+        client: &ClientWithMiddleware,
+        timeout: Duration,
+    ) -> Result<(), Error> {
+        debug!("Sending {} to {}", self.activity_id, self.inbox,);
         let request_builder = client
             .post(self.inbox.to_string())
-            .timeout(data.config.request_timeout)
+            .timeout(timeout)
             .headers(generate_request_headers(&self.inbox));
         let request = sign_request(
             request_builder,
-            self.actor_id,
+            &self.actor_id,
             self.activity.clone(),
             self.private_key.clone(),
             self.http_signature_compat,
@@ -131,7 +113,50 @@ impl SendActivityTask<'_> {
     }
 }
 
-async fn get_pkey_cached<ActorType>(
+pub(crate) async fn build_tasks<'a, Activity, Datatype, ActorType>(
+    activity: &'a Activity,
+    actor: &ActorType,
+    inboxes: Vec<Url>,
+    data: &Data<Datatype>,
+) -> Result<Vec<SendActivityTask>, Error>
+where
+    Activity: ActivityHandler + Serialize + Debug,
+    Datatype: Clone,
+    ActorType: Actor,
+{
+    let config = &data.config;
+    let actor_id = activity.actor();
+    let activity_id = activity.id();
+    let activity_serialized: Bytes = serde_json::to_vec(activity)
+        .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
+        .into();
+    let private_key = get_pkey_cached(data, actor).await?;
+
+    Ok(futures::stream::iter(
+        inboxes
+            .into_iter()
+            .unique()
+            .filter(|i| !config.is_local_url(i)),
+    )
+    .filter_map(|inbox| async {
+        if let Err(err) = config.verify_url_valid(&inbox).await {
+            debug!("inbox url invalid, skipping: {inbox}: {err}");
+            return None;
+        };
+        Some(SendActivityTask {
+            actor_id: actor_id.clone(),
+            activity_id: activity_id.clone(),
+            inbox,
+            activity: activity_serialized.clone(),
+            private_key: private_key.clone(),
+            http_signature_compat: config.http_signature_compat,
+        })
+    })
+    .collect()
+    .await)
+}
+
+pub(crate) async fn get_pkey_cached<ActorType>(
     data: &Data<impl Clone>,
     actor: &ActorType,
 ) -> Result<PKey<Private>, Error>
@@ -187,6 +212,8 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
     use axum::extract::State;
     use bytes::Bytes;
     use http::StatusCode;
@@ -197,11 +224,6 @@ mod tests {
     use tokio::net::TcpListener;
     use tracing::info;
 
-    use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
-
-    use super::*;
-
-    #[allow(unused)]
     // This will periodically send back internal errors to test the retry
     async fn dodgy_handler(
         State(state): State<Arc<AtomicUsize>>,
@@ -210,10 +232,6 @@ mod tests {
     ) -> Result<(), StatusCode> {
         debug!("Headers:{:?}", headers);
         debug!("Body len:{}", body.len());
-
-        /*if state.fetch_add(1, Ordering::Relaxed) % 20 == 0 {
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }*/
         Ok(())
     }
 
@@ -256,8 +274,8 @@ mod tests {
         let keypair = generate_actor_keypair().unwrap();
 
         let message = SendActivityTask {
-            actor_id: &"http://localhost:8001".parse().unwrap(),
-            activity_id: &"http://localhost:8001/activity".parse().unwrap(),
+            actor_id: "http://localhost:8001".parse().unwrap(),
+            activity_id: "http://localhost:8001/activity".parse().unwrap(),
             activity: "{}".into(),
             inbox: "http://localhost:8001".parse().unwrap(),
             private_key: keypair.private_key().unwrap(),
