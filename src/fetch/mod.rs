@@ -89,7 +89,9 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     config.verify_url_valid(url).await?;
     info!("Fetching remote object {}", url.to_string());
 
-    let counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    let mut counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    // fetch_add returns old value so we need to increment manually here
+    counter += 1;
     if counter > config.http_fetch_limit {
         return Err(Error::RequestLimit);
     }
