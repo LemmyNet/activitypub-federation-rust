@@ -57,9 +57,8 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     static ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
         r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
     );
-    static ALT_CONTENT_TYPE_MASTODON: HeaderValue = HeaderValue::from_static(
-        r#"application/activity+json; charset=utf-8"#,
-    );
+    static ALT_CONTENT_TYPE_MASTODON: HeaderValue =
+        HeaderValue::from_static(r#"application/activity+json; charset=utf-8"#);
     let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
 
     // Ensure correct content-type to prevent vulnerabilities.
@@ -110,7 +109,6 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
             data.config.http_signature_compat,
         )
         .await?;
-        dbg!(req.headers());
         config.client.execute(req).await?
     } else {
         req.send().await?
@@ -124,7 +122,6 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let content_type = res.headers().get("Content-Type").cloned();
     let text = res.bytes_limited().await?;
     let object_id = extract_id(&text).ok();
-    dbg!(String::from_utf8(text.to_vec()));
 
     match serde_json::from_slice(&text) {
         Ok(object) => Ok(FetchObjectResponse {

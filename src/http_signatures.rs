@@ -106,7 +106,6 @@ pub(crate) async fn sign_request(
             Sha256::new(),
             activity,
             move |signing_string| {
-                dbg!(&signing_string);
                 let mut signer = Signer::new(MessageDigest::sha256(), &private_key)?;
                 signer.update(signing_string.as_bytes())?;
 
