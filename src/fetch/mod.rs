@@ -106,6 +106,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
             data.config.http_signature_compat,
         )
         .await?;
+        dbg!(req.headers());
         config.client.execute(req).await?
     } else {
         req.send().await?
@@ -119,6 +120,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let content_type = res.headers().get("Content-Type").cloned();
     let text = res.bytes_limited().await?;
     let object_id = extract_id(&text).ok();
+    dbg!(String::from_utf8(text.to_vec()));
 
     match serde_json::from_slice(&text) {
         Ok(object) => Ok(FetchObjectResponse {
