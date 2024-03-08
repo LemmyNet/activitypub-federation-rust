@@ -57,11 +57,14 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     static ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
         r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
     );
+    static ALT_CONTENT_TYPE_MASTODON: HeaderValue =
+        HeaderValue::from_static(r#"application/activity+json; charset=utf-8"#);
     let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
 
     // Ensure correct content-type to prevent vulnerabilities.
     if res.content_type.as_ref() != Some(&CONTENT_TYPE)
         && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE)
+        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE_MASTODON)
     {
         return Err(Error::FetchInvalidContentType(res.url));
     }

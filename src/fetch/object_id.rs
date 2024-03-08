@@ -197,9 +197,9 @@ static ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG: i64 = 20;
 fn should_refetch_object(last_refreshed: DateTime<Utc>) -> bool {
     let update_interval = if cfg!(debug_assertions) {
         // avoid infinite loop when fetching community outbox
-        ChronoDuration::seconds(ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG)
+        ChronoDuration::try_seconds(ACTOR_REFETCH_INTERVAL_SECONDS_DEBUG).expect("valid duration")
     } else {
-        ChronoDuration::seconds(ACTOR_REFETCH_INTERVAL_SECONDS)
+        ChronoDuration::try_seconds(ACTOR_REFETCH_INTERVAL_SECONDS).expect("valid duration")
     };
     let refresh_limit = Utc::now() - update_interval;
     last_refreshed.lt(&refresh_limit)
@@ -362,10 +362,10 @@ pub mod tests {
 
     #[test]
     fn test_should_refetch_object() {
-        let one_second_ago = Utc::now() - ChronoDuration::seconds(1);
+        let one_second_ago = Utc::now() - ChronoDuration::try_seconds(1).unwrap();
         assert!(!should_refetch_object(one_second_ago));
 
-        let two_days_ago = Utc::now() - ChronoDuration::days(2);
+        let two_days_ago = Utc::now() - ChronoDuration::try_days(2).unwrap();
         assert!(should_refetch_object(two_days_ago));
     }
 }
