@@ -57,11 +57,14 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     static ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
         r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
     );
+    static ALT_CONTENT_TYPE_MASTODON: HeaderValue =
+        HeaderValue::from_static(r#"application/activity+json; charset=utf-8"#);
     let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
 
     // Ensure correct content-type to prevent vulnerabilities.
     if res.content_type.as_ref() != Some(&CONTENT_TYPE)
         && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE)
+        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE_MASTODON)
     {
         return Err(Error::FetchInvalidContentType(res.url));
     }
@@ -86,7 +89,9 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     config.verify_url_valid(url).await?;
     info!("Fetching remote object {}", url.to_string());
 
-    // let counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    // let mut counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    // fetch_add returns old value so we need to increment manually here
+    // counter += 1;
     // if counter > config.http_fetch_limit {
     //     return Err(Error::RequestLimit);
     // }
