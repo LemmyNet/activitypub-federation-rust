@@ -39,6 +39,10 @@ where
     )?;
 
     debug!("Receiving activity {}", activity.id().to_string());
+
+    // TODO: need to throw received activities in a queue ordered by published timestamp, then
+    //       process in order. tricky due to generics. probably need one queue per sending instance.
+
     activity.verify(data).await?;
     activity.receive(data).await?;
     Ok(HttpResponse::Ok().finish())

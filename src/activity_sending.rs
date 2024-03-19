@@ -11,6 +11,7 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use httpdate::fmt_http_date;
 use itertools::Itertools;
@@ -22,7 +23,6 @@ use std::{
     fmt::{Debug, Display},
     time::{Duration, SystemTime},
 };
-use chrono::{DateTime, Utc};
 use tracing::debug;
 use url::Url;
 
@@ -133,10 +133,10 @@ where
     let activity_id = activity.id();
     let activity_serialized: Bytes = match published {
         Some(published) => serde_json::to_vec(&WithPublished::new(activity, published)),
-        None => serde_json::to_vec(activity)
+        None => serde_json::to_vec(activity),
     }
-        .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
-        .into();
+    .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
+    .into();
     let private_key = get_pkey_cached(data, actor).await?;
 
     Ok(futures::stream::iter(
@@ -228,10 +228,7 @@ struct WithPublished<T> {
 
 impl<T> WithPublished<T> {
     pub fn new(inner: T, published: DateTime<Utc>) -> WithPublished<T> {
-        Self {
-            published,
-            inner,
-        }
+        Self { published, inner }
     }
 }
 
