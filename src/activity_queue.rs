@@ -49,7 +49,7 @@ where
     ActorType: Actor,
 {
     let config = &data.config;
-    let tasks = build_tasks(activity, actor, inboxes, data).await?;
+    let tasks = build_tasks(activity, actor, inboxes, None, data).await?;
 
     for task in tasks {
         // Don't use the activity queue if this is in debug mode, send and wait directly

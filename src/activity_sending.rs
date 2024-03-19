@@ -19,10 +19,10 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
-    self,
     fmt::{Debug, Display},
     time::{Duration, SystemTime},
 };
+use chrono::{DateTime, Utc};
 use tracing::debug;
 use url::Url;
 
@@ -51,10 +51,13 @@ impl SendActivityTask {
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
     ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
     ///              for each target actor.
+    /// - `published`: Time when the activity was created, so that recipient can apply activities
+    ///                in correct order.
     pub async fn prepare<Activity, Datatype, ActorType>(
         activity: &Activity,
         actor: &ActorType,
         inboxes: Vec<Url>,
+        published: Option<DateTime<Utc>>,
         data: &Data<Datatype>,
     ) -> Result<Vec<SendActivityTask>, Error>
     where
@@ -62,7 +65,7 @@ impl SendActivityTask {
         Datatype: Clone,
         ActorType: Actor,
     {
-        build_tasks(activity, actor, inboxes, data).await
+        build_tasks(activity, actor, inboxes, published, data).await
     }
 
     /// convert a sendactivitydata to a request, signing and sending it
@@ -117,6 +120,7 @@ pub(crate) async fn build_tasks<'a, Activity, Datatype, ActorType>(
     activity: &'a Activity,
     actor: &ActorType,
     inboxes: Vec<Url>,
+    published: Option<DateTime<Utc>>,
     data: &Data<Datatype>,
 ) -> Result<Vec<SendActivityTask>, Error>
 where
@@ -127,7 +131,10 @@ where
     let config = &data.config;
     let actor_id = activity.actor();
     let activity_id = activity.id();
-    let activity_serialized: Bytes = serde_json::to_vec(activity)
+    let activity_serialized: Bytes = match published {
+        Some(published) => serde_json::to_vec(&WithPublished::new(activity, published)),
+        None => serde_json::to_vec(activity)
+    }
         .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
         .into();
     let private_key = get_pkey_cached(data, actor).await?;
@@ -208,6 +215,24 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
         HeaderValue::from_str(&fmt_http_date(SystemTime::now())).expect("Date is valid"),
     );
     headers
+}
+
+/// Wrapper struct that adds `published` field with timestamp to outgoing activities. Important that
+/// the timestamp includes milliseconds and timezone.
+#[derive(Serialize)]
+struct WithPublished<T> {
+    published: DateTime<Utc>,
+    #[serde(flatten)]
+    inner: T,
+}
+
+impl<T> WithPublished<T> {
+    pub fn new(inner: T, published: DateTime<Utc>) -> WithPublished<T> {
+        Self {
+            published,
+            inner,
+        }
+    }
 }
 
 #[cfg(test)]

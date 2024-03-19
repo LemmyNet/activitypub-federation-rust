@@ -119,7 +119,7 @@ impl DbUser {
         if use_queue {
             queue_activity(&activity, self, recipients, data).await?;
         } else {
-            let sends = SendActivityTask::prepare(&activity, self, recipients, data).await?;
+            let sends = SendActivityTask::prepare(&activity, self, recipients, None, data).await?;
             for send in sends {
                 send.sign_and_send(data).await?;
             }

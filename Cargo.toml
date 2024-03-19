@@ -15,7 +15,7 @@ axum = ["dep:axum", "dep:tower", "dep:hyper", "dep:http-body-util"]
 diesel = ["dep:diesel"]
 
 [dependencies]
-chrono = { version = "0.4.34", features = ["clock"], default-features = false }
+chrono = { version = "0.4.34", features = ["clock", "serde"], default-features = false }
 serde = { version = "1.0.197", features = ["derive"] }
 async-trait = "0.1.77"
 url = { version = "2.5.0", features = ["serde"] }
