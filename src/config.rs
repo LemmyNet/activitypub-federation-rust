@@ -323,6 +323,12 @@ impl<T: Clone> Data<T> {
     }
 }
 
+impl<T: Clone> Clone for Data<T> {
+    fn clone(&self) -> Self {
+        self.reset_request_count()
+    }
+}
+
 impl<T: Clone> Deref for Data<T> {
     type Target = T;
 
