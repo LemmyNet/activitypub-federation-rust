@@ -7,7 +7,8 @@ use crate::{
     parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
-use actix_web::{web::Bytes, HttpRequest, HttpResponse};
+use actix_web::{http::header::HeaderMap, web::Bytes, HttpRequest, HttpResponse};
+use http::{Method, Uri};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -27,16 +28,35 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    verify_body_hash(request.headers().get("Digest"), &body)?;
+    receive_activity_parts::<Activity, ActorT, Datatype>(
+        (request.headers(), request.method(), request.uri()),
+        body,
+        data,
+    )
+    .await
+}
+
+/// Same as [receive_activity] but only takes the essential parts of [HttpResponse]. Necessary
+/// in some cases because [HttpResponse] is not Sync.
+pub async fn receive_activity_parts<Activity, ActorT, Datatype>(
+    request_parts: (&HeaderMap, &Method, &Uri),
+    body: Bytes,
+    data: &Data<Datatype>,
+) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
+where
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
+    Datatype: Clone,
+{
+    let (headers, method, uri) = request_parts;
+    verify_body_hash(headers.get("Digest"), &body)?;
 
     let (activity, actor) = parse_received_activity::<Activity, ActorT, _>(&body, data).await?;
 
-    verify_signature(
-        request.headers(),
-        request.method(),
-        request.uri(),
-        actor.public_key_pem(),
-    )?;
+    verify_signature(headers, method, uri, actor.public_key_pem())?;
 
     debug!("Receiving activity {}", activity.id().to_string());
     activity.verify(data).await?;
