@@ -60,7 +60,7 @@ moka = { version = "0.12.5", features = ["future"] }
 actix-web = { version = "4.5.1", default-features = false, optional = true }
 
 # Axum
-axum = { git = "https://github.com/Tangel/axum.git", features = [
+axum = { git = "https://github.com/tokio-rs/axum.git", features = [
   "json",
 ], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
@@ -72,12 +72,12 @@ anyhow = "1.0.80"
 rand = "0.8.5"
 env_logger = "0.10.2"
 tower-http = { version = "0.5.2", features = ["map-request-body", "util"] }
-axum = { git = "https://github.com/Tangel/axum.git", features = [
+axum = { git = "https://github.com/tokio-rs/axum.git", features = [
   "http1",
   "tokio",
   "query",
 ], default-features = false }
-axum-macros = { git = "https://github.com/Tangel/axum.git" }
+axum-macros = { git = "https://github.com/tokio-rs/axum.git" }
 tokio = { version = "1.36.0", features = ["full"] }
 
 [profile.dev]
