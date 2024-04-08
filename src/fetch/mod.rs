@@ -69,10 +69,11 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
         return Err(Error::FetchInvalidContentType(res.url));
     }
 
-    // Ensure id field matches final url
+    // Ensure id field matches final url after redirect
     if res.object_id.as_ref() != Some(&res.url) {
         return Err(Error::FetchWrongId(res.url));
     }
+
     Ok(res)
 }
 
@@ -84,8 +85,6 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     content_type: &HeaderValue,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
     let config = &data.config;
-    // dont fetch local objects this way
-    debug_assert!(url.domain() != Some(&config.domain));
     config.verify_url_valid(url).await?;
     info!("Fetching remote object {}", url.to_string());
 
@@ -124,6 +123,12 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let content_type = res.headers().get("Content-Type").cloned();
     let text = res.bytes_limited().await?;
     let object_id = extract_id(&text).ok();
+
+    // Dont allow fetching local object. Only check this after the request as a local url
+    // may redirect to a remote object.
+    if data.config.is_local_url(&url) {
+        return Err(Error::NotFound.into());
+    }
 
     match serde_json::from_slice(&text) {
         Ok(object) => Ok(FetchObjectResponse {
