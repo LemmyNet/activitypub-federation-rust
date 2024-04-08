@@ -127,7 +127,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     // Dont allow fetching local object. Only check this after the request as a local url
     // may redirect to a remote object.
     if data.config.is_local_url(&url) {
-        return Err(Error::NotFound.into());
+        return Err(Error::NotFound);
     }
 
     match serde_json::from_slice(&text) {
