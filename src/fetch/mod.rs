@@ -74,6 +74,12 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
         return Err(Error::FetchWrongId(res.url));
     }
 
+    // Dont allow fetching local object. Only check this after the request as a local url
+    // may redirect to a remote object.
+    if data.config.is_local_url(&res.url) {
+        return Err(Error::NotFound);
+    }
+
     Ok(res)
 }
 
@@ -123,12 +129,6 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let content_type = res.headers().get("Content-Type").cloned();
     let text = res.bytes_limited().await?;
     let object_id = extract_id(&text).ok();
-
-    // Dont allow fetching local object. Only check this after the request as a local url
-    // may redirect to a remote object.
-    if data.config.is_local_url(&url) {
-        return Err(Error::NotFound);
-    }
 
     match serde_json::from_slice(&text) {
         Ok(object) => Ok(FetchObjectResponse {
