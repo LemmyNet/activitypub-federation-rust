@@ -1,4 +1,7 @@
-pipeline:
+variables:
+  - &rust_image "rust:1.77-bullseye"
+  
+steps:
   cargo_fmt:
     image: rustdocker/rust:nightly
     commands:
@@ -7,7 +10,7 @@ pipeline:
       - event: pull_request
 
   cargo_check:
-    image: rust:1.70-bullseye
+    image: *rust_image
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -16,7 +19,7 @@ pipeline:
       - event: pull_request
 
   cargo_clippy:
-    image: rust:1.70-bullseye
+    image: *rust_image
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -32,7 +35,7 @@ pipeline:
       - event: pull_request
 
   cargo_test:
-    image: rust:1.70-bullseye
+    image: *rust_image
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -41,7 +44,7 @@ pipeline:
       - event: pull_request
 
   cargo_doc:
-    image: rust:1.70-bullseye
+    image: *rust_image
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -50,7 +53,7 @@ pipeline:
       - event: pull_request
 
   cargo_run_actix_example:
-    image: rust:1.70-bullseye
+    image: *rust_image
     environment:
       CARGO_HOME: .cargo
     commands:
@@ -59,7 +62,7 @@ pipeline:
       - event: pull_request
 
   cargo_run_axum_example:
-    image: rust:1.70-bullseye
+    image: *rust_image
     environment:
       CARGO_HOME: .cargo
     commands:
