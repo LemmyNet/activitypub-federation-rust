@@ -3,6 +3,8 @@ pipeline:
     image: rustdocker/rust:nightly
     commands:
       - /root/.cargo/bin/cargo fmt -- --check
+    when:
+      - event: pull_request
 
   cargo_check:
     image: rust:1.70-bullseye
@@ -10,6 +12,8 @@ pipeline:
       CARGO_HOME: .cargo
     commands:
       - cargo check --all-features --all-targets
+    when:
+      - event: pull_request
 
   cargo_clippy:
     image: rust:1.70-bullseye
@@ -24,6 +28,8 @@ pipeline:
         -D clippy::wildcard_imports -D clippy::cast_lossless
         -D clippy::manual_string_new -D clippy::redundant_closure_for_method_calls
       - cargo clippy --all-features -- -D clippy::unwrap_used
+    when:
+      - event: pull_request
 
   cargo_test:
     image: rust:1.70-bullseye
@@ -31,6 +37,8 @@ pipeline:
       CARGO_HOME: .cargo
     commands:
       - cargo test --all-features --no-fail-fast
+    when:
+      - event: pull_request
 
   cargo_doc:
     image: rust:1.70-bullseye
@@ -38,6 +46,8 @@ pipeline:
       CARGO_HOME: .cargo
     commands:
       - cargo doc --all-features
+    when:
+      - event: pull_request
 
   cargo_run_actix_example:
     image: rust:1.70-bullseye
@@ -45,6 +55,8 @@ pipeline:
       CARGO_HOME: .cargo
     commands:
       - cargo run --example local_federation actix-web
+    when:
+      - event: pull_request
 
   cargo_run_axum_example:
     image: rust:1.70-bullseye
@@ -52,3 +64,5 @@ pipeline:
       CARGO_HOME: .cargo
     commands:
       - cargo run --example local_federation axum
+    when:
+      - event: pull_request
