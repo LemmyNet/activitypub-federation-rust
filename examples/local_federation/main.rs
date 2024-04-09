@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use crate::{
     instance::{listen, new_instance, Webserver},
     objects::post::DbPost,
