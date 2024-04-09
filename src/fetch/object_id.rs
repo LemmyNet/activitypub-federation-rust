@@ -88,19 +88,13 @@ where
         <Kind as Object>::Error: From<Error>,
     {
         let db_object = self.dereference_from_db(data).await?;
-        // if its a local object, only fetch it from the database and not over http
-        if data.config.is_local_url(&self.0) {
-            return match db_object {
-                None => Err(Error::NotFound.into()),
-                Some(o) => Ok(o),
-            };
-        }
 
         // object found in database
         if let Some(object) = db_object {
-            // object is old and should be refetched
             if let Some(last_refreshed_at) = object.last_refreshed_at() {
-                if should_refetch_object(last_refreshed_at) {
+                let is_local = data.config.is_local_url(&self.0);
+                if !is_local && should_refetch_object(last_refreshed_at) {
+                    // object is outdated and should be refetched
                     return self.dereference_from_http(data, Some(object)).await;
                 }
             }
