@@ -224,6 +224,7 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};

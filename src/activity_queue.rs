@@ -416,6 +416,7 @@ async fn retry<T, E: Display + Debug, F: Future<Output = Result<T, E>>, A: FnMut
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::http_signatures::generate_actor_keypair;
