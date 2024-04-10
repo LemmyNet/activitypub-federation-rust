@@ -21,7 +21,6 @@ pub struct DbPost {
     pub text: String,
     pub ap_id: ObjectId<DbPost>,
     pub creator: ObjectId<DbUser>,
-    pub local: bool,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -59,7 +58,15 @@ impl Object for DbPost {
     }
 
     async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
-        unimplemented!()
+        Ok(Note {
+            kind: NoteType::Note,
+            id: self.ap_id,
+            content: self.text,
+            attributed_to: self.creator,
+            to: vec![public()],
+            tag: vec![],
+            in_reply_to: None,
+        })
     }
 
     async fn verify(
@@ -81,7 +88,6 @@ impl Object for DbPost {
             text: json.content,
             ap_id: json.id.clone(),
             creator: json.attributed_to.clone(),
-            local: false,
         };
 
         let mention = Mention {
