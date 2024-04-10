@@ -341,3 +341,30 @@ impl<T: Clone> FederationMiddleware<T> {
         FederationMiddleware(config)
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod test {
+    use super::*;
+
+    async fn config() -> FederationConfig<i32> {
+        FederationConfig::builder()
+            .domain("example.com")
+            .app_data(1)
+            .build()
+            .await
+            .unwrap()
+    }
+    #[tokio::test]
+    async fn test_url_is_local() -> Result<(), Error> {
+        let config = config().await;
+        assert!(config.is_local_url(&Url::parse("http://example.com")?));
+        assert!(!config.is_local_url(&Url::parse("http://other.com")?));
+        Ok(())
+    }
+    #[tokio::test]
+    async fn test_get_domain() {
+        let config = config().await;
+        assert_eq!("example.com", config.domain());
+    }
+}

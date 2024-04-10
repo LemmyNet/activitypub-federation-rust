@@ -169,6 +169,11 @@ where
         Kind::verify(&res.object, redirect_url, data).await?;
         Kind::from_json(res.object, data).await
     }
+
+    /// Returns true if the object's domain matches the one defined in [[FederationConfig.domain]].
+    pub fn is_local(&self, data: &Data<<Kind as Object>::DataType>) -> bool {
+        data.config.is_local_url(&self.0)
+    }
 }
 
 /// Need to implement clone manually, to avoid requiring Kind to be Clone
