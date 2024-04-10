@@ -341,3 +341,22 @@ impl<T: Clone> FederationMiddleware<T> {
         FederationMiddleware(config)
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[tokio::test]
+    async fn test_url_is_local() -> Result<(), Error> {
+        let config = FederationConfig::builder()
+            .domain("example.com")
+            .app_data(1)
+            .build()
+            .await
+            .unwrap();
+        assert_eq!(
+            true,
+            config.is_local_url(&Url::parse("http://example.com")?)
+        );
+        assert_eq!(false, config.is_local_url(&Url::parse("http://other.com")?));
+        Ok(())
+    }
+}
