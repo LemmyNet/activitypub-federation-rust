@@ -189,8 +189,11 @@ fn verify_signature_inner(
     uri: &Uri,
     public_key: &str,
 ) -> Result<(), Error> {
-    static CONFIG: Lazy<http_signature_normalization::Config> =
-        Lazy::new(|| http_signature_normalization::Config::new().set_expiration(EXPIRES_AFTER));
+    static CONFIG: Lazy<http_signature_normalization::Config> = Lazy::new(|| {
+        http_signature_normalization::Config::new()
+            .set_expiration(EXPIRES_AFTER)
+            .require_digest()
+    });
 
     let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
