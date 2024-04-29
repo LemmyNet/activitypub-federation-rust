@@ -174,11 +174,17 @@ impl<T: Clone> FederationConfig<T> {
     /// Returns true if the url refers to this instance. Handles hostnames like `localhost:8540` for
     /// local debugging.
     pub(crate) fn is_local_url(&self, url: &Url) -> bool {
-        let mut domain = url.host_str().expect("id has domain").to_string();
-        if let Some(port) = url.port() {
-            domain = format!("{}:{}", domain, port);
+        match url.host_str() {
+            Some(domain) => {
+                let domain = if let Some(port) = url.port() {
+                    format!("{}:{}", domain, port)
+                } else {
+                    domain.to_string()
+                };
+                domain == self.domain
+            }
+            None => false,
         }
-        domain == self.domain
     }
 
     /// Returns the local domain
@@ -355,13 +361,17 @@ mod test {
             .await
             .unwrap()
     }
+
     #[tokio::test]
     async fn test_url_is_local() -> Result<(), Error> {
         let config = config().await;
         assert!(config.is_local_url(&Url::parse("http://example.com")?));
         assert!(!config.is_local_url(&Url::parse("http://other.com")?));
+        // ensure that missing domain doesnt cause crash
+        assert!(!config.is_local_url(&Url::parse("http://127.0.0.1")?));
         Ok(())
     }
+
     #[tokio::test]
     async fn test_get_domain() {
         let config = config().await;
