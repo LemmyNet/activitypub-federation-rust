@@ -54,17 +54,20 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     data: &Data<T>,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
     static CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
-    static ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
-        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
-    );
-    static ALT_CONTENT_TYPE_MASTODON: HeaderValue =
-        HeaderValue::from_static(r#"application/activity+json; charset=utf-8"#);
+    static ALT_CONTENT_TYPE: &str =
+        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#;
+    static ALT_CONTENT_TYPE_MASTODON: &str = r#"application/activity+json; charset=utf-8"#;
     let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
 
-    // Ensure correct content-type to prevent vulnerabilities.
-    if res.content_type.as_ref() != Some(&CONTENT_TYPE)
-        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE)
-        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE_MASTODON)
+    // Ensure correct content-type to prevent vulnerabilities, with case insensitive comparison.
+    let content_type = res
+        .content_type
+        .as_ref()
+        .and_then(|c| c.to_str().map(str::to_lowercase).ok());
+    let content_type = content_type.as_deref();
+    if content_type != Some(FEDERATION_CONTENT_TYPE)
+        && content_type != Some(ALT_CONTENT_TYPE)
+        && content_type != Some(ALT_CONTENT_TYPE_MASTODON)
     {
         return Err(Error::FetchInvalidContentType(res.url));
     }
