@@ -65,8 +65,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     let content_type = res
         .content_type
         .as_ref()
-        .map(|c| c.to_str().ok())
-        .flatten()
+        .and_then(|c| c.to_str().ok())
         .ok_or(Error::FetchInvalidContentType(res.url.clone()))?;
     if !VALID_RESPONSE_CONTENT_TYPES.contains(&content_type) {
         return Err(Error::FetchInvalidContentType(res.url));
