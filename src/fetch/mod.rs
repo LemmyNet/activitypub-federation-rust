@@ -55,7 +55,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
 ) -> Result<FetchObjectResponse<Kind>, Error> {
     static FETCH_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
     const VALID_RESPONSE_CONTENT_TYPES: [&str; 3] = [
-        FEDERATION_CONTENT_TYPE,                                                   // lemmy
+        FEDERATION_CONTENT_TYPE, // lemmy
         r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#, // activitypub standard
         r#"application/activity+json; charset=utf-8"#,                             // mastodon
     ];
