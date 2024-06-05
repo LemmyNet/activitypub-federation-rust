@@ -347,7 +347,7 @@ const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
 #[allow(clippy::unwrap_used)]
 pub mod tests {
     use super::*;
-    use crate::{fetch::object_id::should_refetch_object, traits::tests::DbUser};
+    use crate::traits::tests::DbUser;
 
     #[test]
     fn test_deserialize() {
