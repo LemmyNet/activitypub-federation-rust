@@ -1,6 +1,6 @@
 variables:
-  - &rust_image "rust:1.77-bullseye"
-  
+  - &rust_image "rust:1.78-bullseye"
+
 steps:
   cargo_fmt:
     image: rustdocker/rust:nightly
