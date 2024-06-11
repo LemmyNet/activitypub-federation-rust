@@ -19,8 +19,8 @@ warnings = "deny"
 deprecated = "deny"
 
 [lints.clippy]
-perf = "deny"
-complexity = "deny"
+perf = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }
 dbg_macro  = "deny"
 inefficient_to_string = "deny"
 items-after-statements  = "deny" 
