@@ -1,5 +1,9 @@
 /target
+/.direnv
 /.idea
+/.envrc
 /Cargo.lock
+/flake.nix
+/flake.lock
 perf.data*
 flamegraph.svg
