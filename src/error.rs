@@ -4,8 +4,7 @@ use crate::fetch::webfinger::WebFingerError;
 use http_signature_normalization_reqwest::SignError;
 use rsa::{
     errors::Error as RsaError,
-    pkcs8::spki::Error as SpkiError,
-    pkcs8::Error as Pkcs8Error
+    pkcs8::{spki::Error as SpkiError, Error as Pkcs8Error},
 };
 use std::string::FromUtf8Error;
 use tokio::task::JoinError;
