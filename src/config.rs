@@ -24,8 +24,8 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
-use openssl::pkey::{PKey, Private};
 use reqwest_middleware::ClientWithMiddleware;
+use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
 use std::{
     ops::Deref,
@@ -80,12 +80,12 @@ pub struct FederationConfig<T: Clone> {
     /// This can be used to implement secure mode federation.
     /// <https://docs.joinmastodon.org/spec/activitypub/#secure-mode>
     #[builder(default = "None", setter(custom))]
-    pub(crate) signed_fetch_actor: Option<Arc<(Url, PKey<Private>)>>,
+    pub(crate) signed_fetch_actor: Option<Arc<(Url, RsaPrivateKey)>>,
     #[builder(
         default = "Cache::builder().max_capacity(10000).build()",
         setter(custom)
     )]
-    pub(crate) actor_pkey_cache: Cache<Url, PKey<Private>>,
+    pub(crate) actor_pkey_cache: Cache<Url, RsaPrivateKey>,
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
@@ -200,8 +200,8 @@ impl<T: Clone> FederationConfigBuilder<T> {
             .private_key_pem()
             .expect("actor does not have a private key to sign with");
 
-        let private_key = PKey::private_key_from_pem(private_key_pem.as_bytes())
-            .expect("Could not decode PEM data");
+        let private_key =
+            RsaPrivateKey::from_pkcs8_pem(&private_key_pem).expect("Could not decode PEM data");
         self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
         self
     }
