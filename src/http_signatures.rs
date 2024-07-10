@@ -24,7 +24,9 @@ use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use rsa::{
     pkcs8::{DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
-    Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey,
+    Pkcs1v15Sign,
+    RsaPrivateKey,
+    RsaPublicKey,
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
