@@ -24,9 +24,7 @@ use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use rsa::{
     pkcs8::{DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
-    Pkcs1v15Sign,
-    RsaPrivateKey,
-    RsaPublicKey,
+    Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey,
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -102,14 +100,10 @@ pub(crate) async fn sign_request(
             Sha256::new(),
             activity,
             move |signing_string| {
-                Ok(Base64.encode(
-                    private_key
-                        .sign(
-                            Pkcs1v15Sign::new::<Sha256>(),
-                            &Sha256::digest(signing_string.as_bytes()),
-                        )?
-                        .to_vec(),
-                )) as Result<_, Error>
+                Ok(Base64.encode(private_key.sign(
+                    Pkcs1v15Sign::new::<Sha256>(),
+                    &Sha256::digest(signing_string.as_bytes()),
+                )?)) as Result<_, Error>
             },
         )
         .await
@@ -383,7 +377,7 @@ pub mod test {
     }
 
     pub fn test_keypair() -> Keypair {
-        let rsa = RsaPrivateKey::from_pkcs1_pem(&PRIVATE_KEY).unwrap();
+        let rsa = RsaPrivateKey::from_pkcs1_pem(PRIVATE_KEY).unwrap();
         let pkey = RsaPublicKey::from(&rsa);
         let public_key = pkey.to_public_key_pem(LineEnding::default()).unwrap();
         let private_key = rsa.to_pkcs8_pem(LineEnding::default()).unwrap().to_string();
