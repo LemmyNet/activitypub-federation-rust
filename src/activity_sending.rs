@@ -15,12 +15,12 @@ use futures::StreamExt;
 use http::StatusCode;
 use httpdate::fmt_http_date;
 use itertools::Itertools;
-use openssl::pkey::{PKey, Private};
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Response,
 };
 use reqwest_middleware::ClientWithMiddleware;
+use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::Serialize;
 use std::{
     fmt::{Debug, Display},
@@ -37,7 +37,7 @@ pub struct SendActivityTask {
     pub(crate) activity_id: Url,
     pub(crate) activity: Bytes,
     pub(crate) inbox: Url,
-    pub(crate) private_key: PKey<Private>,
+    pub(crate) private_key: RsaPrivateKey,
     pub(crate) http_signature_compat: bool,
 }
 
@@ -172,7 +172,7 @@ where
 pub(crate) async fn get_pkey_cached<ActorType>(
     data: &Data<impl Clone>,
     actor: &ActorType,
-) -> Result<PKey<Private>, Error>
+) -> Result<RsaPrivateKey, Error>
 where
     ActorType: Actor,
 {
@@ -189,13 +189,13 @@ where
 
             // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
             let pkey = tokio::task::spawn_blocking(move || {
-                PKey::private_key_from_pem(private_key_pem.as_bytes()).map_err(|err| {
+                RsaPrivateKey::from_pkcs8_pem(&private_key_pem).map_err(|err| {
                     Error::Other(format!("Could not create private key from PEM data:{err}"))
                 })
             })
             .await
             .map_err(|err| Error::Other(format!("Error joining: {err}")))??;
-            std::result::Result::<PKey<Private>, Error>::Ok(pkey)
+            std::result::Result::<RsaPrivateKey, Error>::Ok(pkey)
         })
         .await
         .map_err(|e| Error::Other(format!("cloned error: {e}")))
