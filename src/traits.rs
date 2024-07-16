@@ -338,7 +338,7 @@ pub trait Collection: Sized {
 #[doc(hidden)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {
-    use super::*;
+    use super::{async_trait, ActivityHandler, Actor, Data, Debug, Object, PublicKey, Url};
     use crate::{
         error::Error,
         fetch::object_id::ObjectId,
