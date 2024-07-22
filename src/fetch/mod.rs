@@ -53,26 +53,35 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
-    static CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
-    static ALT_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(
-        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#,
-    );
-    static ALT_CONTENT_TYPE_MASTODON: HeaderValue =
-        HeaderValue::from_static(r#"application/activity+json; charset=utf-8"#);
-    let res = fetch_object_http_with_accept(url, data, &CONTENT_TYPE).await?;
+    static FETCH_CONTENT_TYPE: HeaderValue = HeaderValue::from_static(FEDERATION_CONTENT_TYPE);
+    const VALID_RESPONSE_CONTENT_TYPES: [&str; 3] = [
+        FEDERATION_CONTENT_TYPE, // lemmy
+        r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#, // activitypub standard
+        r#"application/activity+json; charset=utf-8"#,                             // mastodon
+    ];
+    let res = fetch_object_http_with_accept(url, data, &FETCH_CONTENT_TYPE).await?;
 
-    // Ensure correct content-type to prevent vulnerabilities.
-    if res.content_type.as_ref() != Some(&CONTENT_TYPE)
-        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE)
-        && res.content_type.as_ref() != Some(&ALT_CONTENT_TYPE_MASTODON)
-    {
+    // Ensure correct content-type to prevent vulnerabilities, with case insensitive comparison.
+    let content_type = res
+        .content_type
+        .as_ref()
+        .and_then(|c| Some(c.to_str().ok()?.to_lowercase()))
+        .ok_or(Error::FetchInvalidContentType(res.url.clone()))?;
+    if !VALID_RESPONSE_CONTENT_TYPES.contains(&content_type.as_str()) {
         return Err(Error::FetchInvalidContentType(res.url));
     }
 
-    // Ensure id field matches final url
+    // Ensure id field matches final url after redirect
     if res.object_id.as_ref() != Some(&res.url) {
         return Err(Error::FetchWrongId(res.url));
     }
+
+    // Dont allow fetching local object. Only check this after the request as a local url
+    // may redirect to a remote object.
+    if data.config.is_local_url(&res.url) {
+        return Err(Error::NotFound);
+    }
+
     Ok(res)
 }
 
@@ -84,17 +93,15 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     content_type: &HeaderValue,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
     let config = &data.config;
-    // dont fetch local objects this way
-    debug_assert!(url.domain() != Some(&config.domain));
     config.verify_url_valid(url).await?;
     info!("Fetching remote object {}", url.to_string());
 
-    // let mut counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
+    let mut counter = data.request_counter.fetch_add(1, Ordering::SeqCst);
     // fetch_add returns old value so we need to increment manually here
-    // counter += 1;
-    // if counter > config.http_fetch_limit {
-    //     return Err(Error::RequestLimit);
-    // }
+    counter += 1;
+    if counter > config.http_fetch_limit {
+        return Err(Error::RequestLimit);
+    }
 
     let req = config
         .client

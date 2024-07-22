@@ -12,14 +12,17 @@ use crate::{
 };
 use bytes::Bytes;
 use futures::StreamExt;
+use http::StatusCode;
 use httpdate::fmt_http_date;
 use itertools::Itertools;
-use openssl::pkey::{PKey, Private};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Response,
+};
 use reqwest_middleware::ClientWithMiddleware;
+use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::Serialize;
 use std::{
-    self,
     fmt::{Debug, Display},
     time::{Duration, SystemTime},
 };
@@ -34,7 +37,7 @@ pub struct SendActivityTask {
     pub(crate) activity_id: Url,
     pub(crate) activity: Bytes,
     pub(crate) inbox: Url,
-    pub(crate) private_key: PKey<Private>,
+    pub(crate) private_key: RsaPrivateKey,
     pub(crate) http_signature_compat: bool,
 }
 
@@ -90,20 +93,30 @@ impl SendActivityTask {
         )
         .await?;
         let response = client.execute(request).await?;
+        self.handle_response(response).await
+    }
 
-        match response {
-            o if o.status().is_success() => {
+    /// Based on the HTTP status code determines if an activity was delivered successfully. In that case
+    /// Ok is returned. Otherwise it returns Err and the activity send should be retried later.
+    ///
+    /// Equivalent code in mastodon: https://github.com/mastodon/mastodon/blob/v4.2.8/app/helpers/jsonld_helper.rb#L215-L217
+    async fn handle_response(&self, response: Response) -> Result<(), Error> {
+        match response.status() {
+            status if status.is_success() => {
                 debug!("Activity {self} delivered successfully");
                 Ok(())
             }
-            o if o.status().is_client_error() => {
-                let text = o.text_limited().await?;
+            status
+                if status.is_client_error()
+                    && status != StatusCode::REQUEST_TIMEOUT
+                    && status != StatusCode::TOO_MANY_REQUESTS =>
+            {
+                let text = response.text_limited().await?;
                 debug!("Activity {self} was rejected, aborting: {text}");
                 Ok(())
             }
-            o => {
-                let status = o.status();
-                let text = o.text_limited().await?;
+            status => {
+                let text = response.text_limited().await?;
 
                 Err(Error::Other(format!(
                     "Activity {self} failure with status {status}: {text}",
@@ -159,7 +172,7 @@ where
 pub(crate) async fn get_pkey_cached<ActorType>(
     data: &Data<impl Clone>,
     actor: &ActorType,
-) -> Result<PKey<Private>, Error>
+) -> Result<RsaPrivateKey, Error>
 where
     ActorType: Actor,
 {
@@ -176,13 +189,13 @@ where
 
             // This is a mostly expensive blocking call, we don't want to tie up other tasks while this is happening
             let pkey = tokio::task::spawn_blocking(move || {
-                PKey::private_key_from_pem(private_key_pem.as_bytes()).map_err(|err| {
+                RsaPrivateKey::from_pkcs8_pem(&private_key_pem).map_err(|err| {
                     Error::Other(format!("Could not create private key from PEM data:{err}"))
                 })
             })
             .await
             .map_err(|err| Error::Other(format!("Error joining: {err}")))??;
-            std::result::Result::<PKey<Private>, Error>::Ok(pkey)
+            std::result::Result::<RsaPrivateKey, Error>::Ok(pkey)
         })
         .await
         .map_err(|e| Error::Other(format!("cloned error: {e}")))
@@ -211,6 +224,7 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
@@ -226,7 +240,7 @@ mod tests {
 
     // This will periodically send back internal errors to test the retry
     async fn dodgy_handler(
-        State(state): State<Arc<AtomicUsize>>,
+        State(_state): State<Arc<AtomicUsize>>,
         headers: http::HeaderMap,
         body: Bytes,
     ) -> Result<(), StatusCode> {
@@ -296,5 +310,49 @@ mod tests {
 
         info!("Queue Sent: {:?}", start.elapsed());
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_handle_response() {
+        let keypair = generate_actor_keypair().unwrap();
+        let message = SendActivityTask {
+            actor_id: "http://localhost:8001".parse().unwrap(),
+            activity_id: "http://localhost:8001/activity".parse().unwrap(),
+            activity: "{}".into(),
+            inbox: "http://localhost:8001".parse().unwrap(),
+            private_key: keypair.private_key().unwrap(),
+            http_signature_compat: true,
+        };
+
+        let res = |status| {
+            http::Response::builder()
+                .status(status)
+                .body(vec![])
+                .unwrap()
+                .into()
+        };
+
+        assert!(message.handle_response(res(StatusCode::OK)).await.is_ok());
+        assert!(message
+            .handle_response(res(StatusCode::BAD_REQUEST))
+            .await
+            .is_ok());
+
+        assert!(message
+            .handle_response(res(StatusCode::MOVED_PERMANENTLY))
+            .await
+            .is_err());
+        assert!(message
+            .handle_response(res(StatusCode::REQUEST_TIMEOUT))
+            .await
+            .is_err());
+        assert!(message
+            .handle_response(res(StatusCode::TOO_MANY_REQUESTS))
+            .await
+            .is_err());
+        assert!(message
+            .handle_response(res(StatusCode::INTERNAL_SERVER_ERROR))
+            .await
+            .is_err());
     }
 }

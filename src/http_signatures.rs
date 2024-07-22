@@ -20,21 +20,21 @@ use http_signature_normalization_reqwest::{
     DefaultSpawner,
 };
 use once_cell::sync::Lazy;
-use openssl::{
-    hash::MessageDigest,
-    pkey::{PKey, Private},
-    rsa::Rsa,
-    sign::{Signer, Verifier},
-};
 use reqwest::{
     header::{HeaderName, HeaderValue},
     Method,
     Request,
 };
 use reqwest_middleware::RequestBuilder;
+use rsa::{
+    pkcs8::{DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
+    Pkcs1v15Sign,
+    RsaPrivateKey,
+    RsaPublicKey,
+};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Debug, io::ErrorKind, time::Duration};
+use std::{collections::BTreeMap, fmt::Debug, time::Duration};
 use tracing::debug;
 use url::Url;
 
@@ -50,27 +50,23 @@ pub struct Keypair {
 impl Keypair {
     /// Helper method to turn this into an openssl private key
     #[cfg(test)]
-    pub(crate) fn private_key(&self) -> Result<PKey<Private>, anyhow::Error> {
-        Ok(PKey::private_key_from_pem(self.private_key.as_bytes())?)
+    pub(crate) fn private_key(&self) -> Result<RsaPrivateKey, anyhow::Error> {
+        use rsa::pkcs8::DecodePrivateKey;
+
+        Ok(RsaPrivateKey::from_pkcs8_pem(&self.private_key)?)
     }
 }
 
 /// Generate a random asymmetric keypair for ActivityPub HTTP signatures.
-pub fn generate_actor_keypair() -> Result<Keypair, std::io::Error> {
-    let rsa = Rsa::generate(2048)?;
-    let pkey = PKey::from_rsa(rsa)?;
-    let public_key = pkey.public_key_to_pem()?;
-    let private_key = pkey.private_key_to_pem_pkcs8()?;
-    let key_to_string = |key| match String::from_utf8(key) {
-        Ok(s) => Ok(s),
-        Err(e) => Err(std::io::Error::new(
-            ErrorKind::Other,
-            format!("Failed converting key to string: {}", e),
-        )),
-    };
+pub fn generate_actor_keypair() -> Result<Keypair, Error> {
+    let mut rng = rand::thread_rng();
+    let rsa = RsaPrivateKey::new(&mut rng, 2048)?;
+    let pkey = RsaPublicKey::from(&rsa);
+    let public_key = pkey.to_public_key_pem(LineEnding::default())?;
+    let private_key = rsa.to_pkcs8_pem(LineEnding::default())?.to_string();
     Ok(Keypair {
-        private_key: key_to_string(private_key)?,
-        public_key: key_to_string(public_key)?,
+        private_key,
+        public_key,
     })
 }
 
@@ -87,7 +83,7 @@ pub(crate) async fn sign_request(
     request_builder: RequestBuilder,
     actor_id: &Url,
     activity: Bytes,
-    private_key: PKey<Private>,
+    private_key: RsaPrivateKey,
     http_signature_compat: bool,
 ) -> Result<Request, Error> {
     static CONFIG: Lazy<Config<DefaultSpawner>> =
@@ -110,10 +106,10 @@ pub(crate) async fn sign_request(
             Sha256::new(),
             activity,
             move |signing_string| {
-                let mut signer = Signer::new(MessageDigest::sha256(), &private_key)?;
-                signer.update(signing_string.as_bytes())?;
-
-                Ok(Base64.encode(signer.sign_to_vec()?)) as Result<_, Error>
+                Ok(Base64.encode(private_key.sign(
+                    Pkcs1v15Sign::new::<Sha256>(),
+                    &Sha256::digest(signing_string.as_bytes()),
+                )?)) as Result<_, Error>
             },
         )
         .await
@@ -193,8 +189,11 @@ fn verify_signature_inner(
     uri: &Uri,
     public_key: &str,
 ) -> Result<(), Error> {
-    static CONFIG: Lazy<http_signature_normalization::Config> =
-        Lazy::new(|| http_signature_normalization::Config::new().set_expiration(EXPIRES_AFTER));
+    static CONFIG: Lazy<http_signature_normalization::Config> = Lazy::new(|| {
+        http_signature_normalization::Config::new()
+            .set_expiration(EXPIRES_AFTER)
+            .require_digest()
+    });
 
     let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
@@ -206,15 +205,19 @@ fn verify_signature_inner(
                 "Verifying with key {}, message {}",
                 &public_key, &signing_string
             );
-            let public_key = PKey::public_key_from_pem(public_key.as_bytes())?;
-            let mut verifier = Verifier::new(MessageDigest::sha256(), &public_key)?;
-            verifier.update(signing_string.as_bytes())?;
+            let public_key = RsaPublicKey::from_public_key_pem(public_key)?;
 
             let base64_decoded = Base64
                 .decode(signature)
                 .map_err(|err| Error::Other(err.to_string()))?;
 
-            Ok(verifier.verify(&base64_decoded)?)
+            Ok(public_key
+                .verify(
+                    Pkcs1v15Sign::new::<Sha256>(),
+                    &Sha256::digest(signing_string.as_bytes()),
+                    &base64_decoded,
+                )
+                .is_ok())
         })?;
 
     if verified {
@@ -279,11 +282,13 @@ pub(crate) fn verify_body_hash(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 pub mod test {
     use super::*;
     use crate::activity_sending::generate_request_headers;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
+    use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
     use std::str::FromStr;
 
     static ACTOR_ID: Lazy<Url> = Lazy::new(|| Url::parse("https://example.com/u/alice").unwrap());
@@ -306,7 +311,7 @@ pub mod test {
             request_builder,
             &ACTOR_ID,
             "my activity".into(),
-            PKey::private_key_from_pem(test_keypair().private_key.as_bytes()).unwrap(),
+            RsaPrivateKey::from_pkcs8_pem(&test_keypair().private_key).unwrap(),
             // set this to prevent created/expires headers to be generated and inserted
             // automatically from current time
             true,
@@ -342,7 +347,7 @@ pub mod test {
             request_builder,
             &ACTOR_ID,
             "my activity".to_string().into(),
-            PKey::private_key_from_pem(test_keypair().private_key.as_bytes()).unwrap(),
+            RsaPrivateKey::from_pkcs8_pem(&test_keypair().private_key).unwrap(),
             false,
         )
         .await
@@ -378,13 +383,13 @@ pub mod test {
     }
 
     pub fn test_keypair() -> Keypair {
-        let rsa = Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes()).unwrap();
-        let pkey = PKey::from_rsa(rsa).unwrap();
-        let private_key = pkey.private_key_to_pem_pkcs8().unwrap();
-        let public_key = pkey.public_key_to_pem().unwrap();
+        let rsa = RsaPrivateKey::from_pkcs1_pem(PRIVATE_KEY).unwrap();
+        let pkey = RsaPublicKey::from(&rsa);
+        let public_key = pkey.to_public_key_pem(LineEnding::default()).unwrap();
+        let private_key = rsa.to_pkcs8_pem(LineEnding::default()).unwrap().to_string();
         Keypair {
-            private_key: String::from_utf8(private_key).unwrap(),
-            public_key: String::from_utf8(public_key).unwrap(),
+            private_key,
+            public_key,
         }
     }
 

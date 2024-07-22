@@ -24,8 +24,8 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
-use openssl::pkey::{PKey, Private};
 use reqwest_middleware::ClientWithMiddleware;
+use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
 use std::{
     ops::Deref,
@@ -80,12 +80,12 @@ pub struct FederationConfig<T: Clone> {
     /// This can be used to implement secure mode federation.
     /// <https://docs.joinmastodon.org/spec/activitypub/#secure-mode>
     #[builder(default = "None", setter(custom))]
-    pub(crate) signed_fetch_actor: Option<Arc<(Url, PKey<Private>)>>,
+    pub(crate) signed_fetch_actor: Option<Arc<(Url, RsaPrivateKey)>>,
     #[builder(
         default = "Cache::builder().max_capacity(10000).build()",
         setter(custom)
     )]
-    pub(crate) actor_pkey_cache: Cache<Url, PKey<Private>>,
+    pub(crate) actor_pkey_cache: Cache<Url, RsaPrivateKey>,
     /// Queue for sending outgoing activities. Only optional to make builder work, its always
     /// present once constructed.
     #[builder(setter(skip))]
@@ -174,11 +174,17 @@ impl<T: Clone> FederationConfig<T> {
     /// Returns true if the url refers to this instance. Handles hostnames like `localhost:8540` for
     /// local debugging.
     pub(crate) fn is_local_url(&self, url: &Url) -> bool {
-        let mut domain = url.host_str().expect("id has domain").to_string();
-        if let Some(port) = url.port() {
-            domain = format!("{}:{}", domain, port);
+        match url.host_str() {
+            Some(domain) => {
+                let domain = if let Some(port) = url.port() {
+                    format!("{}:{}", domain, port)
+                } else {
+                    domain.to_string()
+                };
+                domain == self.domain
+            }
+            None => false,
         }
-        domain == self.domain
     }
 
     /// Returns the local domain
@@ -194,8 +200,8 @@ impl<T: Clone> FederationConfigBuilder<T> {
             .private_key_pem()
             .expect("actor does not have a private key to sign with");
 
-        let private_key = PKey::private_key_from_pem(private_key_pem.as_bytes())
-            .expect("Could not decode PEM data");
+        let private_key =
+            RsaPrivateKey::from_pkcs8_pem(&private_key_pem).expect("Could not decode PEM data");
         self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
         self
     }
@@ -339,5 +345,36 @@ impl<T: Clone> FederationMiddleware<T> {
     /// Construct a new middleware instance
     pub fn new(config: FederationConfig<T>) -> Self {
         FederationMiddleware(config)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod test {
+    use super::*;
+
+    async fn config() -> FederationConfig<i32> {
+        FederationConfig::builder()
+            .domain("example.com")
+            .app_data(1)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_url_is_local() -> Result<(), Error> {
+        let config = config().await;
+        assert!(config.is_local_url(&Url::parse("http://example.com")?));
+        assert!(!config.is_local_url(&Url::parse("http://other.com")?));
+        // ensure that missing domain doesnt cause crash
+        assert!(!config.is_local_url(&Url::parse("http://127.0.0.1")?));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_domain() {
+        let config = config().await;
+        assert_eq!("example.com", config.domain());
     }
 }
