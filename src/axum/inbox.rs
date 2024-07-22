@@ -5,7 +5,7 @@
 use crate::{
     config::Data,
     error::Error,
-    http_signatures::verify_signature,
+    // http_signatures::verify_signature,
     parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
@@ -32,7 +32,7 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    let (activity, actor) =
+    let (activity, _actor) =
         parse_received_activity::<Activity, ActorT, _>(&activity_data.body, data).await?;
 
     // verify_signature(
@@ -49,6 +49,7 @@ where
 }
 
 /// Contains all data that is necessary to receive an activity from an HTTP request
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ActivityData {
     headers: HeaderMap,

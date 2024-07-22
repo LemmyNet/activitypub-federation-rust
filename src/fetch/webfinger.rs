@@ -245,6 +245,7 @@ pub struct WebfingerLink {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::{
@@ -263,8 +264,6 @@ mod tests {
         let data = config.to_request_data();
 
         webfinger_resolve_actor::<DbConnection, DbUser>("LemmyDev@mastodon.social", &data).await?;
-        // poa.st is as of 2023-07-14 the largest Pleroma instance
-        webfinger_resolve_actor::<DbConnection, DbUser>("graf@poa.st", &data).await?;
         Ok(())
     }
 

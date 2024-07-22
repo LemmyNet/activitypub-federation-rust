@@ -338,12 +338,12 @@ pub trait Collection: Sized {
 #[doc(hidden)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {
-    use super::*;
+    use super::{async_trait, ActivityHandler, Actor, Data, Debug, Object, PublicKey, Url};
     use crate::{
         error::Error,
         fetch::object_id::ObjectId,
         http_signatures::{generate_actor_keypair, Keypair},
-        protocol::{public_key::PublicKey, verification::verify_domains_match},
+        protocol::verification::verify_domains_match,
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};
     use once_cell::sync::Lazy;

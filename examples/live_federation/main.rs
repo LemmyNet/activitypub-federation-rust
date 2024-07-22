@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use crate::{
     database::Database,
     http::{http_get_user, http_post_user_inbox, webfinger},

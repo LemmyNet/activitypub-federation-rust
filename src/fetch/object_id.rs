@@ -88,19 +88,13 @@ where
         <Kind as Object>::Error: From<Error>,
     {
         let db_object = self.dereference_from_db(data).await?;
-        // if its a local object, only fetch it from the database and not over http
-        if data.config.is_local_url(&self.0) {
-            return match db_object {
-                None => Err(Error::NotFound.into()),
-                Some(o) => Ok(o),
-            };
-        }
 
         // object found in database
         if let Some(object) = db_object {
-            // object is old and should be refetched
             if let Some(last_refreshed_at) = object.last_refreshed_at() {
-                if should_refetch_object(last_refreshed_at) {
+                let is_local = data.config.is_local_url(&self.0);
+                if !is_local && should_refetch_object(last_refreshed_at) {
+                    // object is outdated and should be refetched
                     return self.dereference_from_http(data, Some(object)).await;
                 }
             }
@@ -174,6 +168,11 @@ where
 
         Kind::verify(&res.object, redirect_url, data).await?;
         Kind::from_json(res.object, data).await
+    }
+
+    /// Returns true if the object's domain matches the one defined in [[FederationConfig.domain]].
+    pub fn is_local(&self, data: &Data<<Kind as Object>::DataType>) -> bool {
+        data.config.is_local_url(&self.0)
     }
 }
 
@@ -345,9 +344,10 @@ const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
 };
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 pub mod tests {
     use super::*;
-    use crate::{fetch::object_id::should_refetch_object, traits::tests::DbUser};
+    use crate::traits::tests::DbUser;
 
     #[test]
     fn test_deserialize() {
