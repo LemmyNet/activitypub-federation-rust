@@ -1,0 +1,24 @@
+name: check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # https://github.com/Mozilla-Actions/sccache-action#rust-code
+  RUSTC_WRAPPER: "sccache"
+  SCCACHE_GHA_ENABLED: "true"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    name: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: mozilla-actions/sccache-action@v0.0.3
+    #   - run: cargo fmt -- --check
+      - run: cargo clippy --all-targets --all-features
+      - run: cargo test --all-features --no-fail-fast
+      - run: cargo run --example local_federation axum
