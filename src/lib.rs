@@ -12,8 +12,6 @@
 
 pub mod activity_queue;
 pub mod activity_sending;
-#[cfg(feature = "actix-web")]
-pub mod actix_web;
 #[cfg(feature = "axum")]
 pub mod axum;
 pub mod config;

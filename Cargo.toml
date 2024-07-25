@@ -9,8 +9,7 @@ repository = "https://github.com/LemmyNet/activitypub-federation-rust"
 documentation = "https://docs.rs/activitypub_federation/"
 
 [features]
-default = ["actix-web", "axum"]
-actix-web = ["dep:actix-web"]
+default = ["axum"]
 axum = ["dep:axum", "dep:tower", "dep:hyper", "dep:http-body-util"]
 diesel = ["dep:diesel"]
 
@@ -81,9 +80,6 @@ diesel = { version = "2.2.1", features = [
 ], default-features = false, optional = true }
 futures = "0.3.30"
 moka = { version = "0.12.8", features = ["future"] }
-
-# Actix-web
-actix-web = { version = "4.8.0", default-features = false, optional = true }
 
 # Axum
 axum = { version = "0.6.20", features = [
