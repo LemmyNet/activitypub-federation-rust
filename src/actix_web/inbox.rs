@@ -1,5 +1,6 @@
 //! Handles incoming activities, verifying HTTP signatures and other checks
 
+use super::http_compat;
 use crate::{
     config::Data,
     error::Error,
@@ -27,16 +28,18 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    verify_body_hash(request.headers().get("Digest"), &body)?;
+    let digest_header = request
+        .headers()
+        .get("Digest")
+        .map(http_compat::header_value);
+    verify_body_hash(digest_header.as_ref(), &body)?;
 
     let (activity, actor) = parse_received_activity::<Activity, ActorT, _>(&body, data).await?;
 
-    verify_signature(
-        request.headers(),
-        request.method(),
-        request.uri(),
-        actor.public_key_pem(),
-    )?;
+    let headers = http_compat::header_map(request.headers());
+    let method = http_compat::method(request.method());
+    let uri = http_compat::uri(request.uri());
+    verify_signature(&headers, &method, &uri, actor.public_key_pem())?;
 
     debug!("Receiving activity {}", activity.id().to_string());
     activity.verify(data).await?;
@@ -60,6 +63,15 @@ mod test {
     use reqwest_middleware::ClientWithMiddleware;
     use serde_json::json;
     use url::Url;
+
+    fn header_pair(
+        p: (&http::HeaderName, &http::HeaderValue),
+    ) -> (http02::HeaderName, http02::HeaderValue) {
+        (
+            http02::HeaderName::from_lowercase(p.0.as_str().as_bytes()).unwrap(),
+            http02::HeaderValue::from_bytes(p.1.as_bytes()).unwrap(),
+        )
+    }
 
     #[tokio::test]
     async fn test_receive_activity() {
@@ -155,7 +167,7 @@ mod test {
         .unwrap();
         let mut incoming_request = TestRequest::post().uri(outgoing_request.url().path());
         for h in outgoing_request.headers() {
-            incoming_request = incoming_request.append_header(h);
+            incoming_request = incoming_request.append_header(header_pair(h));
         }
         incoming_request
     }
