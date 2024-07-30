@@ -10,8 +10,8 @@ documentation = "https://docs.rs/activitypub_federation/"
 
 [features]
 default = ["actix-web", "axum"]
-actix-web = ["dep:actix-web"]
-axum = ["dep:axum", "dep:tower", "dep:hyper", "dep:http-body-util"]
+actix-web = ["dep:actix-web", "dep:http02"]
+axum = ["dep:axum", "dep:tower"]
 diesel = ["dep:diesel"]
 
 [lints.rust]
@@ -37,18 +37,18 @@ serde = { version = "1.0.204", features = ["derive"] }
 async-trait = "0.1.81"
 url = { version = "2.5.2", features = ["serde"] }
 serde_json = { version = "1.0.120", features = ["preserve_order"] }
-reqwest = { version = "0.11.27", default-features = false, features = [
+reqwest = { version = "0.12.5", default-features = false, features = [
   "json",
   "stream",
   "rustls-tls",
 ] }
-reqwest-middleware = "0.2.5"
+reqwest-middleware = "0.3.2"
 tracing = "0.1.40"
 base64 = "0.22.1"
 rand = "0.8.5"
 rsa = "0.9.6"
 once_cell = "1.19.0"
-http = "0.2.12"
+http = "1.1.0"
 sha2 = { version = "0.10.8", features = ["oid"] }
 thiserror = "1.0.62"
 derive_builder = "0.20.0"
@@ -56,7 +56,7 @@ itertools = "0.13.0"
 dyn-clone = "1.0.17"
 enum_delegate = "0.2.0"
 httpdate = "1.0.3"
-http-signature-normalization-reqwest = { version = "0.10.0", default-features = false, features = [
+http-signature-normalization-reqwest = { version = "0.12.0", default-features = false, features = [
   "sha-2",
   "middleware",
   "default-spawner",
@@ -84,26 +84,17 @@ moka = { version = "0.12.8", features = ["future"] }
 
 # Actix-web
 actix-web = { version = "4.8.0", default-features = false, optional = true }
+http02 = { package = "http", version = "0.2.12", optional = true }
 
 # Axum
-axum = { version = "0.6.20", features = [
-  "json",
-  "headers",
-], default-features = false, optional = true }
+axum = { version = "0.7.5", features = ["json"], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
-hyper = { version = "0.14", optional = true }
-http-body-util = { version = "0.1.2", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.86"
+axum = { version = "0.7.5", features = ["macros"] }
+axum-extra = { version = "0.9.3", features = ["typed-header"] }
 env_logger = "0.11.3"
-tower-http = { version = "0.5.2", features = ["map-request-body", "util"] }
-axum = { version = "0.6.20", features = [
-  "http1",
-  "tokio",
-  "query",
-], default-features = false }
-axum-macros = "0.3.8"
 tokio = { version = "1.38.0", features = ["full"] }
 
 [profile.dev]

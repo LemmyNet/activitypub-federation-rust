@@ -1,5 +1,6 @@
 //! Utilities for using this library with actix-web framework
 
+mod http_compat;
 pub mod inbox;
 #[doc(hidden)]
 pub mod middleware;
@@ -25,7 +26,14 @@ where
     <A as Object>::Error: From<Error>,
     for<'de2> <A as Object>::Kind: Deserialize<'de2>,
 {
-    verify_body_hash(request.headers().get("Digest"), &body.unwrap_or_default())?;
+    let digest_header = request
+        .headers()
+        .get("Digest")
+        .map(http_compat::header_value);
+    verify_body_hash(digest_header.as_ref(), &body.unwrap_or_default())?;
 
-    http_signatures::signing_actor(request.headers(), request.method(), request.uri(), data).await
+    let headers = http_compat::header_map(request.headers());
+    let method = http_compat::method(request.method());
+    let uri = http_compat::uri(request.uri());
+    http_signatures::signing_actor(&headers, &method, &uri, data).await
 }

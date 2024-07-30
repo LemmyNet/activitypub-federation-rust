@@ -14,11 +14,11 @@ use activitypub_federation::{
     traits::Object,
 };
 use axum::{
+    debug_handler,
     extract::{Path, Query},
     response::{IntoResponse, Response},
     Json,
 };
-use axum_macros::debug_handler;
 use http::StatusCode;
 use serde::Deserialize;
 
