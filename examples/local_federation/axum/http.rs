@@ -18,7 +18,8 @@ use axum::{
     extract::{Path, Query},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Json,
+    Router,
 };
 use serde::Deserialize;
 use std::net::ToSocketAddrs;
