@@ -154,7 +154,7 @@ where
     where
         <Kind as Object>::Error: From<Error>,
     {
-        let res = fetch_object_http(&self.0, data).await;
+        let res = Box::pin(fetch_object_http(&self.0, data)).await;
 
         if let Err(Error::ObjectDeleted(url)) = res {
             if let Some(db_object) = db_object {
@@ -166,8 +166,8 @@ where
         let res = res?;
         let redirect_url = &res.url;
 
-        Kind::verify(&res.object, redirect_url, data).await?;
-        Kind::from_json(res.object, data).await
+        Box::pin(Kind::verify(&res.object, redirect_url, data)).await?;
+        Box::pin(Kind::from_json(res.object, data)).await
     }
 
     /// Returns true if the object's domain matches the one defined in [[FederationConfig.domain]].
