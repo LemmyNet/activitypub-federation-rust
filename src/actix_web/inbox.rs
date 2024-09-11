@@ -64,6 +64,7 @@ mod test {
     use serde_json::json;
     use url::Url;
 
+    /// Remove this conversion helper after actix-web upgrades to http 1.0
     fn header_pair(
         p: (&http::HeaderName, &http::HeaderValue),
     ) -> (http02::HeaderName, http02::HeaderValue) {
