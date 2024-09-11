@@ -10,9 +10,9 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, str::FromStr};
 use tracing::debug;
-use url::Url;
+use crate::url::Url;
 
 /// Errors relative to webfinger handling
 #[derive(thiserror::Error, Debug)]
@@ -60,7 +60,7 @@ where
     debug!("Fetching webfinger url: {}", &fetch_url);
 
     let res: Webfinger = fetch_object_http_with_accept(
-        &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
+        &Url::from_str(&fetch_url).map_err(Error::UrlParse)?,
         data,
         &WEBFINGER_CONTENT_TYPE,
     )
@@ -143,10 +143,10 @@ where
 /// of discovery.
 ///
 /// ```
-/// # use url::Url;
+/// # use crate::url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let url = Url::parse("https://lemmy.ml/u/nutomic")?;
+/// let url = Url::from_str("https://lemmy.ml/u/nutomic")?;
 /// build_webfinger_response(subject, url);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
@@ -162,11 +162,11 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
 /// will be empty.
 ///
 /// ```
-/// # use url::Url;
+/// # use crate::url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let user = Url::parse("https://lemmy.ml/u/nutomic")?;
-/// let group = Url::parse("https://lemmy.ml/c/asklemmy")?;
+/// let user = Url::from_str("https://lemmy.ml/u/nutomic")?;
+/// let group = Url::from_str("https://lemmy.ml/c/asklemmy")?;
 /// build_webfinger_response_with_type(subject, vec![
 ///     (user, Some("Person")),
 ///     (group, Some("Group"))]);

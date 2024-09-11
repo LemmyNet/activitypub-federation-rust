@@ -26,7 +26,7 @@ use tokio::{
     task::{JoinHandle, JoinSet},
 };
 use tracing::{info, warn};
-use url::Url;
+use crate::url::Url;
 
 /// Send a new activity to the given inboxes with automatic retry on failure. Alternatively you
 /// can implement your own queue and then send activities using [[crate::activity_sending::SendActivityTask]].

@@ -2,9 +2,9 @@ use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Collec
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display, Formatter},
-    marker::PhantomData,
+    marker::PhantomData, str::FromStr,
 };
-use url::Url;
+use crate::url::Url;
 
 /// Typed wrapper for Activitypub Collection ID which helps with dereferencing.
 #[derive(Serialize, Deserialize)]
@@ -21,7 +21,7 @@ where
 {
     /// Construct a new CollectionId instance
     pub fn parse(url: &str) -> Result<Self, url::ParseError> {
-        Ok(Self(Box::new(Url::parse(url)?), PhantomData::<Kind>))
+        Ok(Self(Box::new(Url::from_str(url)?), PhantomData::<Kind>))
     }
 
     /// Fetches collection over HTTP

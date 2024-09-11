@@ -35,7 +35,7 @@ use std::{
     },
     time::Duration,
 };
-use url::Url;
+use crate::url::Url;
 
 /// Configuration for this library, with various federation related settings
 #[derive(Builder, Clone)]
@@ -156,11 +156,7 @@ impl<T: Clone> FederationConfig<T> {
             return Ok(());
         }
 
-        if url.domain().is_none() {
-            return Err(Error::UrlVerificationError("Url must have a domain"));
-        }
-
-        if url.domain() == Some("localhost") && !self.debug {
+        if url.domain() == "localhost" && !self.debug {
             return Err(Error::UrlVerificationError(
                 "Localhost is only allowed in debug mode",
             ));
@@ -247,7 +243,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 ///
 /// ```
 /// # use async_trait::async_trait;
-/// # use url::Url;
+/// # use crate::url::Url;
 /// # use activitypub_federation::config::UrlVerifier;
 /// # use activitypub_federation::error::Error;
 /// # #[derive(Clone)]
@@ -351,6 +347,8 @@ impl<T: Clone> FederationMiddleware<T> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use std::str::FromStr;
+
     use super::*;
 
     async fn config() -> FederationConfig<i32> {
@@ -365,10 +363,10 @@ mod test {
     #[tokio::test]
     async fn test_url_is_local() -> Result<(), Error> {
         let config = config().await;
-        assert!(config.is_local_url(&Url::parse("http://example.com")?));
-        assert!(!config.is_local_url(&Url::parse("http://other.com")?));
+        assert!(config.is_local_url(&Url::from_str("http://example.com")?));
+        assert!(!config.is_local_url(&Url::from_str("http://other.com")?));
         // ensure that missing domain doesnt cause crash
-        assert!(!config.is_local_url(&Url::parse("http://127.0.0.1")?));
+        assert!(!config.is_local_url(&Url::from_str("http://127.0.0.1")?));
         Ok(())
     }
 

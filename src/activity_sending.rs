@@ -27,7 +27,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tracing::debug;
-use url::Url;
+use crate::url::Url;
 
 #[derive(Clone, Debug)]
 /// All info needed to sign and send one activity to one inbox. You should generally use
@@ -202,7 +202,7 @@ where
 }
 
 pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
-    let mut host = inbox_url.domain().expect("read inbox domain").to_string();
+    let mut host = inbox_url.domain().to_string();
     if let Some(port) = inbox_url.port() {
         host = format!("{}:{}", host, port);
     }

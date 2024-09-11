@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     str::FromStr,
 };
-use url::Url;
+use crate::url::Url;
 
 impl<T> FromStr for ObjectId<T>
 where
@@ -66,7 +66,7 @@ where
 {
     /// Construct a new objectid instance
     pub fn parse(url: &str) -> Result<Self, url::ParseError> {
-        Ok(Self(Box::new(Url::parse(url)?), PhantomData::<Kind>))
+        Ok(Self(Box::new(Url::from_str(url)?), PhantomData::<Kind>))
     }
 
     /// Returns a reference to the wrapped URL value

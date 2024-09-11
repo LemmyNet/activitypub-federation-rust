@@ -30,9 +30,9 @@ use rsa::{
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Debug, time::Duration};
+use std::{collections::BTreeMap, fmt::Debug, str::FromStr, time::Duration};
 use tracing::debug;
-use url::Url;
+use crate::url::Url;
 
 /// A private/public key pair used for HTTP signatures
 #[derive(Debug, Clone)]
@@ -166,7 +166,7 @@ where
         None => return Err(Error::ActivitySignatureInvalid.into()),
         Some(caps) => caps.get(1).expect("regex error").as_str(),
     };
-    let actor_url = Url::parse(actor_id).map_err(|_| Error::ActivitySignatureInvalid)?;
+    let actor_url = Url::from_str(actor_id).map_err(|_| Error::ActivitySignatureInvalid)?;
     let actor_id: ObjectId<A> = actor_url.into();
 
     let actor = actor_id.dereference(data).await?;
@@ -287,9 +287,9 @@ pub mod test {
     use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
     use std::str::FromStr;
 
-    static ACTOR_ID: Lazy<Url> = Lazy::new(|| Url::parse("https://example.com/u/alice").unwrap());
+    static ACTOR_ID: Lazy<Url> = Lazy::new(|| Url::from_str("https://example.com/u/alice").unwrap());
     static INBOX_URL: Lazy<Url> =
-        Lazy::new(|| Url::parse("https://example.com/u/alice/inbox").unwrap());
+        Lazy::new(|| Url::from_str("https://example.com/u/alice/inbox").unwrap());
 
     #[tokio::test]
     async fn test_sign() {

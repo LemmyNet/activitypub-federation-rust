@@ -59,7 +59,7 @@ mod test {
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
     use serde_json::json;
-    use url::Url;
+    use crate::url::Url;
 
     #[tokio::test]
     async fn test_receive_activity() {
@@ -108,7 +108,7 @@ mod test {
     async fn test_receive_unparseable_activity() {
         let (_, _, config) = setup_receive_test().await;
 
-        let actor = Url::parse("http://ds9.lemmy.ml/u/lemmy_alpha").unwrap();
+        let actor = Url::from_str("http://ds9.lemmy.ml/u/lemmy_alpha").unwrap();
         let id = "http://localhost:123/1";
         let activity = json!({
           "actor": actor.as_str(),
@@ -140,7 +140,7 @@ mod test {
 
     async fn construct_request(body: &Bytes, actor: &Url) -> TestRequest {
         let inbox = "https://example.com/inbox";
-        let headers = generate_request_headers(&Url::parse(inbox).unwrap());
+        let headers = generate_request_headers(&Url::from_str(inbox).unwrap());
         let request_builder = ClientWithMiddleware::from(Client::default())
             .post(inbox)
             .headers(headers);

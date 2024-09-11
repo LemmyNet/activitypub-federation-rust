@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::{fmt::Debug, ops::Deref};
-use url::Url;
+use crate::url::Url;
 
 /// Helper for converting between database structs and federated protocol structs.
 ///
@@ -13,7 +13,7 @@ use url::Url;
 /// # use activitystreams_kinds::{object::NoteType, public};
 /// # use chrono::{Local, DateTime, Utc};
 /// # use serde::{Deserialize, Serialize};
-/// # use url::Url;
+/// # use crate::url::Url;
 /// # use activitypub_federation::protocol::{public_key::PublicKey, helpers::deserialize_one_or_many};
 /// # use activitypub_federation::config::Data;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
@@ -162,7 +162,7 @@ pub trait Object: Sized + Debug {
 ///
 /// ```
 /// # use activitystreams_kinds::activity::FollowType;
-/// # use url::Url;
+/// # use crate::url::Url;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::config::Data;
 /// # use activitypub_federation::traits::ActivityHandler;

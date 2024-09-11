@@ -23,6 +23,7 @@ pub mod http_signatures;
 pub mod protocol;
 pub(crate) mod reqwest_shim;
 pub mod traits;
+pub mod url;
 
 use crate::{
     config::Data,
@@ -33,7 +34,7 @@ use crate::{
 pub use activitystreams_kinds as kinds;
 
 use serde::{de::DeserializeOwned, Deserialize};
-use url::Url;
+use crate::url::Url;
 
 /// Mime type for Activitypub data, used for `Accept` and `Content-Type` HTTP headers
 pub const FEDERATION_CONTENT_TYPE: &str = "application/activity+json";

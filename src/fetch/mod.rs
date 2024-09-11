@@ -15,7 +15,7 @@ use http::{HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
-use url::Url;
+use crate::url::Url;
 
 /// Typed wrapper for collection IDs
 pub mod collection_id;
@@ -135,13 +135,13 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     match serde_json::from_slice(&text) {
         Ok(object) => Ok(FetchObjectResponse {
             object,
-            url,
+            url: url.into(),
             content_type,
             object_id,
         }),
         Err(e) => Err(ParseFetchedObject(
             e,
-            url,
+            url.into(),
             String::from_utf8(Vec::from(text))?,
         )),
     }
