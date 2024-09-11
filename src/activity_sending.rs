@@ -251,8 +251,8 @@ mod tests {
             .route("/", post(dodgy_handler))
             .with_state(state);
 
-        axum::Server::bind(&"0.0.0.0:8001".parse().unwrap())
-            .serve(app.into_make_service())
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:8001").await.unwrap();
+        axum::serve(listener, app.into_make_service())
             .await
             .unwrap();
     }

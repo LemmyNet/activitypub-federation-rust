@@ -14,13 +14,13 @@ use activitypub_federation::{
     traits::Object,
 };
 use axum::{
+    debug_handler,
     extract::{Path, Query},
     response::IntoResponse,
     routing::{get, post},
     Json,
     Router,
 };
-use axum_macros::debug_handler;
 use serde::Deserialize;
 use std::net::ToSocketAddrs;
 use tracing::info;
@@ -39,9 +39,14 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
         .to_socket_addrs()?
         .next()
         .expect("Failed to lookup domain name");
-    let server = axum::Server::bind(&addr).serve(app.into_make_service());
+    let fut = async move {
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, app.into_make_service())
+            .await
+            .unwrap();
+    };
 
-    tokio::spawn(server);
+    tokio::spawn(fut);
     Ok(())
 }
 
