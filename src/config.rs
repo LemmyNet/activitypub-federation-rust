@@ -19,6 +19,7 @@ use crate::{
     error::Error,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
+    url::Url,
 };
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -35,7 +36,6 @@ use std::{
     },
     time::Duration,
 };
-use crate::url::Url;
 
 /// Configuration for this library, with various federation related settings
 #[derive(Builder, Clone)]

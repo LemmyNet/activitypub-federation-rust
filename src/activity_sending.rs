@@ -8,6 +8,7 @@ use crate::{
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
     traits::{ActivityHandler, Actor},
+    url::Url,
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
@@ -27,7 +28,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tracing::debug;
-use crate::url::Url;
 
 #[derive(Clone, Debug)]
 /// All info needed to sign and send one activity to one inbox. You should generally use

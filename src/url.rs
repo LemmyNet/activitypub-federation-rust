@@ -1,6 +1,10 @@
 //! Wrapper for `url::Url` type.
 
-use std::{fmt::{Display, Formatter}, ops::Deref, str::FromStr};
+use std::{
+    fmt::{Display, Formatter},
+    ops::Deref,
+    str::FromStr,
+};
 
 use serde::{Deserialize, Serialize};
 

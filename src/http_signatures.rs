@@ -11,6 +11,7 @@ use crate::{
     fetch::object_id::ObjectId,
     protocol::public_key::main_key_id,
     traits::{Actor, Object},
+    url::Url,
 };
 use base64::{engine::general_purpose::STANDARD as Base64, Engine};
 use bytes::Bytes;
@@ -32,7 +33,6 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fmt::Debug, str::FromStr, time::Duration};
 use tracing::debug;
-use crate::url::Url;
 
 /// A private/public key pair used for HTTP signatures
 #[derive(Debug, Clone)]
@@ -287,7 +287,8 @@ pub mod test {
     use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
     use std::str::FromStr;
 
-    static ACTOR_ID: Lazy<Url> = Lazy::new(|| Url::from_str("https://example.com/u/alice").unwrap());
+    static ACTOR_ID: Lazy<Url> =
+        Lazy::new(|| Url::from_str("https://example.com/u/alice").unwrap());
     static INBOX_URL: Lazy<Url> =
         Lazy::new(|| Url::from_str("https://example.com/u/alice/inbox").unwrap());
 

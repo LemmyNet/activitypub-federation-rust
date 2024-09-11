@@ -11,6 +11,7 @@ use crate::{
 
 use futures_core::Future;
 
+use crate::url::Url;
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Serialize;
 use std::{
@@ -26,7 +27,6 @@ use tokio::{
     task::{JoinHandle, JoinSet},
 };
 use tracing::{info, warn};
-use crate::url::Url;
 
 /// Send a new activity to the given inboxes with automatic retry on failure. Alternatively you
 /// can implement your own queue and then send activities using [[crate::activity_sending::SendActivityTask]].

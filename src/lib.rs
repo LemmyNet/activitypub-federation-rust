@@ -33,8 +33,8 @@ use crate::{
 };
 pub use activitystreams_kinds as kinds;
 
-use serde::{de::DeserializeOwned, Deserialize};
 use crate::url::Url;
+use serde::{de::DeserializeOwned, Deserialize};
 
 /// Mime type for Activitypub data, used for `Accept` and `Content-Type` HTTP headers
 pub const FEDERATION_CONTENT_TYPE: &str = "application/activity+json";

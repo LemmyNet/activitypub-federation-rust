@@ -1,6 +1,6 @@
 //! Error messages returned by this library
 
-use crate::fetch::webfinger::WebFingerError;
+use crate::{fetch::webfinger::WebFingerError, url::Url};
 use http_signature_normalization_reqwest::SignError;
 use rsa::{
     errors::Error as RsaError,
@@ -8,7 +8,6 @@ use rsa::{
 };
 use std::string::FromUtf8Error;
 use tokio::task::JoinError;
-use crate::url::Url;
 
 /// Error messages returned by this library
 #[derive(thiserror::Error, Debug)]

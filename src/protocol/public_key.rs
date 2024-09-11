@@ -1,7 +1,7 @@
 //! Struct which is used to federate actor key for HTTP signatures
 
-use serde::{Deserialize, Serialize};
 use crate::url::Url;
+use serde::{Deserialize, Serialize};
 
 /// Public key of actors which is used for HTTP signatures.
 ///

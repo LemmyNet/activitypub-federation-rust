@@ -1,10 +1,10 @@
-use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Collection};
+use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Collection, url::Url};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Debug, Display, Formatter},
-    marker::PhantomData, str::FromStr,
+    marker::PhantomData,
+    str::FromStr,
 };
-use crate::url::Url;
 
 /// Typed wrapper for Activitypub Collection ID which helps with dereferencing.
 #[derive(Serialize, Deserialize)]

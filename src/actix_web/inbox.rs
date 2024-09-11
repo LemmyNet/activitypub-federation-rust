@@ -54,12 +54,12 @@ mod test {
         fetch::object_id::ObjectId,
         http_signatures::sign_request,
         traits::tests::{DbConnection, DbUser, Follow, DB_USER_KEYPAIR},
+        url::Url,
     };
     use actix_web::test::TestRequest;
     use reqwest::Client;
     use reqwest_middleware::ClientWithMiddleware;
     use serde_json::json;
-    use crate::url::Url;
 
     #[tokio::test]
     async fn test_receive_activity() {

@@ -19,10 +19,9 @@
 //! Ok::<(), serde_json::error::Error>(())
 //! ```
 
-use crate::{config::Data, traits::ActivityHandler};
+use crate::{config::Data, traits::ActivityHandler, url::Url};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::url::Url;
 
 /// Default context used in Activitypub
 const DEFAULT_CONTEXT: &str = "https://www.w3.org/ns/activitystreams";

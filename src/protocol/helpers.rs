@@ -120,8 +120,7 @@ where
 mod tests {
     #[test]
     fn deserialize_one_multiple_values() {
-        use crate::protocol::helpers::deserialize_one;
-        use crate::url::Url;
+        use crate::{protocol::helpers::deserialize_one, url::Url};
         #[derive(serde::Deserialize)]
         struct Note {
             #[serde(deserialize_with = "deserialize_one")]

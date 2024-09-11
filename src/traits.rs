@@ -1,11 +1,10 @@
 //! Traits which need to be implemented for federated data types
 
-use crate::{config::Data, protocol::public_key::PublicKey};
+use crate::{config::Data, protocol::public_key::PublicKey, url::Url};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use std::{fmt::Debug, ops::Deref};
-use crate::url::Url;
 
 /// Helper for converting between database structs and federated protocol structs.
 ///

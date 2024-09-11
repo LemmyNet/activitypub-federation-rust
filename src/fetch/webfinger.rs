@@ -3,6 +3,7 @@ use crate::{
     error::Error,
     fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
+    url::Url,
     FEDERATION_CONTENT_TYPE,
 };
 use http::HeaderValue;
@@ -12,7 +13,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display, str::FromStr};
 use tracing::debug;
-use crate::url::Url;
 
 /// Errors relative to webfinger handling
 #[derive(thiserror::Error, Debug)]

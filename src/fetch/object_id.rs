@@ -1,4 +1,4 @@
-use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object};
+use crate::{config::Data, error::Error, fetch::fetch_object_http, traits::Object, url::Url};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -6,7 +6,6 @@ use std::{
     marker::PhantomData,
     str::FromStr,
 };
-use crate::url::Url;
 
 impl<T> FromStr for ObjectId<T>
 where

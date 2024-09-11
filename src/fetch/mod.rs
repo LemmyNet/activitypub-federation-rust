@@ -8,6 +8,7 @@ use crate::{
     extract_id,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
+    url::Url,
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
@@ -15,7 +16,6 @@ use http::{HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
-use crate::url::Url;
 
 /// Typed wrapper for collection IDs
 pub mod collection_id;
