@@ -14,11 +14,11 @@ use activitypub_federation::{
     kinds::actor::PersonType,
     protocol::{context::WithContext, public_key::PublicKey, verification::verify_domains_match},
     traits::{ActivityHandler, Actor, Object},
+    url::Url,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use url::Url;
+use std::{fmt::Debug, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct DbUser {
@@ -46,8 +46,8 @@ pub enum PersonAcceptedActivities {
 
 impl DbUser {
     pub fn new(hostname: &str, name: String) -> Result<DbUser, Error> {
-        let ap_id = Url::parse(&format!("http://{}/{}", hostname, &name))?.into();
-        let inbox = Url::parse(&format!("http://{}/{}/inbox", hostname, &name))?;
+        let ap_id = Url::from_str(&format!("http://{}/{}", hostname, &name))?.into();
+        let inbox = Url::from_str(&format!("http://{}/{}/inbox", hostname, &name))?;
         let keypair = generate_actor_keypair()?;
         Ok(DbUser {
             name,
@@ -79,7 +79,7 @@ impl DbUser {
     }
 
     pub fn followers_url(&self) -> Result<Url, Error> {
-        Ok(Url::parse(&format!("{}/followers", self.ap_id.inner()))?)
+        Ok(Url::from_str(&format!("{}/followers", self.ap_id.inner()))?)
     }
 
     pub async fn follow(&self, other: &str, data: &Data<DatabaseHandle>) -> Result<(), Error> {

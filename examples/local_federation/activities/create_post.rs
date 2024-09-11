@@ -9,9 +9,9 @@ use activitypub_federation::{
     kinds::activity::CreateType,
     protocol::helpers::deserialize_one_or_many,
     traits::{ActivityHandler, Object},
+    url::Url,
 };
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]

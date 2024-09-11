@@ -2,21 +2,23 @@ use crate::{
     objects::{person::DbUser, post::DbPost},
     Error,
 };
-use activitypub_federation::config::{FederationConfig, UrlVerifier};
+use activitypub_federation::{
+    config::{FederationConfig, UrlVerifier},
+    url::Url,
+};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use std::{
     str::FromStr,
     sync::{Arc, Mutex},
 };
-use url::Url;
 
 pub async fn new_instance(
     hostname: &str,
     name: String,
 ) -> Result<FederationConfig<DatabaseHandle>, Error> {
     let mut system_user = DbUser::new(hostname, "system".into())?;
-    system_user.ap_id = Url::parse(&format!("http://{}/", hostname))?.into();
+    system_user.ap_id = Url::from_str(&format!("http://{}/", hostname))?.into();
 
     let local_user = DbUser::new(hostname, name)?;
     let database = Arc::new(Database {
@@ -51,7 +53,7 @@ struct MyUrlVerifier();
 #[async_trait]
 impl UrlVerifier for MyUrlVerifier {
     async fn verify(&self, url: &Url) -> Result<(), activitypub_federation::error::Error> {
-        if url.domain() == Some("malicious.com") {
+        if url.domain() == "malicious.com" {
             Err(activitypub_federation::error::Error::Other(
                 "malicious domain".into(),
             ))

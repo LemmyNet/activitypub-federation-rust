@@ -5,9 +5,9 @@ use activitypub_federation::{
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
     traits::Object,
+    url::Url,
 };
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 #[derive(Clone, Debug)]
 pub struct DbPost {
@@ -19,7 +19,7 @@ pub struct DbPost {
 
 impl DbPost {
     pub fn new(text: String, creator: ObjectId<DbUser>) -> Result<DbPost, Error> {
-        let ap_id = generate_object_id(creator.inner().domain().unwrap())?.into();
+        let ap_id = generate_object_id(creator.inner().domain())?.try_into()?;
         Ok(DbPost {
             text,
             ap_id,
@@ -65,7 +65,7 @@ impl Object for DbPost {
             kind: Default::default(),
             id: self.ap_id,
             attributed_to: self.creator,
-            to: vec![public(), creator.followers_url()?],
+            to: vec![public().try_into()?, creator.followers_url()?],
             content: self.text,
         })
     }

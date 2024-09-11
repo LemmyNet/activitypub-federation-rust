@@ -6,11 +6,11 @@ use activitypub_federation::{
     kinds::actor::PersonType,
     protocol::{public_key::PublicKey, verification::verify_domains_match},
     traits::{ActivityHandler, Actor, Object},
+    url::Url,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use url::Url;
+use std::{fmt::Debug, str::FromStr};
 
 #[derive(Debug, Clone)]
 pub struct DbUser {
@@ -36,8 +36,8 @@ pub enum PersonAcceptedActivities {
 
 impl DbUser {
     pub fn new(hostname: &str, name: &str) -> Result<DbUser, Error> {
-        let ap_id = Url::parse(&format!("https://{}/{}", hostname, &name))?.into();
-        let inbox = Url::parse(&format!("https://{}/{}/inbox", hostname, &name))?;
+        let ap_id = Url::from_str(&format!("https://{}/{}", hostname, &name))?.into();
+        let inbox = Url::from_str(&format!("https://{}/{}/inbox", hostname, &name))?;
         let keypair = generate_actor_keypair()?;
         Ok(DbUser {
             name: name.to_string(),

@@ -1,12 +1,11 @@
 //! Wrapper for `url::Url` type.
 
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::{Display, Formatter},
     ops::Deref,
     str::FromStr,
 };
-
-use serde::{Deserialize, Serialize};
 
 /// Wrapper for `url::Url` type. Has `domain` as mandatory field, and prints plain
 /// string for debugging.
@@ -22,6 +21,7 @@ impl Deref for Url {
 }
 
 impl Display for Url {
+    #[allow(clippy::to_string_in_format_args)]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.to_string())
     }
@@ -30,14 +30,24 @@ impl Display for Url {
 impl Url {
     /// Returns domain of the url
     pub fn domain(&self) -> &str {
-        // TODO: must have error handling, or ensure at creation that it has domain
         self.0.domain().expect("has domain")
     }
 }
 
-impl From<url::Url> for Url {
-    fn from(value: url::Url) -> Self {
-        Url(value)
+impl TryFrom<url::Url> for Url {
+    type Error = url::ParseError;
+    fn try_from(value: url::Url) -> Result<Self, Self::Error> {
+        if value.domain().is_none() {
+            return Err(url::ParseError::EmptyHost);
+        }
+        Ok(Url(value))
+    }
+}
+
+#[allow(clippy::from_over_into)]
+impl Into<url::Url> for Url {
+    fn into(self) -> url::Url {
+        self.0
     }
 }
 
@@ -45,6 +55,10 @@ impl FromStr for Url {
     type Err = url::ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(url::Url::from_str(s).map(Url).unwrap())
+        let url = url::Url::from_str(s)?;
+        if url.domain().is_none() {
+            return Err(url::ParseError::EmptyHost);
+        }
+        Ok(Url(url))
     }
 }

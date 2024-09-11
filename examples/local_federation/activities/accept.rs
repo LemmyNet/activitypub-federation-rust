@@ -4,9 +4,9 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::activity::AcceptType,
     traits::ActivityHandler,
+    url::Url,
 };
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]

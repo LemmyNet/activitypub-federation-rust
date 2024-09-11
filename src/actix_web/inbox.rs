@@ -47,6 +47,8 @@ where
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use std::str::FromStr;
+
     use super::*;
     use crate::{
         activity_sending::generate_request_headers,
@@ -165,7 +167,7 @@ mod test {
             actor: ObjectId::parse("http://localhost:123").unwrap(),
             object: ObjectId::parse("http://localhost:124").unwrap(),
             kind: Default::default(),
-            id: "http://localhost:123/1".try_into().unwrap(),
+            id: "http://localhost:123/1".parse().unwrap(),
         };
         let body: Bytes = serde_json::to_vec(&activity).unwrap().into();
         let incoming_request = construct_request(&body, activity.actor.inner()).await;

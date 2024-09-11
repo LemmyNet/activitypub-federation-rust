@@ -135,13 +135,13 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     match serde_json::from_slice(&text) {
         Ok(object) => Ok(FetchObjectResponse {
             object,
-            url: url.into(),
+            url: url.try_into()?,
             content_type,
             object_id,
         }),
         Err(e) => Err(ParseFetchedObject(
             e,
-            url.into(),
+            url.try_into()?,
             String::from_utf8(Vec::from(text))?,
         )),
     }

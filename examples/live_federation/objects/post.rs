@@ -11,10 +11,10 @@ use activitypub_federation::{
     kinds::{object::NoteType, public},
     protocol::{helpers::deserialize_one_or_many, verification::verify_domains_match},
     traits::{Actor, Object},
+    url::Url,
 };
 use activitystreams_kinds::link::MentionType;
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 #[derive(Clone, Debug)]
 pub struct DbPost {
@@ -63,7 +63,7 @@ impl Object for DbPost {
             id: self.ap_id,
             content: self.text,
             attributed_to: self.creator,
-            to: vec![public()],
+            to: vec![public().try_into()?],
             tag: vec![],
             in_reply_to: None,
         })
@@ -98,7 +98,7 @@ impl Object for DbPost {
             kind: Default::default(),
             id: generate_object_id(data.domain())?.into(),
             attributed_to: data.local_user().ap_id,
-            to: vec![public()],
+            to: vec![public().try_into()?],
             content: format!("Hello {}", creator.name),
             in_reply_to: Some(json.id.clone()),
             tag: vec![mention],
