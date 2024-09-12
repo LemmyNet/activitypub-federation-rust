@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer};
 ///
 /// ```
 /// # use activitypub_federation::protocol::helpers::deserialize_one_or_many;
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// #[derive(serde::Deserialize)]
 /// struct Note {
 ///     #[serde(deserialize_with = "deserialize_one_or_many")]
@@ -52,7 +52,7 @@ where
 ///
 /// ```
 /// # use activitypub_federation::protocol::helpers::deserialize_one;
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// #[derive(serde::Deserialize)]
 /// struct Note {
 ///     #[serde(deserialize_with = "deserialize_one")]
@@ -88,7 +88,7 @@ where
 ///
 /// ```
 /// # use activitypub_federation::protocol::helpers::deserialize_skip_error;
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// #[derive(serde::Deserialize)]
 /// struct Note {
 ///     content: String,

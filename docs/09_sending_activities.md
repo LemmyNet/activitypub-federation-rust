@@ -22,7 +22,7 @@ let activity = Follow {
     actor: ObjectId::parse("https://lemmy.ml/u/nutomic")?,
     object: recipient.federation_id.clone().into(),
     kind: Default::default(),
-    id: "https://lemmy.ml/activities/321".try_into()?
+    id: "https://lemmy.ml/activities/321".parse()?
 };
 let inboxes = vec![recipient.shared_inbox_or_inbox()];
 
@@ -62,7 +62,7 @@ let activity = Follow {
     actor: ObjectId::parse("https://lemmy.ml/u/nutomic")?,
     object: recipient.federation_id.clone().into(),
     kind: Default::default(),
-    id: "https://lemmy.ml/activities/321".try_into()?
+    id: "https://lemmy.ml/activities/321".parse()?
 };
 let inboxes = vec![recipient.shared_inbox_or_inbox()];
 

@@ -243,7 +243,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 ///
 /// ```
 /// # use async_trait::async_trait;
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::config::UrlVerifier;
 /// # use activitypub_federation::error::Error;
 /// # #[derive(Clone)]
@@ -260,7 +260,7 @@ impl<T: Clone> Deref for FederationConfig<T> {
 /// impl UrlVerifier for Verifier {
 ///     async fn verify(&self, url: &Url) -> Result<(), Error> {
 ///         let blocklist = get_blocklist(&self.db_connection).await;
-///         let domain = url.domain().unwrap().to_string();
+///         let domain = url.domain().to_string();
 ///         if blocklist.contains(&domain) {
 ///             Err(Error::Other("Domain is blocked".into()))
 ///         } else {
@@ -365,8 +365,6 @@ mod test {
         let config = config().await;
         assert!(config.is_local_url(&Url::from_str("http://example.com")?));
         assert!(!config.is_local_url(&Url::from_str("http://other.com")?));
-        // ensure that missing domain doesnt cause crash
-        assert!(!config.is_local_url(&Url::from_str("http://127.0.0.1")?));
         Ok(())
     }
 

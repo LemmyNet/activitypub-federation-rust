@@ -12,7 +12,7 @@ use std::{fmt::Debug, ops::Deref};
 /// # use activitystreams_kinds::{object::NoteType, public};
 /// # use chrono::{Local, DateTime, Utc};
 /// # use serde::{Deserialize, Serialize};
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::protocol::{public_key::PublicKey, helpers::deserialize_one_or_many};
 /// # use activitypub_federation::config::Data;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
@@ -61,7 +61,7 @@ use std::{fmt::Debug, ops::Deref};
 ///             kind: Default::default(),
 ///             id: self.ap_id.clone().into(),
 ///             attributed_to: self.creator,
-///             to: vec![public()],
+///             to: vec![public().try_into()?],
 ///             content: self.text,
 ///         })
 ///     }
@@ -161,7 +161,7 @@ pub trait Object: Sized + Debug {
 ///
 /// ```
 /// # use activitystreams_kinds::activity::FollowType;
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::config::Data;
 /// # use activitypub_federation::traits::ActivityHandler;

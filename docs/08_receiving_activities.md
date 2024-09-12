@@ -4,7 +4,7 @@ Activitypub propagates actions across servers using `Activities`. For this each 
 
 ```
 # use serde::{Deserialize, Serialize};
-# use url::Url;
+# use activitypub_federation::url::Url;
 # use anyhow::Error;
 # use async_trait::async_trait;
 # use activitypub_federation::fetch::object_id::ObjectId;
@@ -62,7 +62,7 @@ Next its time to setup the actual HTTP handler for the inbox. For this we first 
 # use activitypub_federation::traits::ActivityHandler;
 # use activitypub_federation::traits::tests::{DbConnection, DbUser, Follow};
 # use serde::{Deserialize, Serialize};
-# use url::Url;
+# use activitypub_federation::url::Url;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]

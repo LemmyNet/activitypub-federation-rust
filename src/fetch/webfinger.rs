@@ -143,10 +143,10 @@ where
 /// of discovery.
 ///
 /// ```
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let url = Url::from_str("https://lemmy.ml/u/nutomic")?;
+/// let url = "https://lemmy.ml/u/nutomic".parse()?;
 /// build_webfinger_response(subject, url);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
@@ -162,11 +162,11 @@ pub fn build_webfinger_response(subject: String, url: Url) -> Webfinger {
 /// will be empty.
 ///
 /// ```
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::fetch::webfinger::build_webfinger_response_with_type;
 /// let subject = "acct:nutomic@lemmy.ml".to_string();
-/// let user = Url::from_str("https://lemmy.ml/u/nutomic")?;
-/// let group = Url::from_str("https://lemmy.ml/c/asklemmy")?;
+/// let user = "https://lemmy.ml/u/nutomic".parse()?;
+/// let group = "https://lemmy.ml/c/asklemmy".parse()?;
 /// build_webfinger_response_with_type(subject, vec![
 ///     (user, Some("Person")),
 ///     (group, Some("Group"))]);

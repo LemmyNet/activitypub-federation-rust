@@ -40,7 +40,7 @@ Based on this we can define the following minimal struct to (de)serialize a `Per
 # use activitypub_federation::fetch::object_id::ObjectId;
 # use serde::{Deserialize, Serialize};
 # use activitystreams_kinds::actor::PersonType;
-# use url::Url;
+# use activitypub_federation::url::Url;
 # use activitypub_federation::traits::tests::DbUser;
 
 #[derive(Deserialize, Serialize)]
@@ -64,7 +64,7 @@ pub struct Person {
 Besides we also need a second struct to represent the data which gets stored in our local database (for example PostgreSQL). This is necessary because the data format used by SQL is very different from that used by that from Activitypub. It is organized by an integer primary key instead of a link id. Nested structs are complicated to represent and easier if flattened. Some fields like `type` don't need to be stored at all. On the other hand, the database contains fields which can't be federated, such as the private key and a boolean indicating if the item is local or remote.
 
 ```rust
-# use url::Url;
+# use activitypub_federation::url::Url;
 # use chrono::{DateTime, Utc};
 
 pub struct DbUser {

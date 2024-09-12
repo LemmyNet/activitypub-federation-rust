@@ -62,3 +62,21 @@ impl FromStr for Url {
         Ok(Url(url))
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod test {
+    use super::*;
+    use crate::error::Error;
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_url() -> Result<(), Error> {
+        assert!(Url::from_str("http://example.com").is_ok());
+        assert!(Url::try_from(url::Url::from_str("http://example.com")?).is_ok());
+
+        assert!(Url::from_str("http://127.0.0.1").is_err());
+        assert!(Url::try_from(url::Url::from_str("http://127.0.0.1")?).is_err());
+        Ok(())
+    }
+}

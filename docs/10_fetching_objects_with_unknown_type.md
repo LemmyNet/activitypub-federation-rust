@@ -10,7 +10,7 @@ It is sometimes necessary to fetch from a URL, but we don't know the exact type 
 # use serde::{Deserialize, Serialize};
 # use activitypub_federation::traits::tests::DbConnection;
 # use activitypub_federation::config::Data;
-# use url::Url;
+# use activitypub_federation::url::Url;
 # use activitypub_federation::traits::tests::{Person, Note};
 
 #[derive(Debug)]

@@ -5,12 +5,12 @@ use crate::{error::Error, url::Url};
 /// Check that both urls have the same domain. If not, return UrlVerificationError.
 ///
 /// ```
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::protocol::verification::verify_domains_match;
-/// let a = Url::from_str("https://example.com/abc")?;
-/// let b = Url::from_str("https://sample.net/abc")?;
+/// let a = "https://example.com/abc".parse()?;
+/// let b = "https://sample.net/abc".parse()?;
 /// assert!(verify_domains_match(&a, &b).is_err());
-/// # Ok::<(), Url::from_strError>(())
+/// # Ok::<(), url::ParseError>(())
 /// ```
 pub fn verify_domains_match(a: &Url, b: &Url) -> Result<(), Error> {
     if a.domain() != b.domain() {
@@ -22,12 +22,12 @@ pub fn verify_domains_match(a: &Url, b: &Url) -> Result<(), Error> {
 /// Check that both urls are identical. If not, return UrlVerificationError.
 ///
 /// ```
-/// # use crate::url::Url;
+/// # use activitypub_federation::url::Url;
 /// # use activitypub_federation::protocol::verification::verify_urls_match;
-/// let a = Url::from_str("https://example.com/abc")?;
-/// let b = Url::from_str("https://example.com/123")?;
+/// let a = "https://example.com/abc".parse()?;
+/// let b = "https://example.com/123".parse()?;
 /// assert!(verify_urls_match(&a, &b).is_err());
-/// # Ok::<(), Url::from_strError>(())
+/// # Ok::<(), url::ParseError>(())
 /// ```
 pub fn verify_urls_match(a: &Url, b: &Url) -> Result<(), Error> {
     if a != b {
