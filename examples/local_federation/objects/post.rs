@@ -19,7 +19,7 @@ pub struct DbPost {
 
 impl DbPost {
     pub fn new(text: String, creator: ObjectId<DbUser>) -> Result<DbPost, Error> {
-        let ap_id = generate_object_id(creator.inner().domain())?.try_into()?;
+        let ap_id = generate_object_id(creator.inner().domain())?.into();
         Ok(DbPost {
             text,
             ap_id,
