@@ -147,7 +147,7 @@ where
     }
 
     /// Fetch object from origin instance over HTTP, then verify and parse it.
-    /// 
+    ///
     /// Uses Box::pin to wrap futures to reduce stack size and avoid stack overflow when
     /// when fetching objects recursively.
     async fn dereference_from_http(
