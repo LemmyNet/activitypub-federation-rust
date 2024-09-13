@@ -73,6 +73,14 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
 
     // Ensure id field matches final url after redirect
     if res.object_id.as_ref() != Some(&res.url) {
+        if let Some(res_object_id) = res.object_id {
+            // If id is different but still on the same domain, attempt to request object
+            // again from url in id field.
+            if res_object_id.domain() == res.url.domain() {
+                return Box::pin(fetch_object_http(&res_object_id, data)).await;
+            }
+        }
+        // Failed to fetch the object from its specified id
         return Err(Error::FetchWrongId(res.url));
     }
 
