@@ -32,15 +32,18 @@ impl Url {
     pub fn domain(&self) -> &str {
         self.0.domain().expect("has domain")
     }
+    fn new(value: url::Url) -> Result<Self, url::ParseError> {
+        if value.domain().is_none() {
+            return Err(url::ParseError::EmptyHost);
+        }
+        Ok(Url(value))
+    }
 }
 
 impl TryFrom<url::Url> for Url {
     type Error = url::ParseError;
     fn try_from(value: url::Url) -> Result<Self, Self::Error> {
-        if value.domain().is_none() {
-            return Err(url::ParseError::EmptyHost);
-        }
-        Ok(Url(value))
+        Self::new(value)
     }
 }
 
@@ -55,11 +58,8 @@ impl FromStr for Url {
     type Err = url::ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let url = url::Url::from_str(s)?;
-        if url.domain().is_none() {
-            return Err(url::ParseError::EmptyHost);
-        }
-        Ok(Url(url))
+        let value = url::Url::from_str(s)?;
+        Self::new(value)
     }
 }
 
