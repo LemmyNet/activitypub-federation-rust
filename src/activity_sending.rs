@@ -98,7 +98,10 @@ impl SendActivityTask {
         let response = client.execute(request).await?;
         let elapsed = now.elapsed().as_secs();
         if elapsed > 10 {
-            warn!("Sending activity {} to {} took {}s", self.activity_id, self.inbox, elapsed);
+            warn!(
+                "Sending activity {} to {} took {}s",
+                self.activity_id, self.inbox, elapsed
+            );
         }
         self.handle_response(response).await
     }
