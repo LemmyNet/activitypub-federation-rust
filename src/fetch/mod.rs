@@ -154,3 +154,34 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
         )),
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::FederationConfig,
+        traits::tests::{DbConnection, Person},
+    };
+
+    #[tokio::test]
+    async fn test_request_limit() -> Result<(), Error> {
+        let config = FederationConfig::builder()
+            .domain("example.com")
+            .app_data(DbConnection)
+            .http_fetch_limit(0)
+            .build()
+            .await
+            .unwrap();
+        let data = config.to_request_data();
+
+        let fetch_url = "https://example.net/".to_string();
+
+        let res: Result<FetchObjectResponse<Person>, Error> =
+            fetch_object_http(&Url::parse(&fetch_url).map_err(Error::UrlParse)?, &data).await;
+
+        assert_eq!(res.err(), Some(Error::RequestLimit));
+
+        Ok(())
+    }
+}
