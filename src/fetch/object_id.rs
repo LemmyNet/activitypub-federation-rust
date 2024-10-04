@@ -345,6 +345,7 @@ const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(missing_docs)]
 pub mod tests {
     use super::*;
     use crate::traits::tests::DbUser;

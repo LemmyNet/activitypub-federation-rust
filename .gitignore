@@ -11,3 +11,5 @@ flamegraph.svg
 # nix flake
 /flake.nix
 /flake.lock
+
+.vscode

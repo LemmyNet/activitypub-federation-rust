@@ -283,6 +283,7 @@ pub(crate) fn verify_body_hash(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(missing_docs)]
 pub mod test {
     use super::*;
     use crate::activity_sending::generate_request_headers;

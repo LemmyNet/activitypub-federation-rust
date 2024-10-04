@@ -30,13 +30,14 @@ where
         .headers()
         .get("Digest")
         .map(|v| reqwest::header::HeaderValue::from_str(v.to_str().unwrap_or_default()))
-        .and_then(|v| v.ok());
+        .and_then(std::result::Result::ok);
     verify_body_hash(header_value.as_ref(), &body.unwrap_or_default())?;
 
     let mut vec = Vec::<(_, _)>::with_capacity(request.headers().len());
     request.headers().iter().for_each(|(k, v)| {
-        let k = reqwest::header::HeaderName::from_str(k.as_str()).unwrap();
-        let v = reqwest::header::HeaderValue::from_str(v.to_str().unwrap_or_default()).unwrap();
+        let k = reqwest::header::HeaderName::from_str(k.as_str()).expect("Failed to parse header");
+        let v = reqwest::header::HeaderValue::from_str(v.to_str().unwrap_or_default())
+            .expect("Failed to parse header");
         vec.push((k, v));
     });
     let headers = vec.iter().map(|(k, v)| (k, v)).collect::<Vec<(_, _)>>();
@@ -45,7 +46,8 @@ where
         headers,
         &reqwest::Method::from_str(request.method().as_str())
             .map_err(|err| Error::Other(err.to_string()))?,
-        &http::Uri::from_str(&request.uri().to_string()).unwrap(),
+        &http::Uri::from_str(&request.uri().to_string())
+            .map_err(|err| Error::Other(err.to_string()))?,
         data,
     )
     .await
