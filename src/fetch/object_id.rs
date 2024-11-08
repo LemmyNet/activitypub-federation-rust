@@ -120,6 +120,7 @@ where
                 .await
                 .map(|o| o.ok_or(Error::NotFound.into()))?
         } else {
+            // Don't pass in any db object, otherwise it would be returned in case http fetch fails
             self.dereference_from_http(data, None).await
         }
     }
@@ -167,6 +168,10 @@ where
             return Err(Error::ObjectDeleted(url).into());
         }
 
+        // If fetch failed, return the existing object from local database
+        if let (Err(_), Some(db_object)) = (&res, db_object) {
+            return Ok(db_object);
+        }
         let res = res?;
         let redirect_url = &res.url;
 
