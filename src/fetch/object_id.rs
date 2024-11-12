@@ -92,7 +92,7 @@ where
         // object found in database
         if let Some(object) = db_object {
             if let Some(last_refreshed_at) = object.last_refreshed_at() {
-                let is_local = data.config.is_local_url(&self.0);
+                let is_local = self.is_local(data);
                 if !is_local && should_refetch_object(last_refreshed_at) {
                     // object is outdated and should be refetched
                     return self.dereference_from_http(data, Some(object)).await;
@@ -174,6 +174,14 @@ where
         }
         let res = res?;
         let redirect_url = &res.url;
+
+        // Prevent overwriting local object
+        if data.config.is_local_url(redirect_url) {
+            return self
+                .dereference_from_db(data)
+                .await?
+                .ok_or(Error::NotFound.into());
+        }
 
         Box::pin(Kind::verify(&res.object, redirect_url, data)).await?;
         Box::pin(Kind::from_json(res.object, data)).await
