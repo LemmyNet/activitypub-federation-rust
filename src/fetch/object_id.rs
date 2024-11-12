@@ -158,10 +158,6 @@ where
     where
         <Kind as Object>::Error: From<Error>,
     {
-        if self.is_local(data) {
-            return Err(Error::CannotDereferenceLocalObject.into());
-        }
-
         let res = Box::pin(fetch_object_http(&self.0, data)).await;
 
         if let Err(Error::ObjectDeleted(url)) = res {
@@ -174,8 +170,12 @@ where
         let res = res?;
         let redirect_url = &res.url;
 
-        if data.config.is_local_url(&redirect_url) {
-            return Err(Error::CannotDereferenceLocalObject.into());
+        // Prevent overwriting local object
+        if data.config.is_local_url(redirect_url) {
+            return self
+                .dereference_from_db(data)
+                .await?
+                .ok_or(Error::NotFound.into());
         }
 
         Box::pin(Kind::verify(&res.object, redirect_url, data)).await?;

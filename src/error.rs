@@ -78,9 +78,6 @@ pub enum Error {
     /// Attempted to fetch object but the response's id field doesn't match
     #[error("Attempted to fetch object from {0} but the response's id field doesn't match")]
     FetchWrongId(Url),
-    /// Object which has local domain cannot be fetched over HTTP
-    #[error("Object which has local domain cannot be fetched over HTTP")]
-    CannotDereferenceLocalObject,
     /// Other generic errors
     #[error("{0}")]
     Other(String),
