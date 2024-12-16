@@ -24,9 +24,9 @@ use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::Serialize;
 use std::{
     fmt::{Debug, Display},
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
-use tracing::debug;
+use tracing::{debug, warn};
 use url::Url;
 
 #[derive(Clone, Debug)]
@@ -92,7 +92,17 @@ impl SendActivityTask {
             self.http_signature_compat,
         )
         .await?;
+
+        // Send the activity, and log a warning if its too slow.
+        let now = Instant::now();
         let response = client.execute(request).await?;
+        let elapsed = now.elapsed().as_secs();
+        if elapsed > 10 {
+            warn!(
+                "Sending activity {} to {} took {}s",
+                self.activity_id, self.inbox, elapsed
+            );
+        }
         self.handle_response(response).await
     }
 
@@ -126,8 +136,8 @@ impl SendActivityTask {
     }
 }
 
-pub(crate) async fn build_tasks<'a, Activity, Datatype, ActorType>(
-    activity: &'a Activity,
+pub(crate) async fn build_tasks<Activity, Datatype, ActorType>(
+    activity: &Activity,
     actor: &ActorType,
     inboxes: Vec<Url>,
     data: &Data<Datatype>,

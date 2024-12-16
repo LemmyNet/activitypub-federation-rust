@@ -14,13 +14,13 @@ use activitypub_federation::{
     traits::Object,
 };
 use axum::{
+    debug_handler,
     extract::{Path, Query},
     response::IntoResponse,
     routing::{get, post},
     Json,
     Router,
 };
-use axum_macros::debug_handler;
 use serde::Deserialize;
 use std::net::TcpListener;
 use tracing::info;

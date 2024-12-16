@@ -73,6 +73,14 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
 
     // Ensure id field matches final url after redirect
     if res.object_id.as_ref() != Some(&res.url) {
+        if let Some(res_object_id) = res.object_id {
+            // If id is different but still on the same domain, attempt to request object
+            // again from url in id field.
+            if res_object_id.domain() == res.url.domain() {
+                return Box::pin(fetch_object_http(&res_object_id, data)).await;
+            }
+        }
+        // Failed to fetch the object from its specified id
         return Err(Error::FetchWrongId(res.url));
     }
 
@@ -148,5 +156,36 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
             url,
             String::from_utf8(Vec::from(text))?,
         )),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::FederationConfig,
+        traits::tests::{DbConnection, Person},
+    };
+
+    #[tokio::test]
+    async fn test_request_limit() -> Result<(), Error> {
+        let config = FederationConfig::builder()
+            .domain("example.com")
+            .app_data(DbConnection)
+            .http_fetch_limit(0)
+            .build()
+            .await
+            .unwrap();
+        let data = config.to_request_data();
+
+        let fetch_url = "https://example.net/".to_string();
+
+        let res: Result<FetchObjectResponse<Person>, Error> =
+            fetch_object_http(&Url::parse(&fetch_url).map_err(Error::UrlParse)?, &data).await;
+
+        assert_eq!(res.err(), Some(Error::RequestLimit));
+
+        Ok(())
     }
 }

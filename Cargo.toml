@@ -1,6 +1,6 @@
 [package]
 name = "activitypub_federation"
-version = "0.5.9"
+version = "0.6.1"
 edition = "2021"
 description = "High-level Activitypub framework"
 keywords = ["activitypub", "activitystreams", "federation", "fediverse"]
@@ -10,8 +10,8 @@ documentation = "https://docs.rs/activitypub_federation/"
 
 [features]
 default = ["actix-web", "axum"]
-actix-web = ["dep:actix-web"]
-axum = ["dep:axum", "dep:tower", "dep:hyper", "dep:http-body-util"]
+actix-web = ["dep:actix-web", "dep:http02"]
+axum = ["dep:axum", "dep:tower"]
 diesel = ["dep:diesel"]
 
 [lints.rust]
@@ -57,7 +57,6 @@ dyn-clone = "1.0.17"
 enum_delegate = "0.2.0"
 httpdate = "1.0.3"
 http-signature-normalization-reqwest = { version = "0.12.0", default-features = false, features = [
-  "default-spawner",
   "sha-2",
   "middleware",
   "default-spawner",
@@ -85,25 +84,24 @@ moka = { version = "0.12.8", features = ["future"] }
 
 # Actix-web
 actix-web = { version = "4.8.0", default-features = false, optional = true }
+http02 = { package = "http", version = "0.2.12", optional = true }
 
 # Axum
 axum = { git = "https://github.com/tokio-rs/axum.git", features = [
   "json",
 ], default-features = false, optional = true }
 tower = { version = "0.5.1", optional = true }
-hyper = { version = "1.4.1", optional = true }
-http-body-util = { version = "0.1.2", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.86"
-env_logger = "0.11.3"
-tower-http = { version = "0.6.1", features = ["map-request-body", "util"] }
 axum = { git = "https://github.com/tokio-rs/axum.git", features = [
   "http1",
+  "macros",
   "tokio",
   "query",
 ], default-features = false }
-axum-macros = { git = "https://github.com/tokio-rs/axum.git" }
+axum-extra = { version = "0.9.3", features = ["typed-header"] }
+env_logger = "0.11.3"
 tokio = { version = "1.40.0", features = ["full"] }
 
 [profile.dev]

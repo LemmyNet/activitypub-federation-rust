@@ -17,14 +17,17 @@
 use crate::{
     activity_queue::{create_activity_queue, ActivityQueue},
     error::Error,
+    http_signatures::sign_request,
     protocol::verification::verify_domains_match,
     traits::{ActivityHandler, Actor},
 };
 use async_trait::async_trait;
+use bytes::Bytes;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest::Request;
+use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
 use std::{
@@ -326,6 +329,25 @@ impl<T: Clone> Data<T> {
     /// Total number of outgoing HTTP requests made with this data.
     pub fn request_count(&self) -> u32 {
         self.request_counter.load(Ordering::Relaxed)
+    }
+
+    /// Add HTTP signature to arbitrary request
+    pub async fn sign_request(&self, req: RequestBuilder, body: Bytes) -> Result<Request, Error> {
+        let (actor_id, private_key_pem) =
+            self.config
+                .signed_fetch_actor
+                .as_deref()
+                .ok_or(Error::Other(
+                    "config value signed_fetch_actor is none".to_string(),
+                ))?;
+        sign_request(
+            req,
+            actor_id,
+            body,
+            private_key_pem.clone(),
+            self.config.http_signature_compat,
+        )
+        .await
     }
 }
 

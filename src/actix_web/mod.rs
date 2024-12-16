@@ -1,5 +1,6 @@
 //! Utilities for using this library with actix-web framework
 
+mod http_compat;
 pub mod inbox;
 #[doc(hidden)]
 pub mod middleware;

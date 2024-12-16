@@ -92,7 +92,7 @@ where
         // object found in database
         if let Some(object) = db_object {
             if let Some(last_refreshed_at) = object.last_refreshed_at() {
-                let is_local = data.config.is_local_url(&self.0);
+                let is_local = self.is_local(data);
                 if !is_local && should_refetch_object(last_refreshed_at) {
                     // object is outdated and should be refetched
                     return self.dereference_from_http(data, Some(object)).await;
@@ -120,6 +120,7 @@ where
                 .await
                 .map(|o| o.ok_or(Error::NotFound.into()))?
         } else {
+            // Don't pass in any db object, otherwise it would be returned in case http fetch fails
             self.dereference_from_http(data, None).await
         }
     }
@@ -146,6 +147,10 @@ where
         Object::read_from_id(*id, data).await
     }
 
+    /// Fetch object from origin instance over HTTP, then verify and parse it.
+    ///
+    /// Uses Box::pin to wrap futures to reduce stack size and avoid stack overflow when
+    /// when fetching objects recursively.
     async fn dereference_from_http(
         &self,
         data: &Data<<Kind as Object>::DataType>,
@@ -154,7 +159,7 @@ where
     where
         <Kind as Object>::Error: From<Error>,
     {
-        let res = fetch_object_http(&self.0, data).await;
+        let res = Box::pin(fetch_object_http(&self.0, data)).await;
 
         if let Err(Error::ObjectDeleted(url)) = res {
             if let Some(db_object) = db_object {
@@ -163,11 +168,23 @@ where
             return Err(Error::ObjectDeleted(url).into());
         }
 
+        // If fetch failed, return the existing object from local database
+        if let (Err(_), Some(db_object)) = (&res, db_object) {
+            return Ok(db_object);
+        }
         let res = res?;
         let redirect_url = &res.url;
 
-        Kind::verify(&res.object, redirect_url, data).await?;
-        Kind::from_json(res.object, data).await
+        // Prevent overwriting local object
+        if data.config.is_local_url(redirect_url) {
+            return self
+                .dereference_from_db(data)
+                .await?
+                .ok_or(Error::NotFound.into());
+        }
+
+        Box::pin(Kind::verify(&res.object, redirect_url, data)).await?;
+        Box::pin(Kind::from_json(res.object, data)).await
     }
 
     /// Returns true if the object's domain matches the one defined in [[FederationConfig.domain]].
