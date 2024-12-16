@@ -238,9 +238,6 @@ pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
 mod tests {
     use super::*;
     use crate::{config::FederationConfig, http_signatures::generate_actor_keypair};
-    use axum::extract::State;
-    use bytes::Bytes;
-    use http::StatusCode;
     use std::{
         sync::{atomic::AtomicUsize, Arc},
         time::Instant,
@@ -249,11 +246,7 @@ mod tests {
     use tracing::info;
 
     // This will periodically send back internal errors to test the retry
-    async fn dodgy_handler(
-        State(_state): State<Arc<AtomicUsize>>,
-        headers: http::HeaderMap,
-        body: Bytes,
-    ) -> Result<(), StatusCode> {
+    async fn dodgy_handler(headers: HeaderMap, body: Bytes) -> Result<(), StatusCode> {
         debug!("Headers:{:?}", headers);
         debug!("Body len:{}", body.len());
         Ok(())

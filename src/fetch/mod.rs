@@ -114,7 +114,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     let req = config
         .client
         .get(url.as_str())
-        .header("Accept", content_type.as_bytes())
+        .header("Accept", content_type)
         .timeout(config.request_timeout);
 
     let res = if let Some((actor_id, private_key_pem)) = config.signed_fetch_actor.as_deref() {
@@ -131,16 +131,12 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
         req.send().await?
     };
 
-    if res.status().as_u16() == StatusCode::GONE.as_u16() {
+    if res.status() == StatusCode::GONE {
         return Err(Error::ObjectDeleted(url.clone()));
     }
 
     let url = res.url().clone();
-    let content_type = res
-        .headers()
-        .get("Content-Type")
-        .cloned()
-        .and_then(|v| HeaderValue::from_maybe_shared(v).ok());
+    let content_type = res.headers().get("Content-Type").cloned();
     let text = res.bytes_limited().await?;
     let object_id = extract_id(&text).ok();
 
