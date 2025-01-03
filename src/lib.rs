@@ -52,10 +52,10 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    let activity: Activity = serde_json::from_slice(body).map_err(|e| {
+    let activity: Activity = serde_json::from_slice(body).map_err(|err| {
         // Attempt to include activity id in error message
         let id = extract_id(body).ok();
-        Error::ParseReceivedActivity(e, id)
+        Error::ParseReceivedActivity { err, id }
     })?;
     data.config.verify_url_and_domain(&activity).await?;
     let actor = ObjectId::<ActorT>::from(activity.actor().clone())
