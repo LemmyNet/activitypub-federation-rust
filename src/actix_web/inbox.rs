@@ -144,7 +144,7 @@ mod test {
         .await;
 
         match res {
-            Err(Error::ParseReceivedActivity{err: _, id}) => {
+            Err(Error::ParseReceivedActivity { err: _, id }) => {
                 assert_eq!(activity_id, id.expect("has url").as_str());
             }
             _ => unreachable!(),
