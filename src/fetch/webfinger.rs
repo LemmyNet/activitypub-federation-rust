@@ -57,9 +57,12 @@ where
         .splitn(2, '@')
         .collect_tuple()
         .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
-    if !DOMAIN_REGEX.is_match(domain) {
+
+    // For production mode make sure that domain doesnt contain any port or path.
+    if !data.config.debug && !DOMAIN_REGEX.is_match(domain) {
         return Err(Error::UrlVerificationError("Invalid characters in domain").into());
     }
+
     let protocol = if data.config.debug { "http" } else { "https" };
     let fetch_url =
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
