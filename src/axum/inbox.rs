@@ -10,6 +10,7 @@ use crate::{
     traits::{ActivityHandler, Actor, Object},
 };
 use axum::{
+    async_trait,
     body::Body,
     extract::FromRequest,
     http::{Request, StatusCode},
@@ -57,6 +58,7 @@ pub struct ActivityData {
     body: Vec<u8>,
 }
 
+#[async_trait]
 impl<S> FromRequest<S> for ActivityData
 where
     S: Send + Sync,

@@ -122,14 +122,14 @@ mod test {
         let (_, _, config) = setup_receive_test().await;
 
         let actor = Url::parse("http://ds9.lemmy.ml/u/lemmy_alpha").unwrap();
-        let activity_id = "http://localhost:123/1";
+        let id = "http://localhost:123/1";
         let activity = json!({
           "actor": actor.as_str(),
           "to": ["https://www.w3.org/ns/activitystreams#Public"],
           "object": "http://ds9.lemmy.ml/post/1",
           "cc": ["http://enterprise.lemmy.ml/c/main"],
           "type": "Delete",
-          "id": activity_id
+          "id": id
         }
         );
         let body: Bytes = serde_json::to_vec(&activity).unwrap().into();
@@ -144,8 +144,8 @@ mod test {
         .await;
 
         match res {
-            Err(Error::ParseReceivedActivity { err: _, id }) => {
-                assert_eq!(activity_id, id.expect("has url").as_str());
+            Err(Error::ParseReceivedActivity(_, url)) => {
+                assert_eq!(id, url.expect("has url").as_str());
             }
             _ => unreachable!(),
         }
