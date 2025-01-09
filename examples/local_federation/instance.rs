@@ -29,7 +29,7 @@ pub async fn new_instance(
         .signed_fetch_actor(&system_user)
         .app_data(database)
         .url_verifier(Box::new(MyUrlVerifier()))
-        .debug(true)
+        .debug(false)
         .build()
         .await?;
     Ok(config)

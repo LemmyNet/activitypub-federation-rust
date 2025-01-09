@@ -50,10 +50,16 @@ where
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
     <Kind as Object>::Error: From<crate::error::Error> + Send + Sync + Display,
 {
+    static DOMAIN_REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
+
     let (_, domain) = identifier
         .splitn(2, '@')
         .collect_tuple()
         .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
+    if !DOMAIN_REGEX.is_match(domain) {
+        return Err(Error::UrlVerificationError("Invalid characters in domain").into());
+    }
     let protocol = if data.config.debug { "http" } else { "https" };
     let fetch_url =
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
