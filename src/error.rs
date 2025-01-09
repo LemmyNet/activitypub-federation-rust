@@ -78,6 +78,9 @@ pub enum Error {
     /// Attempted to fetch object but the response's id field doesn't match
     #[error("Attempted to fetch object from {0} but the response's id field doesn't match")]
     FetchWrongId(Url),
+    /// I/O error from OS
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
     /// Other generic errors
     #[error("{0}")]
     Other(String),
