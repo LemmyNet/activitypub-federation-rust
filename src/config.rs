@@ -208,7 +208,7 @@ impl<T: Clone> FederationConfig<T> {
 
         // It is valid but uncommon for domains to end with `.` char. Drop this so it cant be used
         // to bypass domain blocklist. Avoid cloning url in common case.
-        if domain.ends_with(".") {
+        if domain.ends_with('.') {
             let mut url = url.clone();
             let domain = &domain[0..domain.len() - 1];
             url.set_host(Some(domain))?;
