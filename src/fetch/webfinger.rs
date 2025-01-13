@@ -75,7 +75,7 @@ where
     )
     .await?;
     if res.url.as_str() != fetch_url {
-        return Err(Error::WebfingerResolveFailed(WebFingerError::RedirectNotAllowed).into());
+        data.config.verify_url_valid(&res.url).await?;
     }
 
     debug_assert_eq!(res.object.subject, format!("acct:{identifier}"));
