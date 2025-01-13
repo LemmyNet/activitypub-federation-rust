@@ -170,7 +170,7 @@ impl<T: Clone> FederationConfig<T> {
             return Err(Error::UrlVerificationError("Url must have a domain"));
         };
         if !DOMAIN_REGEX.is_match(domain) {
-            return Err(Error::UrlVerificationError("Invalid characters in domain").into());
+            return Err(Error::UrlVerificationError("Invalid characters in domain"));
         }
 
         // Extra checks only for production mode
