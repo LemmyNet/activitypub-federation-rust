@@ -46,7 +46,7 @@ async fn main() -> Result<(), Error> {
     info!("Alpha user follows beta user via webfinger");
     alpha
         .local_user()
-        .follow("beta@localhost.:8002", &alpha.to_request_data())
+        .follow("beta@localhost:8002", &alpha.to_request_data())
         .await?;
     assert_eq!(
         beta.local_user().followers(),
