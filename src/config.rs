@@ -26,11 +26,14 @@ use bytes::Bytes;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use reqwest::Request;
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
 use std::{
+    net::IpAddr,
     ops::Deref,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -38,6 +41,7 @@ use std::{
     },
     time::Duration,
 };
+use tokio::net::lookup_host;
 use url::Url;
 
 /// Configuration for this library, with various federation related settings
@@ -105,6 +109,9 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) queue_retry_count: usize,
 }
 
+pub(crate) static DOMAIN_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
+
 impl<T: Clone> FederationConfig<T> {
     /// Returns a new config builder with default values.
     pub fn builder() -> FederationConfigBuilder<T> {
@@ -159,17 +166,56 @@ impl<T: Clone> FederationConfig<T> {
             return Ok(());
         }
 
-        if url.domain().is_none() {
+        let Some(domain) = url.domain() else {
             return Err(Error::UrlVerificationError("Url must have a domain"));
+        };
+        if !DOMAIN_REGEX.is_match(domain) {
+            return Err(Error::UrlVerificationError("Invalid characters in domain"));
         }
 
-        if url.domain() == Some("localhost") && !self.debug {
-            return Err(Error::UrlVerificationError(
-                "Localhost is only allowed in debug mode",
-            ));
+        // Extra checks only for production mode
+        if !self.debug {
+            if url.port().is_some() {
+                return Err(Error::UrlVerificationError("Explicit port is not allowed"));
+            }
+
+            // Resolve domain and see if it points to private IP
+            // TODO: Use is_global() once stabilized
+            //       https://doc.rust-lang.org/std/net/enum.IpAddr.html#method.is_global
+            let invalid_ip =
+                lookup_host((domain.to_owned(), 80))
+                    .await?
+                    .any(|addr| match addr.ip() {
+                        IpAddr::V4(addr) => {
+                            addr.is_private()
+                                || addr.is_link_local()
+                                || addr.is_loopback()
+                                || addr.is_multicast()
+                        }
+                        IpAddr::V6(addr) => {
+                            addr.is_loopback()
+                        || addr.is_multicast()
+                        || ((addr.segments()[0] & 0xfe00) == 0xfc00) // is_unique_local
+                        || ((addr.segments()[0] & 0xffc0) == 0xfe80) // is_unicast_link_local
+                        }
+                    });
+            if invalid_ip {
+                return Err(Error::UrlVerificationError(
+                    "Localhost is only allowed in debug mode",
+                ));
+            }
         }
 
-        self.url_verifier.verify(url).await?;
+        // It is valid but uncommon for domains to end with `.` char. Drop this so it cant be used
+        // to bypass domain blocklist. Avoid cloning url in common case.
+        if domain.ends_with('.') {
+            let mut url = url.clone();
+            let domain = &domain[0..domain.len() - 1];
+            url.set_host(Some(domain))?;
+            self.url_verifier.verify(&url).await?;
+        } else {
+            self.url_verifier.verify(url).await?;
+        }
 
         Ok(())
     }

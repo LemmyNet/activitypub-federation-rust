@@ -1,5 +1,5 @@
 use crate::{
-    config::Data,
+    config::{Data, DOMAIN_REGEX},
     error::Error,
     fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
@@ -26,6 +26,9 @@ pub enum WebFingerError {
     /// The wefinger object did not contain any link to an activitypub item
     #[error("The webfinger object did not contain any link to an activitypub item")]
     NoValidLink,
+    /// Webfinger request was redirected which is not allowed
+    #[error("Webfinger request was redirected which is not allowed")]
+    RedirectNotAllowed,
 }
 
 impl WebFingerError {
@@ -54,21 +57,30 @@ where
         .splitn(2, '@')
         .collect_tuple()
         .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
+
+    // For production mode make sure that domain doesnt contain any port or path.
+    if !data.config.debug && !DOMAIN_REGEX.is_match(domain) {
+        return Err(Error::UrlVerificationError("Invalid characters in domain").into());
+    }
+
     let protocol = if data.config.debug { "http" } else { "https" };
     let fetch_url =
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
     debug!("Fetching webfinger url: {}", &fetch_url);
 
-    let res: Webfinger = fetch_object_http_with_accept(
+    let res = fetch_object_http_with_accept::<_, Webfinger>(
         &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
         data,
         &WEBFINGER_CONTENT_TYPE,
     )
-    .await?
-    .object;
+    .await?;
+    if res.url.as_str() != fetch_url {
+        data.config.verify_url_valid(&res.url).await?;
+    }
 
-    debug_assert_eq!(res.subject, format!("acct:{identifier}"));
+    debug_assert_eq!(res.object.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res
+        .object
         .links
         .iter()
         .filter(|link| {
