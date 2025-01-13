@@ -1,5 +1,5 @@
 use crate::{
-    config::Data,
+    config::{Data, DOMAIN_REGEX},
     error::Error,
     fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
@@ -53,9 +53,6 @@ where
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
     <Kind as Object>::Error: From<crate::error::Error> + Send + Sync + Display,
 {
-    static DOMAIN_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
-
     let (_, domain) = identifier
         .splitn(2, '@')
         .collect_tuple()
