@@ -26,6 +26,9 @@ pub enum WebFingerError {
     /// The wefinger object did not contain any link to an activitypub item
     #[error("The webfinger object did not contain any link to an activitypub item")]
     NoValidLink,
+    /// Webfinger request was redirected which is not allowed
+    #[error("Webfinger request was redirected which is not allowed")]
+    RedirectNotAllowed,
 }
 
 impl WebFingerError {
@@ -68,16 +71,21 @@ where
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
     debug!("Fetching webfinger url: {}", &fetch_url);
 
-    let res: Webfinger = fetch_object_http_with_accept(
+    let res = fetch_object_http_with_accept(
         &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
         data,
         &WEBFINGER_CONTENT_TYPE,
     )
-    .await?
-    .object;
+    .await?;
+    if res.url != fetch_url {
+        return Err(Error::WebfingerResolveFailed(
+            WebFingerError::RedirectNotAllowed,
+        ));
+    }
 
-    debug_assert_eq!(res.subject, format!("acct:{identifier}"));
+    debug_assert_eq!(res.object.subject, format!("acct:{identifier}"));
     let links: Vec<Url> = res
+        .object
         .links
         .iter()
         .filter(|link| {
