@@ -346,8 +346,8 @@ pub mod tests {
         protocol::verification::verify_domains_match,
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};
-    use once_cell::sync::Lazy;
     use serde::{Deserialize, Serialize};
+    use std::sync::LazyLock;
 
     #[derive(Clone)]
     pub struct DbConnection;
@@ -389,9 +389,10 @@ pub mod tests {
         pub local: bool,
     }
 
-    pub static DB_USER_KEYPAIR: Lazy<Keypair> = Lazy::new(|| generate_actor_keypair().unwrap());
+    pub static DB_USER_KEYPAIR: LazyLock<Keypair> =
+        LazyLock::new(|| generate_actor_keypair().unwrap());
 
-    pub static DB_USER: Lazy<DbUser> = Lazy::new(|| DbUser {
+    pub static DB_USER: LazyLock<DbUser> = LazyLock::new(|| DbUser {
         name: String::new(),
         federation_id: "https://localhost/123".parse().unwrap(),
         inbox: "https://localhost/123/inbox".parse().unwrap(),
