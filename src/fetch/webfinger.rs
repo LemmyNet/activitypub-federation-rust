@@ -71,16 +71,14 @@ where
         format!("{protocol}://{domain}/.well-known/webfinger?resource=acct:{identifier}");
     debug!("Fetching webfinger url: {}", &fetch_url);
 
-    let res = fetch_object_http_with_accept(
+    let res = fetch_object_http_with_accept::<_, Webfinger>(
         &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
         data,
         &WEBFINGER_CONTENT_TYPE,
     )
     .await?;
-    if res.url != fetch_url {
-        return Err(Error::WebfingerResolveFailed(
-            WebFingerError::RedirectNotAllowed,
-        ));
+    if res.url.as_str() != fetch_url {
+        return Err(Error::WebfingerResolveFailed(WebFingerError::RedirectNotAllowed).into());
     }
 
     debug_assert_eq!(res.object.subject, format!("acct:{identifier}"));
