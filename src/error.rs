@@ -44,11 +44,16 @@ pub enum Error {
     #[error("Failed to parse object {1} with content {2}: {0}")]
     ParseFetchedObject(serde_json::Error, Url, String),
     /// Failed to parse an activity received from another instance
-    #[error("Failed to parse incoming activity {}: {0}", match .1 {
+    #[error("Failed to parse incoming activity {}: {0}", match .id {
         Some(t) => format!("with id {t}"),
         None => String::new(),
     })]
-    ParseReceivedActivity(serde_json::Error, Option<Url>),
+    ParseReceivedActivity {
+        /// The parse error
+        err: serde_json::Error,
+        /// ID of the Activitypub object which caused this error
+        id: Option<Url>,
+    },
     /// Reqwest Middleware Error
     #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),
