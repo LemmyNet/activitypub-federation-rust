@@ -46,11 +46,17 @@ pub fn verify_urls_match(a: &Url, b: &Url) -> Result<(), Error> {
 /// also result in an `object.local` field being overwritten with `false` for local objects, resulting in invalid data.
 ///
 /// ```
-/// # use url::Url;
+/// # use activitypub_federation::fetch::object_id::ObjectId;
+/// # use activitypub_federation::config::FederationConfig;
 /// # use activitypub_federation::protocol::verification::verify_is_remote_object;
-/// let a = Url::parse("https://example.com/u/name")?;
-/// assert!(verify_is_remote_object(&a, &b).is_ok());
-/// # Ok::<(), url::ParseError>(())
+/// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
+/// # tokio::runtime::Runtime::new().unwrap().block_on(async {
+/// # let config = FederationConfig::builder().domain("example.com").app_data(DbConnection).build().await?;
+/// # let data = config.to_request_data();
+/// let id = ObjectId::<DbUser>::parse("https://remote.com/u/name")?;
+/// assert!(verify_is_remote_object(&id, &data).is_ok());
+/// # Ok::<(), anyhow::Error>(())
+/// # }).unwrap();
 /// ```
 pub fn verify_is_remote_object<Kind, R: Clone>(
     id: &ObjectId<Kind>,
