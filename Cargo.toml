@@ -93,7 +93,6 @@ tower = { version = "0.4.13", optional = true }
 [dev-dependencies]
 anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["macros"] }
-axum-extra = { version = "0.9.3", features = ["typed-header"] }
 env_logger = "0.11.3"
 tokio = { version = "1.38.0", features = ["full"] }
 
