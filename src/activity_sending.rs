@@ -136,8 +136,8 @@ impl SendActivityTask {
     }
 }
 
-pub(crate) async fn build_tasks<'a, Activity, Datatype, ActorType>(
-    activity: &'a Activity,
+pub(crate) async fn build_tasks<Activity, Datatype, ActorType>(
+    activity: &Activity,
     actor: &ActorType,
     inboxes: Vec<Url>,
     data: &Data<Datatype>,

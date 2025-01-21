@@ -360,6 +360,7 @@ const _: () = {
     }
 };
 
+/// Internal only
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {

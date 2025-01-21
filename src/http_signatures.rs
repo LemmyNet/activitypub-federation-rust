@@ -276,6 +276,7 @@ pub(crate) fn verify_body_hash(
     Ok(())
 }
 
+/// Internal only
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 pub mod test {
@@ -378,6 +379,7 @@ pub mod test {
         assert_eq!(invalid, Err(Error::ActivityBodyDigestInvalid));
     }
 
+    /// Internal only, return hardcoded keypair for testing
     pub fn test_keypair() -> Keypair {
         let rsa = RsaPrivateKey::from_pkcs1_pem(PRIVATE_KEY).unwrap();
         let pkey = RsaPublicKey::from(&rsa);
