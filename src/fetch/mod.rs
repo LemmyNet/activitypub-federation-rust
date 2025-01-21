@@ -132,8 +132,9 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
         req.send().await?
     };
 
-    if let Some(location) = res.headers().get(LOCATION) {
-        let location: Url = location.to_str().unwrap().parse()?;
+    let location = res.headers().get(LOCATION).and_then(|l| l.to_str().ok());
+    if let Some(location) = location {
+        let location = location.parse()?;
         return Box::pin(fetch_object_http_with_accept(&location, data, content_type)).await;
     }
 

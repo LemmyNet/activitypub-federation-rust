@@ -26,9 +26,6 @@ pub enum WebFingerError {
     /// The wefinger object did not contain any link to an activitypub item
     #[error("The webfinger object did not contain any link to an activitypub item")]
     NoValidLink,
-    /// Webfinger request was redirected which is not allowed
-    #[error("Webfinger request was redirected which is not allowed")]
-    RedirectNotAllowed,
 }
 
 impl WebFingerError {
