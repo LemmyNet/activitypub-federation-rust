@@ -361,10 +361,10 @@ impl ActivityQueue {
     pub(crate) async fn shutdown(self, wait_for_retries: bool) -> Result<Arc<Stats>, Error> {
         drop(self.sender);
 
-        self.sender_task.await?;
+        self.sender_task.await.map_err(|_| Error::NotFound)?;
 
         if wait_for_retries {
-            self.retry_sender_task.await?;
+            self.retry_sender_task.await.map_err(|_| Error::NotFound)?;
         }
 
         Ok(self.stats)

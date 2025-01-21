@@ -101,6 +101,42 @@ impl From<SpkiError> for Error {
     }
 }
 
+impl From<url::ParseError> for Error {
+    fn from(value: url::ParseError) -> Self {
+        Error::UrlParse(value)
+    }
+}
+
+impl From<WebFingerError> for Error {
+    fn from(value: WebFingerError) -> Self {
+        Error::WebfingerResolveFailed(value)
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(value: FromUtf8Error) -> Self {
+        Error::Utf8(value)
+    }
+}
+
+impl From<SignError> for Error {
+    fn from(value: SignError) -> Self {
+        Error::SignError(value)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(value: reqwest::Error) -> Self {
+        Error::Reqwest(value)
+    }
+}
+
+impl From<reqwest_middleware::Error> for Error {
+    fn from(value: reqwest_middleware::Error) -> Self {
+        Error::ReqwestMiddleware(value)
+    }
+}
+
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         std::mem::discriminant(self) == std::mem::discriminant(other)

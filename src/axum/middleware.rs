@@ -1,5 +1,6 @@
 use crate::config::{Data, FederationConfig, FederationMiddleware};
-use axum::{async_trait, body::Body, extract::FromRequestParts, http::Request, response::Response};
+use async_trait::async_trait;
+use axum::{body::Body, extract::FromRequestParts, http::Request, response::Response};
 use http::{request::Parts, StatusCode};
 use std::task::{Context, Poll};
 use tower::{Layer, Service};

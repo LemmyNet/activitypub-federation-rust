@@ -126,12 +126,14 @@ where
     // TODO: This should use a URL parser
     let captures = WEBFINGER_REGEX
         .captures(query)
-        .ok_or(WebFingerError::WrongFormat)?;
+        .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
 
-    let account_name = captures.get(1).ok_or(WebFingerError::WrongFormat)?;
+    let account_name = captures
+        .get(1)
+        .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
 
     if captures.get(2).map(|m| m.as_str()) != Some(data.domain()) {
-        return Err(WebFingerError::WrongDomain.into());
+        return Err(WebFingerError::WrongDomain.into_crate_error());
     }
     Ok(account_name.as_str())
 }

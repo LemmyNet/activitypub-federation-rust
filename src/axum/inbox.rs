@@ -9,8 +9,8 @@ use crate::{
     parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
+use async_trait::async_trait;
 use axum::{
-    async_trait,
     body::Body,
     extract::FromRequest,
     http::{Request, StatusCode},
