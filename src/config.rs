@@ -28,7 +28,7 @@ use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::Request;
+use reqwest::{redirect::Policy, Client, Request};
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
@@ -58,9 +58,10 @@ pub struct FederationConfig<T: Clone> {
     /// [crate::fetch::object_id::ObjectId] for more details.
     #[builder(default = "20")]
     pub(crate) http_fetch_limit: u32,
-    #[builder(default = "reqwest::Client::default().into()")]
+    #[builder(default = "default_client()")]
     /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
     /// like log tracing or retry of failed requests.
+    /// Redirects should be disabled to prevent an attacker from accessing local addresses.
     pub(crate) client: ClientWithMiddleware,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
@@ -414,6 +415,14 @@ impl<T: Clone> FederationMiddleware<T> {
     pub fn new(config: FederationConfig<T>) -> Self {
         FederationMiddleware(config)
     }
+}
+
+fn default_client() -> ClientWithMiddleware {
+    Client::builder()
+        .redirect(Policy::none())
+        .build()
+        .unwrap_or_else(|_| Client::default())
+        .into()
 }
 
 #[cfg(test)]

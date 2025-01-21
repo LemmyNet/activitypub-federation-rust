@@ -11,7 +11,7 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
-use http::{HeaderValue, StatusCode};
+use http::{header::LOCATION, HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
@@ -131,6 +131,11 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     } else {
         req.send().await?
     };
+
+    if let Some(location) = res.headers().get(LOCATION) {
+        let location: Url = location.to_str().unwrap().parse()?;
+        return Box::pin(fetch_object_http_with_accept(&location, data, content_type)).await;
+    }
 
     if res.status() == StatusCode::GONE {
         return Err(Error::ObjectDeleted(url.clone()));
