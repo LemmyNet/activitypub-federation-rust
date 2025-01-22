@@ -7,10 +7,9 @@ use crate::{
 };
 use http::HeaderValue;
 use itertools::Itertools;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, sync::LazyLock};
 use tracing::debug;
 use url::Url;
 
@@ -120,20 +119,18 @@ pub fn extract_webfinger_name<'i, T>(query: &'i str, data: &Data<T>) -> Result<&
 where
     T: Clone,
 {
-    static WEBFINGER_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"^acct:([\p{L}0-9_\.\-]+)@(.*)$").expect("compile regex"));
+    static WEBFINGER_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^acct:([\p{L}0-9_\.\-]+)@(.*)$").expect("compile regex"));
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: This should use a URL parser
     let captures = WEBFINGER_REGEX
         .captures(query)
-        .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
+        .ok_or(WebFingerError::WrongFormat)?;
 
-    let account_name = captures
-        .get(1)
-        .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
+    let account_name = captures.get(1).ok_or(WebFingerError::WrongFormat)?;
 
     if captures.get(2).map(|m| m.as_str()) != Some(data.domain()) {
-        return Err(WebFingerError::WrongDomain.into_crate_error());
+        return Err(WebFingerError::WrongDomain.into());
     }
     Ok(account_name.as_str())
 }

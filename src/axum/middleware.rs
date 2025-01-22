@@ -1,5 +1,4 @@
 use crate::config::{Data, FederationConfig, FederationMiddleware};
-use async_trait::async_trait;
 use axum::{body::Body, extract::FromRequestParts, http::Request, response::Response};
 use http::{request::Parts, StatusCode};
 use std::task::{Context, Poll};
@@ -44,7 +43,6 @@ where
     }
 }
 
-#[async_trait]
 impl<S, T: Clone + 'static> FromRequestParts<S> for Data<T>
 where
     S: Send + Sync,

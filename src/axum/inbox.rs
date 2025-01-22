@@ -9,7 +9,6 @@ use crate::{
     parse_received_activity,
     traits::{ActivityHandler, Actor, Object},
 };
-use async_trait::async_trait;
 use axum::{
     body::Body,
     extract::FromRequest,
@@ -58,7 +57,6 @@ pub struct ActivityData {
     body: Vec<u8>,
 }
 
-#[async_trait]
 impl<S> FromRequest<S> for ActivityData
 where
     S: Send + Sync,

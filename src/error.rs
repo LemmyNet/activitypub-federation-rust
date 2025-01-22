@@ -44,11 +44,16 @@ pub enum Error {
     #[error("Failed to parse object {1} with content {2}: {0}")]
     ParseFetchedObject(serde_json::Error, Url, String),
     /// Failed to parse an activity received from another instance
-    #[error("Failed to parse incoming activity {}: {0}", match .1 {
+    #[error("Failed to parse incoming activity {}: {0}", match .id {
         Some(t) => format!("with id {t}"),
         None => String::new(),
     })]
-    ParseReceivedActivity(serde_json::Error, Option<Url>),
+    ParseReceivedActivity {
+        /// The parse error
+        err: serde_json::Error,
+        /// ID of the Activitypub object which caused this error
+        id: Option<Url>,
+    },
     /// Reqwest Middleware Error
     #[error(transparent)]
     ReqwestMiddleware(#[from] reqwest_middleware::Error),
@@ -98,42 +103,6 @@ impl From<Pkcs8Error> for Error {
 impl From<SpkiError> for Error {
     fn from(value: SpkiError) -> Self {
         Error::Other(value.to_string())
-    }
-}
-
-impl From<url::ParseError> for Error {
-    fn from(value: url::ParseError) -> Self {
-        Error::UrlParse(value)
-    }
-}
-
-impl From<WebFingerError> for Error {
-    fn from(value: WebFingerError) -> Self {
-        Error::WebfingerResolveFailed(value)
-    }
-}
-
-impl From<FromUtf8Error> for Error {
-    fn from(value: FromUtf8Error) -> Self {
-        Error::Utf8(value)
-    }
-}
-
-impl From<SignError> for Error {
-    fn from(value: SignError) -> Self {
-        Error::SignError(value)
-    }
-}
-
-impl From<reqwest::Error> for Error {
-    fn from(value: reqwest::Error) -> Self {
-        Error::Reqwest(value)
-    }
-}
-
-impl From<reqwest_middleware::Error> for Error {
-    fn from(value: reqwest_middleware::Error) -> Self {
-        Error::ReqwestMiddleware(value)
     }
 }
 
