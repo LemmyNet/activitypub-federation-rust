@@ -80,17 +80,18 @@ diesel = { version = "2.2.6", features = [
 ], default-features = false, optional = true }
 futures = "0.3.31"
 moka = { version = "0.12.10", features = ["future"] }
+
 # Actix-web
 actix-web = { version = "4.9.0", default-features = false, optional = true }
 http02 = { package = "http", version = "0.2.12", optional = true }
 
 # Axum
-axum = { version = "0.8.2", features = ["json"], default-features = false, optional = true }
+axum = { version = "0.8.1", features = ["json"], default-features = false, optional = true }
 tower = { version = "0.5.2", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.95"
-axum = { version = "0.8.2", features = ["macros"] }
+axum = { version = "0.8.1", features = ["macros"] }
 axum-extra = { version = "0.10.0", features = ["typed-header"] }
 env_logger = "0.11.6"
 tokio = { version = "1.43.0", features = ["full"] }
