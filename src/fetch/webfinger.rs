@@ -69,6 +69,7 @@ where
         &Url::parse(&fetch_url).map_err(Error::UrlParse)?,
         data,
         &WEBFINGER_CONTENT_TYPE,
+        false,
     )
     .await?;
     if res.url.as_str() != fetch_url {
