@@ -34,9 +34,9 @@ unwrap_used = "deny"
 [dependencies]
 chrono = { version = "0.4.39", features = ["clock"], default-features = false }
 serde = { version = "1.0.217", features = ["derive"] }
-async-trait = "0.1.84"
+async-trait = "0.1.85"
 url = { version = "2.5.4", features = ["serde"] }
-serde_json = { version = "1.0.134", features = ["preserve_order"] }
+serde_json = { version = "1.0.137", features = ["preserve_order"] }
 reqwest = { version = "0.12.12", default-features = false, features = [
   "json",
   "stream",
@@ -49,7 +49,7 @@ rand = "0.8.5"
 rsa = "0.9.7"
 http = "1.2.0"
 sha2 = { version = "0.10.8", features = ["oid"] }
-thiserror = "2.0.9"
+thiserror = "2.0.11"
 derive_builder = "0.20.2"
 itertools = "0.14.0"
 dyn-clone = "1.0.17"
@@ -63,13 +63,13 @@ http-signature-normalization-reqwest = { version = "0.13.0", default-features = 
 http-signature-normalization = "0.7.0"
 bytes = "1.9.0"
 futures-core = { version = "0.3.31", default-features = false }
-pin-project-lite = "0.2.15"
+pin-project-lite = "0.2.16"
 activitystreams-kinds = "0.3.0"
 regex = { version = "1.11.1", default-features = false, features = [
   "std",
   "unicode",
 ] }
-tokio = { version = "1.42.0", features = [
+tokio = { version = "1.43.0", features = [
   "sync",
   "rt",
   "rt-multi-thread",
@@ -79,7 +79,7 @@ diesel = { version = "2.2.6", features = [
   "postgres",
 ], default-features = false, optional = true }
 futures = "0.3.31"
-moka = { version = "0.12.9", features = ["future"] }
+moka = { version = "0.12.10", features = ["future"] }
 
 # Actix-web
 actix-web = { version = "4.9.0", default-features = false, optional = true }
@@ -94,7 +94,7 @@ anyhow = "1.0.95"
 axum = { version = "0.8.1", features = ["macros"] }
 axum-extra = { version = "0.10.0", features = ["typed-header"] }
 env_logger = "0.11.6"
-tokio = { version = "1.42.0", features = ["full"] }
+tokio = { version = "1.43.0", features = ["full"] }
 
 [profile.dev]
 strip = "symbols"
