@@ -59,9 +59,13 @@ pub struct FederationConfig<T: Clone> {
     #[builder(default = "20")]
     pub(crate) http_fetch_limit: u32,
     #[builder(default = "default_client()")]
-    /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
-    /// like log tracing or retry of failed requests.
-    /// Redirects should be disabled to prevent an attacker from accessing local addresses.
+    /// HTTP client used for all outgoing requests. When passing a custom client here you should
+    /// also disable redirects and set timeouts.
+    ///
+    /// Middleware can be used to add functionality like log tracing or retry of failed requests.
+    /// Redirects are disabled by default, because automatic redirect URLs can't be validated.
+    /// Instead a single redirect is handled manually. The default client sets a timeout of 10s
+    ///  to avoid excessive resource usage when connecting to dead servers.
     pub(crate) client: ClientWithMiddleware,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
@@ -418,8 +422,11 @@ impl<T: Clone> FederationMiddleware<T> {
 }
 
 fn default_client() -> ClientWithMiddleware {
+    let timeout = Duration::from_secs(10);
     Client::builder()
         .redirect(Policy::none())
+        .timeout(timeout)
+        .connect_timeout(timeout)
         .build()
         .unwrap_or_else(|_| Client::default())
         .into()
