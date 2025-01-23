@@ -24,10 +24,14 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
+use once_cell::sync::Lazy;
+use regex::Regex;
+use reqwest::{redirect::Policy, Client};
 use reqwest_middleware::ClientWithMiddleware;
 use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
 use std::{
+    net::IpAddr,
     ops::Deref,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -35,6 +39,7 @@ use std::{
     },
     time::Duration,
 };
+use tokio::net::lookup_host;
 use url::Url;
 
 /// Configuration for this library, with various federation related settings
@@ -51,9 +56,14 @@ pub struct FederationConfig<T: Clone> {
     /// [crate::fetch::object_id::ObjectId] for more details.
     #[builder(default = "20")]
     pub(crate) http_fetch_limit: u32,
-    #[builder(default = "reqwest::Client::default().into()")]
-    /// HTTP client used for all outgoing requests. Middleware can be used to add functionality
-    /// like log tracing or retry of failed requests.
+    #[builder(default = "default_client()")]
+    /// HTTP client used for all outgoing requests. When passing a custom client here you should
+    /// also disable redirects and set timeouts.
+    ///
+    /// Middleware can be used to add functionality like log tracing or retry of failed requests.
+    /// Redirects are disabled by default, because automatic redirect URLs can't be validated.
+    /// Instead a single redirect is handled manually. The default client sets a timeout of 10s
+    ///  to avoid excessive resource usage when connecting to dead servers.
     pub(crate) client: ClientWithMiddleware,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
@@ -101,6 +111,9 @@ pub struct FederationConfig<T: Clone> {
     #[builder(default = "0")]
     pub(crate) queue_retry_count: usize,
 }
+
+pub(crate) static DOMAIN_REGEX: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
 
 impl<T: Clone> FederationConfig<T> {
     /// Returns a new config builder with default values.
@@ -156,17 +169,56 @@ impl<T: Clone> FederationConfig<T> {
             return Ok(());
         }
 
-        if url.domain().is_none() {
+        let Some(domain) = url.domain() else {
             return Err(Error::UrlVerificationError("Url must have a domain"));
+        };
+        if !DOMAIN_REGEX.is_match(domain) {
+            return Err(Error::UrlVerificationError("Invalid characters in domain"));
         }
 
-        if url.domain() == Some("localhost") && !self.debug {
-            return Err(Error::UrlVerificationError(
-                "Localhost is only allowed in debug mode",
-            ));
+        // Extra checks only for production mode
+        if !self.debug {
+            if url.port().is_some() {
+                return Err(Error::UrlVerificationError("Explicit port is not allowed"));
+            }
+
+            // Resolve domain and see if it points to private IP
+            // TODO: Use is_global() once stabilized
+            //       https://doc.rust-lang.org/std/net/enum.IpAddr.html#method.is_global
+            let invalid_ip =
+                lookup_host((domain.to_owned(), 80))
+                    .await?
+                    .any(|addr| match addr.ip() {
+                        IpAddr::V4(addr) => {
+                            addr.is_private()
+                                || addr.is_link_local()
+                                || addr.is_loopback()
+                                || addr.is_multicast()
+                        }
+                        IpAddr::V6(addr) => {
+                            addr.is_loopback()
+                        || addr.is_multicast()
+                        || ((addr.segments()[0] & 0xfe00) == 0xfc00) // is_unique_local
+                        || ((addr.segments()[0] & 0xffc0) == 0xfe80) // is_unicast_link_local
+                        }
+                    });
+            if invalid_ip {
+                return Err(Error::UrlVerificationError(
+                    "Localhost is only allowed in debug mode",
+                ));
+            }
         }
 
-        self.url_verifier.verify(url).await?;
+        // It is valid but uncommon for domains to end with `.` char. Drop this so it cant be used
+        // to bypass domain blocklist. Avoid cloning url in common case.
+        if domain.ends_with('.') {
+            let mut url = url.clone();
+            let domain = &domain[0..domain.len() - 1];
+            url.set_host(Some(domain))?;
+            self.url_verifier.verify(&url).await?;
+        } else {
+            self.url_verifier.verify(url).await?;
+        }
 
         Ok(())
     }
@@ -346,6 +398,17 @@ impl<T: Clone> FederationMiddleware<T> {
     pub fn new(config: FederationConfig<T>) -> Self {
         FederationMiddleware(config)
     }
+}
+
+fn default_client() -> ClientWithMiddleware {
+    let timeout = Duration::from_secs(10);
+    Client::builder()
+        .redirect(Policy::none())
+        .timeout(timeout)
+        .connect_timeout(timeout)
+        .build()
+        .unwrap_or_else(|_| Client::default())
+        .into()
 }
 
 #[cfg(test)]
