@@ -104,7 +104,7 @@ where
 }
 
 #[cfg(feature = "diesel")]
-const _IMPL_DIESEL_NEW_TYPE_FOR_COLLECTION_ID: () = {
+const _: () = {
     use diesel::{
         backend::Backend,
         deserialize::{FromSql, FromStaticSqlRow},
