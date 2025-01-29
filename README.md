@@ -10,7 +10,7 @@ A high-level framework for [ActivityPub](https://www.w3.org/TR/activitypub/) fed
 
 The ActivityPub protocol is a decentralized social networking protocol. It allows web servers to exchange data using JSON over HTTP. Data can be fetched on demand, and also delivered directly to inboxes for live updates.
 
-While Activitypub is not in widespread use yet, is has the potential to form the basis of the next generation of social media. This is because it has a number of major advantages compared to existing platforms and alternative technologies:
+Activitypub has the potential to form the basis of the next generation of social media. This is because it has a number of major advantages compared to existing platforms and alternative technologies:
 
 - **Interoperability**: Imagine being able to comment under a Youtube video directly from twitter.com, and having the comment shown under the video on youtube.com. Or following a Subreddit from Facebook. Such functionality is already available on the equivalent Fediverse platforms, thanks to common usage of Activitypub.
 - **Ease of use**: From a user perspective, decentralized social media works almost identically to existing websites: a website with email and password based login. Unlike pure peer-to-peer networks, it is not necessary to handle private keys or install any local software.
