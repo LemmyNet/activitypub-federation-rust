@@ -19,7 +19,6 @@ use http_signature_normalization_reqwest::{
     prelude::{Config, SignExt},
     DefaultSpawner,
 };
-use once_cell::sync::Lazy;
 use reqwest::Request;
 use reqwest_middleware::RequestBuilder;
 use rsa::{
@@ -30,7 +29,7 @@ use rsa::{
 };
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Debug, time::Duration};
+use std::{collections::BTreeMap, fmt::Debug, sync::LazyLock, time::Duration};
 use tracing::debug;
 use url::Url;
 
@@ -82,9 +81,9 @@ pub(crate) async fn sign_request(
     private_key: RsaPrivateKey,
     http_signature_compat: bool,
 ) -> Result<Request, Error> {
-    static CONFIG: Lazy<Config<DefaultSpawner>> =
-        Lazy::new(|| Config::new().set_expiration(EXPIRES_AFTER));
-    static CONFIG_COMPAT: Lazy<Config> = Lazy::new(|| {
+    static CONFIG: LazyLock<Config<DefaultSpawner>> =
+        LazyLock::new(|| Config::new().set_expiration(EXPIRES_AFTER));
+    static CONFIG_COMPAT: LazyLock<Config> = LazyLock::new(|| {
         Config::new()
             .mastodon_compat()
             .set_expiration(EXPIRES_AFTER)
@@ -185,7 +184,7 @@ fn verify_signature_inner(
     uri: &Uri,
     public_key: &str,
 ) -> Result<(), Error> {
-    static CONFIG: Lazy<http_signature_normalization::Config> = Lazy::new(|| {
+    static CONFIG: LazyLock<http_signature_normalization::Config> = LazyLock::new(|| {
         http_signature_normalization::Config::new()
             .set_expiration(EXPIRES_AFTER)
             .require_digest()
@@ -288,9 +287,10 @@ pub mod test {
     use rsa::{pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
     use std::str::FromStr;
 
-    static ACTOR_ID: Lazy<Url> = Lazy::new(|| Url::parse("https://example.com/u/alice").unwrap());
-    static INBOX_URL: Lazy<Url> =
-        Lazy::new(|| Url::parse("https://example.com/u/alice/inbox").unwrap());
+    static ACTOR_ID: LazyLock<Url> =
+        LazyLock::new(|| Url::parse("https://example.com/u/alice").unwrap());
+    static INBOX_URL: LazyLock<Url> =
+        LazyLock::new(|| Url::parse("https://example.com/u/alice/inbox").unwrap());
 
     #[tokio::test]
     async fn test_sign() {
