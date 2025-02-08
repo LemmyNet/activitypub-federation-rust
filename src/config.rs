@@ -26,7 +26,6 @@ use bytes::Bytes;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{redirect::Policy, Client, Request};
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
@@ -38,6 +37,7 @@ use std::{
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
+        LazyLock,
     },
     time::Duration,
 };
@@ -114,8 +114,8 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) queue_retry_count: usize,
 }
 
-pub(crate) static DOMAIN_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
+pub(crate) static DOMAIN_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
 
 impl<T: Clone> FederationConfig<T> {
     /// Returns a new config builder with default values.

@@ -12,8 +12,10 @@ use axum::{
     Router,
 };
 use error::Error;
-use std::sync::{Arc, Mutex};
-use tokio::net::TcpListener;
+use std::{
+    net::ToSocketAddrs,
+    sync::{Arc, Mutex},
+};
 use tracing::log::{info, LevelFilter};
 
 mod activities;
@@ -58,8 +60,12 @@ async fn main() -> Result<(), Error> {
         .route("/.well-known/webfinger", get(webfinger))
         .layer(FederationMiddleware::new(config));
 
-    let addr = TcpListener::bind(BIND_ADDRESS).await?;
-    axum::serve(addr, app.into_make_service()).await?;
+    let addr = BIND_ADDRESS
+        .to_socket_addrs()?
+        .next()
+        .expect("Failed to lookup domain name");
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
 }

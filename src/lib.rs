@@ -31,6 +31,7 @@ use crate::{
     traits::{ActivityHandler, Actor, Object},
 };
 pub use activitystreams_kinds as kinds;
+pub use serde_json;
 
 use serde::{de::DeserializeOwned, Deserialize};
 use url::Url;
