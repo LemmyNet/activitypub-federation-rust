@@ -360,6 +360,7 @@ const _IMPL_DIESEL_NEW_TYPE_FOR_OBJECT_ID: () = {
     }
 };
 
+/// Internal only
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 #[allow(missing_docs)]

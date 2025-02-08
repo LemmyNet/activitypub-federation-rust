@@ -11,7 +11,7 @@ use crate::{
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
-use http::{HeaderValue, StatusCode};
+use http::{header::LOCATION, HeaderValue, StatusCode};
 use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use tracing::info;
@@ -59,7 +59,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
         r#"application/ld+json; profile="https://www.w3.org/ns/activitystreams""#, // activitypub standard
         r#"application/activity+json; charset=utf-8"#,                             // mastodon
     ];
-    let res = fetch_object_http_with_accept(url, data, &FETCH_CONTENT_TYPE).await?;
+    let res = fetch_object_http_with_accept(url, data, &FETCH_CONTENT_TYPE, false).await?;
 
     // Ensure correct content-type to prevent vulnerabilities, with case insensitive comparison.
     let content_type = res
@@ -74,6 +74,7 @@ pub async fn fetch_object_http<T: Clone, Kind: DeserializeOwned>(
     // Ensure id field matches final url after redirect
     if res.object_id.as_ref() != Some(&res.url) {
         if let Some(res_object_id) = res.object_id {
+            data.config.verify_url_valid(&res_object_id).await?;
             // If id is different but still on the same domain, attempt to request object
             // again from url in id field.
             if res_object_id.domain() == res.url.domain() {
@@ -99,6 +100,7 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     url: &Url,
     data: &Data<T>,
     content_type: &HeaderValue,
+    recursive: bool,
 ) -> Result<FetchObjectResponse<Kind>, Error> {
     let config = &data.config;
     config.verify_url_valid(url).await?;
@@ -130,6 +132,19 @@ async fn fetch_object_http_with_accept<T: Clone, Kind: DeserializeOwned>(
     } else {
         req.send().await?
     };
+
+    // Allow a single redirect using recursion. Further redirects are ignored.
+    let location = res.headers().get(LOCATION).and_then(|l| l.to_str().ok());
+    if let (Some(location), false) = (location, recursive) {
+        let location = location.parse()?;
+        return Box::pin(fetch_object_http_with_accept(
+            &location,
+            data,
+            content_type,
+            true,
+        ))
+        .await;
+    }
 
     if res.status() == StatusCode::GONE {
         return Err(Error::ObjectDeleted(url.clone()));

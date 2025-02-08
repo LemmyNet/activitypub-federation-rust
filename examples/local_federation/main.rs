@@ -7,6 +7,7 @@ use crate::{
 };
 use error::Error;
 use std::{env::args, str::FromStr};
+use tokio::try_join;
 use tracing::log::{info, LevelFilter};
 
 mod activities;
@@ -34,8 +35,10 @@ async fn main() -> Result<(), Error> {
         .map(|arg| Webserver::from_str(&arg).unwrap())
         .unwrap_or(Webserver::Axum);
 
-    let alpha = new_instance("localhost:8001", "alpha".to_string()).await?;
-    let beta = new_instance("localhost:8002", "beta".to_string()).await?;
+    let (alpha, beta) = try_join!(
+        new_instance("localhost:8001", "alpha".to_string()),
+        new_instance("localhost:8002", "beta".to_string())
+    )?;
     listen(&alpha, &webserver)?;
     listen(&beta, &webserver)?;
     info!("Local instances started");
