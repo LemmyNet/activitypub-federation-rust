@@ -63,7 +63,6 @@ pub struct Person {
     public_key: PublicKey,
 }
 
-#[async_trait::async_trait]
 impl Object for DbUser {
     type DataType = DatabaseHandle;
     type Kind = Person;

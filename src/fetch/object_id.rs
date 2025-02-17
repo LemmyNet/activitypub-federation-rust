@@ -144,7 +144,7 @@ where
         data: &Data<<Kind as Object>::DataType>,
     ) -> Result<Option<Kind>, <Kind as Object>::Error> {
         let id = self.0.clone();
-        Object::read_from_id(*id, data).await
+        <Kind as Object>::read_from_id(*id, data).await
     }
 
     /// Fetch object from origin instance over HTTP, then verify and parse it.

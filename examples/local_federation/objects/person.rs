@@ -128,7 +128,6 @@ impl DbUser {
     }
 }
 
-#[async_trait::async_trait]
 impl Object for DbUser {
     type DataType = DatabaseHandle;
     type Kind = Person;
