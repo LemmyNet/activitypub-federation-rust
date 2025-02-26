@@ -12,7 +12,6 @@ documentation = "https://docs.rs/activitypub_federation/"
 default = ["actix-web", "axum"]
 actix-web = ["dep:actix-web", "dep:http02"]
 axum = ["dep:axum", "dep:tower"]
-diesel = ["dep:diesel"]
 
 [lints.rust]
 warnings = "deny"
@@ -75,9 +74,6 @@ tokio = { version = "1.43.0", features = [
   "rt-multi-thread",
   "time",
 ] }
-diesel = { version = "2.2.6", features = [
-  "postgres",
-], default-features = false, optional = true }
 futures = "0.3.31"
 moka = { version = "0.12.10", features = ["future"] }
 
