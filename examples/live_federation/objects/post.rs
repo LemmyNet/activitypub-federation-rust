@@ -44,7 +44,6 @@ pub struct Mention {
     pub kind: MentionType,
 }
 
-#[async_trait::async_trait]
 impl Object for DbPost {
     type DataType = DatabaseHandle;
     type Kind = Note;
