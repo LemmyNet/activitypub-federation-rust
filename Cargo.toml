@@ -108,3 +108,8 @@ path = "examples/local_federation/main.rs"
 [[example]]
 name = "live_federation"
 path = "examples/live_federation/main.rs"
+
+# Speedup RSA key generation
+# https://github.com/RustCrypto/RSA/blob/master/README.md#example
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
