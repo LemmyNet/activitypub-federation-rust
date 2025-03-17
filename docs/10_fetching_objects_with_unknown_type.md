@@ -26,7 +26,7 @@ pub enum SearchableObjects {
     Note(Note)
 }
 
-#[async_trait::async_trait]
+
 impl Object for SearchableDbObjects {
     type DataType = DbConnection;
     type Kind = SearchableObjects;
