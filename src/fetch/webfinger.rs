@@ -1,5 +1,5 @@
 use crate::{
-    config::{Data, DOMAIN_REGEX},
+    config::{domain_regex, Data},
     error::Error,
     fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
@@ -55,7 +55,7 @@ where
         .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
 
     // For production mode make sure that domain doesnt contain any port or path.
-    if !data.config.debug && !DOMAIN_REGEX.is_match(domain) {
+    if !data.config.debug && !domain_regex().is_match(domain) {
         return Err(Error::UrlVerificationError("Invalid characters in domain").into());
     }
 
