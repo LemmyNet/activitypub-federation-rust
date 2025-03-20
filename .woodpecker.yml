@@ -1,5 +1,5 @@
 variables:
-  - &rust_image "rust:1.81-bullseye"
+  - &rust_image "rust:1.82-bullseye"
 
 steps:
   cargo_fmt:
