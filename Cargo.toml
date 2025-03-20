@@ -81,6 +81,7 @@ diesel = { version = "2.2.1", features = [
 ], default-features = false, optional = true }
 futures = "0.3.30"
 moka = { version = "0.12.8", features = ["future"] }
+either = "1.15.0"
 
 # Actix-web
 actix-web = { version = "4.8.0", default-features = false, optional = true }
