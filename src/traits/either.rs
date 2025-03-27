@@ -1,10 +1,19 @@
+use super::{Actor, Object};
 use crate::{config::Data, error::Error};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use either::Either;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use url::Url;
 
-use super::{Actor, Object};
+#[doc(hidden)]
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UntaggedEither<L, R> {
+    Left(L),
+    Right(R),
+}
 
 #[async_trait]
 impl<T, R, E, D> Object for Either<T, R>
@@ -14,10 +23,10 @@ where
     <T as Object>::Kind: Send + Sync,
     <R as Object>::Kind: Send + Sync,
     D: Sync + Send + Clone,
-    E: From<Error>,
+    E: From<Error> + Debug,
 {
     type DataType = D;
-    type Kind = Either<T::Kind, R::Kind>;
+    type Kind = UntaggedEither<T::Kind, R::Kind>;
     type Error = E;
 
     fn last_refreshed_at(&self) -> Option<DateTime<Utc>> {
@@ -39,7 +48,7 @@ where
         if let Some(r) = r {
             return Ok(Some(Either::Right(r)));
         }
-        Err(Error::NotFound.into())
+        Ok(None)
     }
 
     async fn delete(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
@@ -51,8 +60,8 @@ where
 
     async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
         Ok(match self {
-            Either::Left(l) => Either::Left(l.into_json(data).await?),
-            Either::Right(r) => Either::Right(r.into_json(data).await?),
+            Either::Left(l) => UntaggedEither::Left(l.into_json(data).await?),
+            Either::Right(r) => UntaggedEither::Right(r.into_json(data).await?),
         })
     }
 
@@ -62,16 +71,16 @@ where
         data: &Data<Self::DataType>,
     ) -> Result<(), Self::Error> {
         match json {
-            Either::Left(l) => T::verify(l, expected_domain, data).await?,
-            Either::Right(r) => R::verify(r, expected_domain, data).await?,
+            UntaggedEither::Left(l) => T::verify(l, expected_domain, data).await?,
+            UntaggedEither::Right(r) => R::verify(r, expected_domain, data).await?,
         };
         Ok(())
     }
 
     async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
         Ok(match json {
-            Either::Left(l) => Either::Left(T::from_json(l, data).await?),
-            Either::Right(r) => Either::Right(R::from_json(r, data).await?),
+            UntaggedEither::Left(l) => Either::Left(T::from_json(l, data).await?),
+            UntaggedEither::Right(r) => Either::Right(R::from_json(r, data).await?),
         })
     }
 }
@@ -84,7 +93,7 @@ where
     <T as Object>::Kind: Send + Sync,
     <R as Object>::Kind: Send + Sync,
     D: Sync + Send + Clone,
-    E: From<Error>,
+    E: From<Error> + Debug,
 {
     fn id(&self) -> Url {
         match self {
