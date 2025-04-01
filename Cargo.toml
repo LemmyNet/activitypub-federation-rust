@@ -88,7 +88,7 @@ actix-web = { version = "4.8.0", default-features = false, optional = true }
 http02 = { package = "http", version = "0.2.12", optional = true }
 
 # Axum
-axum = { version = "0.7.5", features = ["json"], default-features = false, optional = true }
+axum = { version = "0.7.5", features = ["json", "original-uri"], default-features = false, optional = true }
 tower = { version = "0.4.13", optional = true }
 
 [dev-dependencies]
