@@ -53,6 +53,10 @@ impl Keypair {
 }
 
 /// Generate a random asymmetric keypair for ActivityPub HTTP signatures.
+///
+/// Note that this method is very slow in debug mode. To make it faster, follow
+/// instructions in the RSA crate's readme.
+/// <https://github.com/RustCrypto/RSA/blob/master/README.md>
 pub fn generate_actor_keypair() -> Result<Keypair, Error> {
     let mut rng = rand::thread_rng();
     let rsa = RsaPrivateKey::new(&mut rng, 2048)?;

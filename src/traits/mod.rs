@@ -7,6 +7,9 @@ use serde::Deserialize;
 use std::{fmt::Debug, ops::Deref};
 use url::Url;
 
+/// `Either` implementations for traits
+pub mod either;
+
 /// Helper for converting between database structs and federated protocol structs.
 ///
 /// ```
