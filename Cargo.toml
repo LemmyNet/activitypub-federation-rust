@@ -1,6 +1,6 @@
 [package]
 name = "activitypub_federation"
-version = "0.6.2"
+version = "0.6.5"
 edition = "2021"
 description = "High-level Activitypub framework"
 keywords = ["activitypub", "activitystreams", "federation", "fediverse"]
@@ -80,6 +80,7 @@ diesel = { version = "2.2.2", features = [
 ], default-features = false, optional = true }
 futures = "0.3.30"
 moka = { version = "0.12.8", features = ["future"] }
+either = "1.15.0"
 
 # Actix-web
 actix-web = { version = "4.8.0", default-features = false, optional = true }
@@ -114,3 +115,8 @@ path = "examples/local_federation/main.rs"
 [[example]]
 name = "live_federation"
 path = "examples/live_federation/main.rs"
+
+# Speedup RSA key generation
+# https://github.com/RustCrypto/RSA/blob/master/README.md#example
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
