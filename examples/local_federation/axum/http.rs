@@ -30,12 +30,9 @@ pub fn listen(config: &FederationConfig<DatabaseHandle>) -> Result<(), Error> {
     info!("Listening with axum on {hostname}");
     let config = config.clone();
 
-    let user_router = Router::new()
-        .route("/", get(http_get_user))
-        .route("/inbox", post(http_post_user_inbox));
-
     let app = Router::new()
-        .nest("/:name", user_router)
+        .route("/{user}/inbox", post(http_post_user_inbox))
+        .route("/{user}", get(http_get_user))
         .route("/.well-known/webfinger", get(webfinger))
         .layer(FederationMiddleware::new(config));
 

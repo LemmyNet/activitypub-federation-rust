@@ -39,4 +39,4 @@ let user: DbUser = webfinger_resolve_actor("ruud@lemmy.world", &data).await?;
 # }).unwrap();
 ```
 
-Note that webfinger queries don't contain a leading `@`. It is possible tha there are multiple Activitypub IDs returned for a single webfinger query in case of multiple actors with the same name (for example Lemmy permits group and person with the same name). In this case `webfinger_resolve_actor` automatically loops and returns the first item which can be dereferenced successfully to the given type.
+Note that webfinger queries don't contain a leading `@`. It is possible that there are multiple Activitypub IDs returned for a single webfinger query in case of multiple actors with the same name (for example Lemmy permits group and person with the same name). In this case `webfinger_resolve_actor` automatically loops and returns the first item which can be dereferenced successfully to the given type.

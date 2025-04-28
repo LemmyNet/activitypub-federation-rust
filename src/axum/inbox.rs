@@ -10,7 +10,6 @@ use crate::{
     traits::{ActivityHandler, Actor, Object},
 };
 use axum::{
-    async_trait,
     body::Body,
     extract::{FromRequest, FromRequestParts, OriginalUri},
     http::{Request, StatusCode},
@@ -58,7 +57,6 @@ pub struct ActivityData {
     body: Vec<u8>,
 }
 
-#[async_trait]
 impl<S> FromRequest<S> for ActivityData
 where
     S: Send + Sync,
@@ -70,7 +68,9 @@ where
 
         // take the full URI to handle nested routers
         // OriginalUri::from_request_parts has an Infallible error type
-        let Ok(uri) = OriginalUri::from_request_parts(&mut parts, state).await;
+        let uri = OriginalUri::from_request_parts(&mut parts, state)
+            .await
+            .expect("infallible");
 
         // this wont work if the body is an long running stream
         let bytes = axum::body::to_bytes(body, usize::MAX)
