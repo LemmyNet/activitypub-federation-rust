@@ -12,11 +12,11 @@ use crate::{
 use axum::{
     async_trait,
     body::Body,
-    extract::FromRequest,
+    extract::{FromRequest, FromRequestParts, OriginalUri},
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
 };
-use http::{HeaderMap, Method, Uri};
+use http::{HeaderMap, Method};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -54,7 +54,7 @@ where
 pub struct ActivityData {
     headers: HeaderMap,
     method: Method,
-    uri: Uri,
+    uri: OriginalUri,
     body: Vec<u8>,
 }
 
@@ -65,8 +65,12 @@ where
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request<Body>, _state: &S) -> Result<Self, Self::Rejection> {
-        let (parts, body) = req.into_parts();
+    async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
+        let (mut parts, body) = req.into_parts();
+
+        // take the full URI to handle nested routers
+        // OriginalUri::from_request_parts has an Infallible error type
+        let Ok(uri) = OriginalUri::from_request_parts(&mut parts, state).await;
 
         // this wont work if the body is an long running stream
         let bytes = axum::body::to_bytes(body, usize::MAX)
@@ -76,7 +80,7 @@ where
         Ok(Self {
             headers: parts.headers,
             method: parts.method,
-            uri: parts.uri,
+            uri,
             body: bytes.to_vec(),
         })
     }
