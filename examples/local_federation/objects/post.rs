@@ -41,6 +41,7 @@ pub struct Note {
     content: String,
 }
 
+#[async_trait::async_trait]
 impl Object for DbPost {
     type DataType = DatabaseHandle;
     type Kind = Note;

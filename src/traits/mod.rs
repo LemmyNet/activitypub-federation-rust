@@ -46,7 +46,7 @@ pub mod either;
 ///     content: String,
 /// }
 ///
-///
+/// #[async_trait::async_trait]
 /// impl Object for DbPost {
 ///     type DataType = DbConnection;
 ///     type Kind = Note;
@@ -96,6 +96,7 @@ pub mod either;
 ///     }
 ///
 /// }
+#[async_trait]
 pub trait Object: Sized + Debug {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
@@ -121,29 +122,23 @@ pub trait Object: Sized + Debug {
     /// Try to read the object with given `id` from local database.
     ///
     /// Should return `Ok(None)` if not found.
-    fn read_from_id(
+    async fn read_from_id(
         object_id: Url,
         data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<Option<Self>, Self::Error>> + Send;
+    ) -> Result<Option<Self>, Self::Error>;
 
     /// Mark remote object as deleted in local database.
     ///
     /// Called when a `Delete` activity is received, or if fetch returns a `Tombstone` object.
-    fn delete(
-        self,
-        _data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send {
-        async { Ok(()) }
+    async fn delete(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
+        Ok(())
     }
 
     /// Convert database type to Activitypub type.
     ///
     /// Called when a local object gets fetched by another instance over HTTP, or when an object
     /// gets sent in an activity.
-    fn into_json(
-        self,
-        data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<Self::Kind, Self::Error>> + Send;
+    async fn into_json(self, data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error>;
 
     /// Verifies that the received object is valid.
     ///
@@ -152,21 +147,18 @@ pub trait Object: Sized + Debug {
     ///
     /// It is necessary to use a separate method for this, because it might be used for activities
     /// like `Delete/Note`, which shouldn't perform any database write for the inner `Note`.
-    fn verify(
+    async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
         data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send;
+    ) -> Result<(), Self::Error>;
 
     /// Convert object from ActivityPub type to database type.
     ///
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
     /// should write the received object to database. Note that there is no distinction between
     /// create and update, so an `upsert` operation should be used.
-    fn from_json(
-        json: Self::Kind,
-        data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<Self, Self::Error>> + Send;
+    async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error>;
 }
 
 /// Handler for receiving incoming activities.
@@ -303,6 +295,7 @@ where
 }
 
 /// Trait for federating collections
+#[async_trait]
 pub trait Collection: Sized {
     /// Actor or object that this collection belongs to
     type Owner;
@@ -315,31 +308,31 @@ pub trait Collection: Sized {
     type Error;
 
     /// Reads local collection from database and returns it as Activitypub JSON.
-    fn read_local(
+    async fn read_local(
         owner: &Self::Owner,
         data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<Self::Kind, Self::Error>> + Send;
+    ) -> Result<Self::Kind, Self::Error>;
 
     /// Verifies that the received object is valid.
     ///
     /// You should check here that the domain of id matches `expected_domain`. Additionally you
     /// should perform any application specific checks.
-    fn verify(
+    async fn verify(
         json: &Self::Kind,
         expected_domain: &Url,
         data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send;
+    ) -> Result<(), Self::Error>;
 
     /// Convert object from ActivityPub type to database type.
     ///
     /// Called when an object is received from HTTP fetch or as part of an activity. This method
     /// should also write the received object to database. Note that there is no distinction
     /// between create and update, so an `upsert` operation should be used.
-    fn from_json(
+    async fn from_json(
         json: Self::Kind,
         owner: &Self::Owner,
         data: &Data<Self::DataType>,
-    ) -> impl std::future::Future<Output = Result<Self, Self::Error>> + Send;
+    ) -> Result<Self, Self::Error>;
 }
 
 /// Some impls of these traits for use in tests. Dont use this from external crates.
@@ -348,7 +341,7 @@ pub trait Collection: Sized {
 #[doc(hidden)]
 #[allow(clippy::unwrap_used)]
 pub mod tests {
-    use super::{ActivityHandler, Actor, Data, Debug, Object, PublicKey, Url};
+    use super::{async_trait, ActivityHandler, Actor, Data, Debug, Object, PublicKey, Url};
     use crate::{
         error::Error,
         fetch::object_id::ObjectId,
@@ -356,7 +349,6 @@ pub mod tests {
         protocol::verification::verify_domains_match,
     };
     use activitystreams_kinds::{activity::FollowType, actor::PersonType};
-    use async_trait::async_trait;
     use serde::{Deserialize, Serialize};
     use std::sync::LazyLock;
 
@@ -413,6 +405,7 @@ pub mod tests {
         local: false,
     });
 
+    #[async_trait]
     impl Object for DbUser {
         type DataType = DbConnection;
         type Kind = Person;
@@ -516,6 +509,7 @@ pub mod tests {
     #[derive(Debug, Clone)]
     pub struct DbPost {}
 
+    #[async_trait]
     impl Object for DbPost {
         type DataType = DbConnection;
         type Kind = Note;

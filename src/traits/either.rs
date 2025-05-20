@@ -15,6 +15,7 @@ pub enum UntaggedEither<L, R> {
     Right(R),
 }
 
+#[async_trait]
 impl<T, R, E, D> Object for Either<T, R>
 where
     T: Object + Object<Error = E, DataType = D> + Send,
