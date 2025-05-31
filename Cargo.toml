@@ -37,12 +37,12 @@ serde = { version = "1.0.204", features = ["derive"] }
 async-trait = "0.1.81"
 url = { version = "2.5.2", features = ["serde"] }
 serde_json = { version = "1.0.120", features = ["preserve_order"] }
-reqwest = { version = "0.12.5", default-features = false, features = [
+reqwest = { version = "0.12.18", default-features = false, features = [
   "json",
   "stream",
   "rustls-tls",
 ] }
-reqwest-middleware = "0.3.2"
+reqwest-middleware = "0.4.2"
 tracing = "0.1.40"
 base64 = "0.22.1"
 rand = "0.8.5"
@@ -56,7 +56,7 @@ itertools = "0.13.0"
 dyn-clone = "1.0.17"
 enum_delegate = "0.2.0"
 httpdate = "1.0.3"
-http-signature-normalization-reqwest = { version = "0.12.0", default-features = false, features = [
+http-signature-normalization-reqwest = { version = "0.13.0", default-features = false, features = [
   "sha-2",
   "middleware",
   "default-spawner",
