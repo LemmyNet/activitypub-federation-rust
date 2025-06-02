@@ -1,4 +1,4 @@
-edition="2021"
-imports_layout="HorizontalVertical"
-imports_granularity="Crate"
-reorder_imports=true
+edition = "2021"
+imports_layout = "HorizontalVertical"
+imports_granularity = "Crate"
+reorder_imports = true

@@ -26,7 +26,6 @@ use bytes::Bytes;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
 use moka::future::Cache;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{redirect::Policy, Client, Request};
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
@@ -38,6 +37,7 @@ use std::{
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc,
+        OnceLock,
     },
     time::Duration,
 };
@@ -114,8 +114,10 @@ pub struct FederationConfig<T: Clone> {
     pub(crate) queue_retry_count: usize,
 }
 
-pub(crate) static DOMAIN_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"));
+pub(crate) fn domain_regex() -> &'static Regex {
+    static DOMAIN_REGEX: OnceLock<Regex> = OnceLock::new();
+    DOMAIN_REGEX.get_or_init(|| Regex::new(r"^[a-zA-Z0-9.-]*$").expect("compile regex"))
+}
 
 impl<T: Clone> FederationConfig<T> {
     /// Returns a new config builder with default values.
@@ -174,7 +176,7 @@ impl<T: Clone> FederationConfig<T> {
         let Some(domain) = url.domain() else {
             return Err(Error::UrlVerificationError("Url must have a domain"));
         };
-        if !DOMAIN_REGEX.is_match(domain) {
+        if !domain_regex().is_match(domain) {
             return Err(Error::UrlVerificationError("Invalid characters in domain"));
         }
 

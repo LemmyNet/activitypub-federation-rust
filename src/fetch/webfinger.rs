@@ -1,5 +1,5 @@
 use crate::{
-    config::{Data, DOMAIN_REGEX},
+    config::{domain_regex, Data},
     error::Error,
     fetch::{fetch_object_http_with_accept, object_id::ObjectId},
     traits::{Actor, Object},
@@ -7,10 +7,9 @@ use crate::{
 };
 use http::HeaderValue;
 use itertools::Itertools;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, sync::LazyLock};
 use tracing::debug;
 use url::Url;
 
@@ -56,7 +55,7 @@ where
         .ok_or(WebFingerError::WrongFormat.into_crate_error())?;
 
     // For production mode make sure that domain doesnt contain any port or path.
-    if !data.config.debug && !DOMAIN_REGEX.is_match(domain) {
+    if !data.config.debug && !domain_regex().is_match(domain) {
         return Err(Error::UrlVerificationError("Invalid characters in domain").into());
     }
 
@@ -130,8 +129,8 @@ pub fn extract_webfinger_name<'i, T>(query: &'i str, data: &Data<T>) -> Result<&
 where
     T: Clone,
 {
-    static WEBFINGER_REGEX: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"^acct:([\p{L}0-9_\.\-]+)@(.*)$").expect("compile regex"));
+    static WEBFINGER_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^acct:([\p{L}0-9_\.\-]+)@(.*)$").expect("compile regex"));
     // Regex to extract usernames from webfinger query. Supports different alphabets using `\p{L}`.
     // TODO: This should use a URL parser
     let captures = WEBFINGER_REGEX
