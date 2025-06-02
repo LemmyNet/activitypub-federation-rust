@@ -84,7 +84,8 @@ http02 = { package = "http", version = "0.2.12", optional = true }
 
 # Axum
 axum = { version = "0.8.4", features = [
-  "json","original-uri",
+  "json",
+  "original-uri",
 ], default-features = false, optional = true }
 tower = { version = "0.5.2", optional = true }
 
