@@ -12,6 +12,7 @@ documentation = "https://docs.rs/activitypub_federation/"
 default = ["actix-web", "axum"]
 actix-web = ["dep:actix-web", "dep:http02"]
 axum = ["dep:axum", "dep:tower"]
+axum-original-uri = ["dep:axum", "axum/original-uri"]
 
 [lints.rust]
 warnings = "deny"
@@ -85,7 +86,6 @@ http02 = { package = "http", version = "0.2.12", optional = true }
 # Axum
 axum = { version = "0.8.4", features = [
   "json",
-  "original-uri",
 ], default-features = false, optional = true }
 tower = { version = "0.5.2", optional = true }
 

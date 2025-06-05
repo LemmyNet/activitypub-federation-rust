@@ -11,11 +11,11 @@ use crate::{
 };
 use axum::{
     body::Body,
-    extract::{FromRequest, FromRequestParts, OriginalUri},
+    extract::FromRequest,
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
 };
-use http::{HeaderMap, Method};
+use http::{HeaderMap, Method, Uri};
 use serde::de::DeserializeOwned;
 use tracing::debug;
 
@@ -53,7 +53,7 @@ where
 pub struct ActivityData {
     headers: HeaderMap,
     method: Method,
-    uri: OriginalUri,
+    uri: Uri,
     body: Vec<u8>,
 }
 
@@ -63,14 +63,22 @@ where
 {
     type Rejection = Response;
 
-    async fn from_request(req: Request<Body>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request<Body>, _state: &S) -> Result<Self, Self::Rejection> {
+        #[allow(unused_mut)]
         let (mut parts, body) = req.into_parts();
 
         // take the full URI to handle nested routers
         // OriginalUri::from_request_parts has an Infallible error type
-        let uri = OriginalUri::from_request_parts(&mut parts, state)
-            .await
-            .expect("infallible");
+        #[cfg(feature = "axum-original-uri")]
+        let uri = {
+            use axum::extract::{FromRequestParts, OriginalUri};
+            OriginalUri::from_request_parts(&mut parts, _state)
+                .await
+                .expect("infallible")
+                .0
+        };
+        #[cfg(not(feature = "axum-original-uri"))]
+        let uri = parts.uri;
 
         // this wont work if the body is an long running stream
         let bytes = axum::body::to_bytes(body, usize::MAX)
