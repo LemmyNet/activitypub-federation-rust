@@ -414,11 +414,17 @@ impl<T: Clone> Deref for Data<T> {
 
 impl<T: Clone> Clone for Data<T> {
     fn clone(&self) -> Self {
-        Data { config: self.config.clone(), request_counter: self.request_counter.load(Ordering::Relaxed).into() }
+        Data {
+            config: self.config.clone(),
+            request_counter: self.request_counter.load(Ordering::Relaxed).into(),
+        }
     }
 
     fn clone_from(&mut self, source: &Self) {
-        let Data { config, request_counter } = self;
+        let Data {
+            config,
+            request_counter,
+        } = self;
         config.clone_from(&source.config);
         *request_counter.get_mut() = source.request_counter.load(Ordering::Relaxed);
     }
