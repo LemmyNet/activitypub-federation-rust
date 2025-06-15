@@ -356,9 +356,10 @@ clone_trait_object!(UrlVerifier);
 /// prevent denial of service attacks, where an attacker triggers fetching of recursive objects.
 ///
 /// <https://www.w3.org/TR/activitypub/#security-recursive-objects>
+#[derive(Clone)]
 pub struct Data<T: Clone> {
     pub(crate) config: FederationConfig<T>,
-    pub(crate) request_counter: AtomicU32,
+    pub(crate) request_counter: RequestCounter,
 }
 
 impl<T: Clone> Data<T> {
@@ -381,7 +382,7 @@ impl<T: Clone> Data<T> {
     }
     /// Total number of outgoing HTTP requests made with this data.
     pub fn request_count(&self) -> u32 {
-        self.request_counter.load(Ordering::Relaxed)
+        self.request_counter.0.load(Ordering::Relaxed)
     }
 
     /// Add HTTP signature to arbitrary request
@@ -409,6 +410,16 @@ impl<T: Clone> Deref for Data<T> {
 
     fn deref(&self) -> &T {
         &self.config.app_data
+    }
+}
+
+/// Wrapper to implement `Clone`
+#[derive(Default)]
+pub(crate) struct RequestCounter(pub(crate) AtomicU32);
+
+impl Clone for RequestCounter {
+    fn clone(&self) -> Self {
+        RequestCounter(self.0.load(Ordering::Relaxed).into())
     }
 }
 
