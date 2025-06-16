@@ -17,10 +17,10 @@ use tracing::debug;
 /// Handles incoming activities, verifying HTTP signatures and other checks
 ///
 /// After successful validation, activities are passed to respective [trait@ActivityHandler].
-pub async fn receive_activity<Activity, ActorT, Datatype, F, Fut>(
+pub async fn receive_activity<Activity, ActorT, Datatype, Fut>(
     request: HttpRequest,
     body: Bytes,
-    hook: F,
+    hook: impl FnOnce(Activity, ActorT, Data<Datatype>) -> Fut,
     data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
@@ -30,7 +30,6 @@ where
     <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
-    F: FnOnce(Activity, ActorT, Data<Datatype>) -> Fut,
     Fut: Future<Output = Result<(), <Activity as ActivityHandler>::Error>>,
 {
     let digest_header = request
@@ -84,7 +83,7 @@ mod test {
     #[tokio::test]
     async fn test_receive_activity_hook() {
         let (body, incoming_request, config) = setup_receive_test().await;
-        receive_activity::<Follow, DbUser, DbConnection, _, _>(
+        receive_activity::<Follow, DbUser, DbConnection, _>(
             incoming_request.to_http_request(),
             body,
             inbox_activity_hook,
