@@ -10,16 +10,19 @@ use crate::{
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
-use std::future::Future;
 use tracing::debug;
 
 /// Handles incoming activities, verifying HTTP signatures and other checks
 ///
 /// After successful validation, activities are passed to respective [trait@ActivityHandler].
-pub async fn receive_activity<Activity, ActorT, Datatype, Fut>(
+pub async fn receive_activity<Activity, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
-    hook: impl FnOnce(&Activity, &ActorT) -> Fut,
+    hook: impl FnOnce(
+        &Activity,
+        &ActorT,
+        &Data<Datatype>,
+    ) -> Result<(), <Activity as ActivityHandler>::Error>,
     data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
@@ -29,7 +32,6 @@ where
     <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
-    Fut: Future<Output = Result<(), <Activity as ActivityHandler>::Error>>,
 {
     let digest_header = request
         .headers()
@@ -44,7 +46,7 @@ where
     let uri = http_compat::uri(request.uri());
     verify_signature(&headers, &method, &uri, actor.public_key_pem())?;
 
-    hook(&activity, &actor).await?;
+    hook(&activity, &actor, data)?;
 
     debug!("Receiving activity {}", activity.id().to_string());
     activity.verify(data).await?;
