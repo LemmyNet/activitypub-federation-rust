@@ -132,14 +132,14 @@ mod test {
     #[tokio::test]
     async fn test_receive_activity_hook() {
         let (body, incoming_request, config) = setup_receive_test().await;
-        receive_activity_with_hook::<Follow, DbUser, DbConnection, _>(
+        let res = receive_activity_with_hook::<Follow, DbUser, DbConnection, _>(
             incoming_request.to_http_request(),
             body,
             inbox_activity_hook,
             &config.to_request_data(),
         )
-        .await
-        .unwrap();
+        .await;
+        assert_eq!(res.err(), Some(Error::Other("test-error".to_string())));
     }
 
     async fn inbox_activity_hook<Activity: ActivityHandler + Send + Sync, ActorT>(
@@ -147,9 +147,8 @@ mod test {
         _actor: ActorT,
         _context: Data<DbConnection>,
     ) -> Result<(), Error> {
-        // TODO: test that this actually gets called
-        //todo!();
-        Ok(())
+        // ensure that hook gets called by returning this value
+        Err(Error::Other("test-error".to_string()))
     }
 
     #[tokio::test]
