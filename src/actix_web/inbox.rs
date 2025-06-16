@@ -17,7 +17,27 @@ use tracing::debug;
 /// Handles incoming activities, verifying HTTP signatures and other checks
 ///
 /// After successful validation, activities are passed to respective [trait@ActivityHandler].
-pub async fn receive_activity<Activity, ActorT, Datatype, Fut>(
+pub async fn receive_activity<Activity, ActorT, Datatype>(
+    request: HttpRequest,
+    body: Bytes,
+    data: &Data<Datatype>,
+) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
+where
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
+    Datatype: Clone,
+{
+    let (activity, _) = do_stuff::<Activity, ActorT, Datatype>(request, body, data).await?;
+
+    do_more_stuff(activity, data).await
+}
+
+/// Same as [receive_activity], only that it calls the provided hook function before
+/// calling activity verify and receive functions.
+pub async fn receive_activity_with_hook<Activity, ActorT, Datatype, Fut>(
     request: HttpRequest,
     body: Bytes,
     hook: impl FnOnce(Activity, ActorT, Data<Datatype>) -> Fut,
@@ -32,6 +52,26 @@ where
     Datatype: Clone,
     Fut: Future<Output = Result<(), <Activity as ActivityHandler>::Error>>,
 {
+    let (activity, actor) = do_stuff::<Activity, ActorT, Datatype>(request, body, data).await?;
+
+    hook(activity.clone(), actor.clone(), data.clone()).await?;
+
+    do_more_stuff(activity, data).await
+}
+
+async fn do_stuff<Activity, ActorT, Datatype>(
+    request: HttpRequest,
+    body: Bytes,
+    data: &Data<Datatype>,
+) -> Result<(Activity, ActorT), <Activity as ActivityHandler>::Error>
+where
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
+    Datatype: Clone,
+{
     let digest_header = request
         .headers()
         .get("Digest")
@@ -45,8 +85,17 @@ where
     let uri = http_compat::uri(request.uri());
     verify_signature(&headers, &method, &uri, actor.public_key_pem())?;
 
-    hook(activity.clone(), actor.clone(), data.clone()).await?;
+    Ok((activity, actor))
+}
 
+async fn do_more_stuff<Activity, Datatype>(
+    activity: Activity,
+    data: &Data<Datatype>,
+) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
+where
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    Datatype: Clone,
+{
     debug!("Receiving activity {}", activity.id().to_string());
     activity.verify(data).await?;
     activity.receive(data).await?;
@@ -83,7 +132,7 @@ mod test {
     #[tokio::test]
     async fn test_receive_activity_hook() {
         let (body, incoming_request, config) = setup_receive_test().await;
-        receive_activity::<Follow, DbUser, DbConnection, _>(
+        receive_activity_with_hook::<Follow, DbUser, DbConnection, _>(
             incoming_request.to_http_request(),
             body,
             inbox_activity_hook,
@@ -94,15 +143,15 @@ mod test {
     }
 
     async fn inbox_activity_hook<Activity: ActivityHandler + Send + Sync, ActorT>(
-        activity: Activity,
+        _activity: Activity,
         _actor: ActorT,
-        context: Data<DbConnection>,
+        _context: Data<DbConnection>,
     ) -> Result<(), Error> {
-        todo!();
+        // TODO: test that this actually gets called
+        //todo!();
         Ok(())
     }
 
-    /*
     #[tokio::test]
     async fn test_receive_activity_invalid_body_signature() {
         let (_, incoming_request, config) = setup_receive_test().await;
@@ -167,7 +216,6 @@ mod test {
             _ => unreachable!(),
         }
     }
-    */
 
     async fn construct_request(body: &Bytes, actor: &Url) -> TestRequest {
         let inbox = "https://example.com/inbox";
