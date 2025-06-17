@@ -1,7 +1,5 @@
 //! Handles incoming activities, verifying HTTP signatures and other checks
 
-use std::future::Future;
-
 use super::http_compat;
 use crate::{
     config::Data,
@@ -35,12 +33,31 @@ where
     do_more_stuff(activity, data).await
 }
 
+/// Workaround required so we can use references for the hook, instead of cloning data.
+pub trait ReceiveActivityHook<Activity, ActorT, Datatype>
+where
+    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + Clone + 'static,
+    for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
+    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <ActorT as Object>::Error: From<Error>,
+    Datatype: Clone,
+{
+    /// Called when a new activity is recived
+    fn hook(
+        self,
+        activity: &Activity,
+        actor: &ActorT,
+        data: &Data<Datatype>,
+    ) -> impl std::future::Future<Output = Result<(), <Activity as ActivityHandler>::Error>>;
+}
+
 /// Same as [receive_activity], only that it calls the provided hook function before
 /// calling activity verify and receive functions.
-pub async fn receive_activity_with_hook<Activity, ActorT, Datatype, Fut>(
+pub async fn receive_activity_with_hook<Activity, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
-    hook: impl FnOnce(Activity, ActorT, Data<Datatype>) -> Fut,
+    hook: impl ReceiveActivityHook<Activity, ActorT, Datatype>,
     data: &Data<Datatype>,
 ) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
 where
@@ -50,11 +67,10 @@ where
     <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
-    Fut: Future<Output = Result<(), <Activity as ActivityHandler>::Error>>,
 {
     let (activity, actor) = do_stuff::<Activity, ActorT, Datatype>(request, body, data).await?;
 
-    hook(activity.clone(), actor.clone(), data.clone()).await?;
+    hook.hook(&activity, &actor, data).await?;
 
     do_more_stuff(activity, data).await
 }
@@ -132,23 +148,36 @@ mod test {
     #[tokio::test]
     async fn test_receive_activity_hook() {
         let (body, incoming_request, config) = setup_receive_test().await;
-        let res = receive_activity_with_hook::<Follow, DbUser, DbConnection, _>(
+        let res = receive_activity_with_hook::<Follow, DbUser, DbConnection>(
             incoming_request.to_http_request(),
             body,
-            inbox_activity_hook,
+            Dummy,
             &config.to_request_data(),
         )
         .await;
         assert_eq!(res.err(), Some(Error::Other("test-error".to_string())));
     }
 
-    async fn inbox_activity_hook<Activity: ActivityHandler + Send + Sync, ActorT>(
-        _activity: Activity,
-        _actor: ActorT,
-        _context: Data<DbConnection>,
-    ) -> Result<(), Error> {
-        // ensure that hook gets called by returning this value
-        Err(Error::Other("test-error".to_string()))
+    struct Dummy;
+
+    impl<Activity, ActorT, Datatype> ReceiveActivityHook<Activity, ActorT, Datatype> for Dummy
+    where
+        Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
+        ActorT: Object<DataType = Datatype> + Actor + Send + Clone + 'static,
+        for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
+        <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+        <ActorT as Object>::Error: From<Error>,
+        Datatype: Clone,
+    {
+        async fn hook(
+            self,
+            _activity: &Activity,
+            _actor: &ActorT,
+            _data: &Data<Datatype>,
+        ) -> Result<(), <Activity as ActivityHandler>::Error> {
+            // ensure that hook gets called by returning this value
+            Err(Error::Other("test-error".to_string()).into())
+        }
     }
 
     #[tokio::test]
