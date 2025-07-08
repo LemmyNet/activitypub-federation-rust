@@ -4,6 +4,7 @@ mod http_compat;
 pub mod inbox;
 #[doc(hidden)]
 pub mod middleware;
+pub mod response;
 
 use crate::{
     config::Data,

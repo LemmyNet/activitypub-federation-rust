@@ -258,7 +258,7 @@ impl<T: Clone> FederationConfigBuilder<T> {
 
         let private_key =
             RsaPrivateKey::from_pkcs8_pem(&private_key_pem).expect("Could not decode PEM data");
-        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
+        self.signed_fetch_actor = Some(Some(Arc::new((actor.id().clone(), private_key))));
         self
     }
 

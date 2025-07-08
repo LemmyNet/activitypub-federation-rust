@@ -50,6 +50,10 @@ impl Object for DbPost {
     type Kind = Note;
     type Error = Error;
 
+    fn id(&self) -> &Url {
+        self.ap_id.inner()
+    }
+
     async fn read_from_id(
         _object_id: Url,
         _data: &Data<Self::DataType>,

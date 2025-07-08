@@ -32,6 +32,13 @@ impl Object for SearchableDbObjects {
     type Kind = SearchableObjects;
     type Error = anyhow::Error;
 
+    fn id(&self) -> &Url {
+        match self {
+            SearchableDbObjects::User(p) => &p.federation_id,
+            SearchableDbObjects::Post(n) => &n.federation_id,
+        }
+    }
+
     async fn read_from_id(
         object_id: Url,
         data: &Data<Self::DataType>,

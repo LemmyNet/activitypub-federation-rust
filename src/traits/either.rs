@@ -29,6 +29,14 @@ where
     type Kind = UntaggedEither<T::Kind, R::Kind>;
     type Error = E;
 
+    /// `id` field of the object
+    fn id(&self) -> &Url {
+        match self {
+            Either::Left(l) => l.id(),
+            Either::Right(r) => r.id(),
+        }
+    }
+
     fn last_refreshed_at(&self) -> Option<DateTime<Utc>> {
         match self {
             Either::Left(l) => l.last_refreshed_at(),
@@ -55,6 +63,13 @@ where
         match self {
             Either::Left(l) => l.delete(data).await,
             Either::Right(r) => r.delete(data).await,
+        }
+    }
+
+    fn is_deleted(&self) -> bool {
+        match self {
+            Either::Left(l) => l.is_deleted(),
+            Either::Right(r) => r.is_deleted(),
         }
     }
 
@@ -95,13 +110,6 @@ where
     D: Sync + Send + Clone,
     E: From<Error> + Debug,
 {
-    fn id(&self) -> Url {
-        match self {
-            Either::Left(l) => l.id(),
-            Either::Right(r) => r.id(),
-        }
-    }
-
     fn public_key_pem(&self) -> &str {
         match self {
             Either::Left(l) => l.public_key_pem(),

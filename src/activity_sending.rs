@@ -190,7 +190,7 @@ where
     // PKey is internally like an Arc<>, so cloning is ok
     data.config
         .actor_pkey_cache
-        .try_get_with_by_ref(&actor_id, async {
+        .try_get_with_by_ref(actor_id, async {
             let private_key_pem = actor.private_key_pem().ok_or_else(|| {
                 Error::Other(format!(
                     "Actor {actor_id} does not contain a private key for signing"

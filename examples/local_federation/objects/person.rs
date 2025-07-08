@@ -134,6 +134,10 @@ impl Object for DbUser {
     type Kind = Person;
     type Error = Error;
 
+    fn id(&self) -> &Url {
+        self.ap_id.inner()
+    }
+
     fn last_refreshed_at(&self) -> Option<DateTime<Utc>> {
         Some(self.last_refreshed_at)
     }
@@ -187,10 +191,6 @@ impl Object for DbUser {
 }
 
 impl Actor for DbUser {
-    fn id(&self) -> Url {
-        self.ap_id.inner().clone()
-    }
-
     fn public_key_pem(&self) -> &str {
         &self.public_key
     }
