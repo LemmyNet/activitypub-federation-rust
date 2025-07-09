@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Represents a local object that was deleted
+///
+/// <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tombstone>
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tombstone {

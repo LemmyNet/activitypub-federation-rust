@@ -194,7 +194,7 @@ pub trait Object: Sized + Debug {
             redirect_remote_object,
         };
         let id = self.id();
-        let res = if data.config.is_local_url(id) {
+        let res = if !data.config.is_local_url(id) {
             redirect_remote_object(id)
         } else if !self.is_deleted() {
             let json = self.into_json(data).await?;
