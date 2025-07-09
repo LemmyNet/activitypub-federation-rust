@@ -4,7 +4,7 @@ use crate::kinds::object::TombstoneType;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-/// For serving deleted objects
+/// Represents a local object that was deleted
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tombstone {

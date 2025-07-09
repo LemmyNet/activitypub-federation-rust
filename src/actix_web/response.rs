@@ -10,7 +10,9 @@ use serde::Serialize;
 use serde_json::Value;
 use url::Url;
 
-/// TODO
+/// Generates HTTP response to serve the object for fetching from other instances.
+///
+/// `federation_context` is the value of `@context`.
 pub fn create_http_response<T: Serialize>(
     data: T,
     federation_context: &Value,

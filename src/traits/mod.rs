@@ -171,10 +171,13 @@ pub trait Object: Sized + Debug {
     /// create and update, so an `upsert` operation should be used.
     async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error>;
 
-    /// Convert the data to json and turn it into an HTTP Response with the correct ActivityPub
-    /// headers.
+    /// Generates HTTP response to serve the object for fetching from other instances.
     ///
-    /// actix-web doesn't allow pretty-print for json so we need to do this manually.
+    /// - If the object has a remote domain, sends a redirect to the original instance.
+    /// - If [Object.is_deleted] returns true, returns a [crate::protocol::tombstone::Tombstone] instead.
+    /// - Otherwise serves the object JSON using [Object.into_json] and pretty-print
+    ///
+    /// `federation_context` is the value of `@context`.
     #[cfg(feature = "actix-web")]
     async fn http_response(
         self,
