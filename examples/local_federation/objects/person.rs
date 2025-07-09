@@ -13,7 +13,7 @@ use activitypub_federation::{
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
     protocol::{context::WithContext, public_key::PublicKey, verification::verify_domains_match},
-    traits::{ActivityHandler, Actor, Object},
+    traits::{Activity, Actor, Object},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ pub struct DbUser {
 /// List of all activities which this actor can receive.
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
-#[enum_delegate::implement(ActivityHandler)]
+#[enum_delegate::implement(Activity)]
 pub enum PersonAcceptedActivities {
     Follow(Follow),
     Accept(Accept),
@@ -103,16 +103,16 @@ impl DbUser {
         Ok(())
     }
 
-    pub(crate) async fn send<Activity>(
+    pub(crate) async fn send<A>(
         &self,
-        activity: Activity,
+        activity: A,
         recipients: Vec<Url>,
         use_queue: bool,
         data: &Data<DatabaseHandle>,
     ) -> Result<(), Error>
     where
-        Activity: ActivityHandler + Serialize + Debug + Send + Sync,
-        <Activity as ActivityHandler>::Error: From<anyhow::Error> + From<serde_json::Error>,
+        A: Activity + Serialize + Debug + Send + Sync,
+        <A as Activity>::Error: From<anyhow::Error> + From<serde_json::Error>,
     {
         let activity = WithContext::new_default(activity);
         // Send through queue in some cases and bypass it in others to test both code paths

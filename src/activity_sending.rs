@@ -7,7 +7,7 @@ use crate::{
     error::Error,
     http_signatures::sign_request,
     reqwest_shim::ResponseExt,
-    traits::{ActivityHandler, Actor},
+    traits::{Activity, Actor},
     FEDERATION_CONTENT_TYPE,
 };
 use bytes::Bytes;
@@ -54,14 +54,14 @@ impl SendActivityTask {
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
     ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
     ///              for each target actor.
-    pub async fn prepare<Activity, Datatype, ActorType>(
-        activity: &Activity,
+    pub async fn prepare<A, Datatype, ActorType>(
+        activity: &A,
         actor: &ActorType,
         inboxes: Vec<Url>,
         data: &Data<Datatype>,
     ) -> Result<Vec<SendActivityTask>, Error>
     where
-        Activity: ActivityHandler + Serialize + Debug,
+        A: Activity + Serialize + Debug,
         Datatype: Clone,
         ActorType: Actor,
     {
@@ -136,14 +136,14 @@ impl SendActivityTask {
     }
 }
 
-pub(crate) async fn build_tasks<Activity, Datatype, ActorType>(
-    activity: &Activity,
+pub(crate) async fn build_tasks<A, Datatype, ActorType>(
+    activity: &A,
     actor: &ActorType,
     inboxes: Vec<Url>,
     data: &Data<Datatype>,
 ) -> Result<Vec<SendActivityTask>, Error>
 where
-    Activity: ActivityHandler + Serialize + Debug,
+    A: Activity + Serialize + Debug,
     Datatype: Clone,
     ActorType: Actor,
 {

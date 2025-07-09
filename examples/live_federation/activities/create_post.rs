@@ -11,7 +11,7 @@ use activitypub_federation::{
     fetch::object_id::ObjectId,
     kinds::activity::CreateType,
     protocol::{context::WithContext, helpers::deserialize_one_or_many},
-    traits::{ActivityHandler, Object},
+    traits::{Activity, Object},
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -50,7 +50,7 @@ impl CreatePost {
 }
 
 #[async_trait::async_trait]
-impl ActivityHandler for CreatePost {
+impl Activity for CreatePost {
     type DataType = DatabaseHandle;
     type Error = crate::error::Error;
 

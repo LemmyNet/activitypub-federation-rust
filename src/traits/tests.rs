@@ -4,7 +4,7 @@
 //!
 //! TODO: Should be using `cfg[doctest]` but blocked by <https://github.com/rust-lang/rust/issues/67295>
 
-use super::{async_trait, ActivityHandler, Actor, Data, Debug, Object, PublicKey, Url};
+use super::{async_trait, Activity, Actor, Data, Debug, Object, PublicKey, Url};
 use crate::{
     error::Error,
     fetch::object_id::ObjectId,
@@ -144,7 +144,7 @@ pub struct Follow {
 }
 
 #[async_trait]
-impl ActivityHandler for Follow {
+impl Activity for Follow {
     type DataType = DbConnection;
     type Error = Error;
 

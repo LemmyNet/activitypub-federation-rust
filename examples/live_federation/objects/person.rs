@@ -5,7 +5,7 @@ use activitypub_federation::{
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
     protocol::{public_key::PublicKey, verification::verify_domains_match},
-    traits::{ActivityHandler, Actor, Object},
+    traits::{Activity, Actor, Object},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub struct DbUser {
 /// List of all activities which this actor can receive.
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
-#[enum_delegate::implement(ActivityHandler)]
+#[enum_delegate::implement(Activity)]
 pub enum PersonAcceptedActivities {
     CreateNote(CreatePost),
 }

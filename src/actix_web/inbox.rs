@@ -6,7 +6,7 @@ use crate::{
     error::Error,
     http_signatures::{verify_body_hash, verify_signature},
     parse_received_activity,
-    traits::{ActivityHandler, Actor, Object},
+    traits::{Activity, Actor, Object},
 };
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use serde::de::DeserializeOwned;
@@ -14,77 +14,77 @@ use tracing::debug;
 
 /// Handles incoming activities, verifying HTTP signatures and other checks
 ///
-/// After successful validation, activities are passed to respective [trait@ActivityHandler].
-pub async fn receive_activity<Activity, ActorT, Datatype>(
+/// After successful validation, activities are passed to respective [trait@Activity].
+pub async fn receive_activity<A, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
     data: &Data<Datatype>,
-) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
+) -> Result<HttpResponse, <A as Activity>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    A: Activity<DataType = Datatype> + DeserializeOwned + Send + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    let (activity, _) = do_stuff::<Activity, ActorT, Datatype>(request, body, data).await?;
+    let (activity, _) = do_stuff::<A, ActorT, Datatype>(request, body, data).await?;
 
     do_more_stuff(activity, data).await
 }
 
 /// Workaround required so we can use references for the hook, instead of cloning data.
-pub trait ReceiveActivityHook<Activity, ActorT, Datatype>
+pub trait ReceiveActivityHook<A, ActorT, Datatype>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
+    A: Activity<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + Clone + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
     /// Called when a new activity is recived
     fn hook(
         self,
-        activity: &Activity,
+        activity: &A,
         actor: &ActorT,
         data: &Data<Datatype>,
-    ) -> impl std::future::Future<Output = Result<(), <Activity as ActivityHandler>::Error>>;
+    ) -> impl std::future::Future<Output = Result<(), <A as Activity>::Error>>;
 }
 
 /// Same as [receive_activity], only that it calls the provided hook function before
 /// calling activity verify and receive functions.
-pub async fn receive_activity_with_hook<Activity, ActorT, Datatype>(
+pub async fn receive_activity_with_hook<A, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
-    hook: impl ReceiveActivityHook<Activity, ActorT, Datatype>,
+    hook: impl ReceiveActivityHook<A, ActorT, Datatype>,
     data: &Data<Datatype>,
-) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
+) -> Result<HttpResponse, <A as Activity>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
+    A: Activity<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + Clone + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
-    let (activity, actor) = do_stuff::<Activity, ActorT, Datatype>(request, body, data).await?;
+    let (activity, actor) = do_stuff::<A, ActorT, Datatype>(request, body, data).await?;
 
     hook.hook(&activity, &actor, data).await?;
 
     do_more_stuff(activity, data).await
 }
 
-async fn do_stuff<Activity, ActorT, Datatype>(
+async fn do_stuff<A, ActorT, Datatype>(
     request: HttpRequest,
     body: Bytes,
     data: &Data<Datatype>,
-) -> Result<(Activity, ActorT), <Activity as ActivityHandler>::Error>
+) -> Result<(A, ActorT), <A as Activity>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    A: Activity<DataType = Datatype> + DeserializeOwned + Send + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
@@ -94,7 +94,7 @@ where
         .map(http_compat::header_value);
     verify_body_hash(digest_header.as_ref(), &body)?;
 
-    let (activity, actor) = parse_received_activity::<Activity, ActorT, _>(&body, data).await?;
+    let (activity, actor) = parse_received_activity::<A, ActorT, _>(&body, data).await?;
 
     let headers = http_compat::header_map(request.headers());
     let method = http_compat::method(request.method());
@@ -104,12 +104,12 @@ where
     Ok((activity, actor))
 }
 
-async fn do_more_stuff<Activity, Datatype>(
-    activity: Activity,
+async fn do_more_stuff<A, Datatype>(
+    activity: A,
     data: &Data<Datatype>,
-) -> Result<HttpResponse, <Activity as ActivityHandler>::Error>
+) -> Result<HttpResponse, <A as Activity>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    A: Activity<DataType = Datatype> + DeserializeOwned + Send + 'static,
     Datatype: Clone,
 {
     debug!("Receiving activity {}", activity.id().to_string());
@@ -160,21 +160,21 @@ mod test {
 
     struct Dummy;
 
-    impl<Activity, ActorT, Datatype> ReceiveActivityHook<Activity, ActorT, Datatype> for Dummy
+    impl<A, ActorT, Datatype> ReceiveActivityHook<A, ActorT, Datatype> for Dummy
     where
-        Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
+        A: Activity<DataType = Datatype> + DeserializeOwned + Send + Clone + 'static,
         ActorT: Object<DataType = Datatype> + Actor + Send + Clone + 'static,
         for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-        <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+        <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
         <ActorT as Object>::Error: From<Error>,
         Datatype: Clone,
     {
         async fn hook(
             self,
-            _activity: &Activity,
+            _activity: &A,
             _actor: &ActorT,
             _data: &Data<Datatype>,
-        ) -> Result<(), <Activity as ActivityHandler>::Error> {
+        ) -> Result<(), <A as Activity>::Error> {
             // ensure that hook gets called by returning this value
             Err(Error::Other("test-error".to_string()).into())
         }

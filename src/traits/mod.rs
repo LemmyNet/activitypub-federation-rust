@@ -210,7 +210,7 @@ pub trait Object: Sized + Debug {
 /// # use url::Url;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::config::Data;
-/// # use activitypub_federation::traits::ActivityHandler;
+/// # use activitypub_federation::traits::Activity;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 /// #[derive(serde::Deserialize)]
 /// struct Follow {
@@ -222,7 +222,7 @@ pub trait Object: Sized + Debug {
 /// }
 ///
 /// #[async_trait::async_trait]
-/// impl ActivityHandler for Follow {
+/// impl Activity for Follow {
 ///     type DataType = DbConnection;
 ///     type Error = anyhow::Error;
 ///
@@ -248,7 +248,7 @@ pub trait Object: Sized + Debug {
 /// ```
 #[async_trait]
 #[enum_delegate::register]
-pub trait ActivityHandler {
+pub trait Activity {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
@@ -309,9 +309,9 @@ pub trait Actor: Object + Send + 'static {
 
 /// Allow for boxing of enum variants
 #[async_trait]
-impl<T> ActivityHandler for Box<T>
+impl<T> Activity for Box<T>
 where
-    T: ActivityHandler + Send + Sync,
+    T: Activity + Send + Sync,
 {
     type DataType = T::DataType;
     type Error = T::Error;

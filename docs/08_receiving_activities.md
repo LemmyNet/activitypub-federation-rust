@@ -1,6 +1,6 @@
 ## Sending and receiving activities
 
-Activitypub propagates actions across servers using `Activities`. For this each actor has an inbox and a public/private key pair. We already defined a `Person` actor with keypair. Whats left is to define an activity. This is similar to the way we defined `Person` and `Note` structs before. In this case we need to implement the [ActivityHandler](trait@crate::traits::ActivityHandler) trait.
+Activitypub propagates actions across servers using `Activities`. For this each actor has an inbox and a public/private key pair. We already defined a `Person` actor with keypair. Whats left is to define an activity. This is similar to the way we defined `Person` and `Note` structs before. In this case we need to implement the [Activity](trait@crate::traits::Activity) trait.
 
 ```
 # use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ Activitypub propagates actions across servers using `Activities`. For this each 
 # use activitypub_federation::fetch::object_id::ObjectId;
 # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 # use activitystreams_kinds::activity::FollowType;
-# use activitypub_federation::traits::ActivityHandler;
+# use activitypub_federation::traits::Activity;
 # use activitypub_federation::config::Data;
 # async fn send_accept() -> Result<(), Error> { Ok(()) }
 
@@ -25,7 +25,7 @@ pub struct Follow {
 }
 
 #[async_trait]
-impl ActivityHandler for Follow {
+impl Activity for Follow {
     type DataType = DbConnection;
     type Error = Error;
 
@@ -59,14 +59,14 @@ Next its time to setup the actual HTTP handler for the inbox. For this we first 
 # use activitypub_federation::axum::inbox::{ActivityData, receive_activity};
 # use activitypub_federation::config::Data;
 # use activitypub_federation::protocol::context::WithContext;
-# use activitypub_federation::traits::ActivityHandler;
+# use activitypub_federation::traits::Activity;
 # use activitypub_federation::traits::tests::{DbConnection, DbUser, Follow};
 # use serde::{Deserialize, Serialize};
 # use url::Url;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
-#[enum_delegate::implement(ActivityHandler)]
+#[enum_delegate::implement(Activity)]
 pub enum PersonAcceptedActivities {
     Follow(Follow),
 }
