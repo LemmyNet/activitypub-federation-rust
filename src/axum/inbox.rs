@@ -7,7 +7,7 @@ use crate::{
     error::Error,
     http_signatures::verify_signature,
     parse_received_activity,
-    traits::{ActivityHandler, Actor, Object},
+    traits::{Activity, Actor, Object},
 };
 use axum::{
     body::Body,
@@ -20,20 +20,20 @@ use serde::de::DeserializeOwned;
 use tracing::debug;
 
 /// Handles incoming activities, verifying HTTP signatures and other checks
-pub async fn receive_activity<Activity, ActorT, Datatype>(
+pub async fn receive_activity<A, ActorT, Datatype>(
     activity_data: ActivityData,
     data: &Data<Datatype>,
-) -> Result<(), <Activity as ActivityHandler>::Error>
+) -> Result<(), <A as Activity>::Error>
 where
-    Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+    A: Activity<DataType = Datatype> + DeserializeOwned + Send + 'static,
     ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
-    <Activity as ActivityHandler>::Error: From<Error> + From<<ActorT as Object>::Error>,
+    <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
     let (activity, actor) =
-        parse_received_activity::<Activity, ActorT, _>(&activity_data.body, data).await?;
+        parse_received_activity::<A, ActorT, _>(&activity_data.body, data).await?;
 
     verify_signature(
         &activity_data.headers,

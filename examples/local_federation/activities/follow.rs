@@ -8,7 +8,7 @@ use activitypub_federation::{
     config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::FollowType,
-    traits::{ActivityHandler, Actor},
+    traits::{Activity, Actor},
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -35,7 +35,7 @@ impl Follow {
 }
 
 #[async_trait::async_trait]
-impl ActivityHandler for Follow {
+impl Activity for Follow {
     type DataType = DatabaseHandle;
     type Error = crate::error::Error;
 

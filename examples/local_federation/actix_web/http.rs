@@ -8,7 +8,7 @@ use activitypub_federation::{
     config::{Data, FederationConfig, FederationMiddleware},
     fetch::webfinger::{build_webfinger_response, extract_webfinger_name},
     protocol::context::WithContext,
-    traits::{Actor, Object},
+    traits::Object,
     FEDERATION_CONTENT_TYPE,
 };
 use actix_web::{web, web::Bytes, App, HttpRequest, HttpResponse, HttpServer};

@@ -9,6 +9,7 @@ use url::Url;
 
 /// `Either` implementations for traits
 pub mod either;
+pub mod tests;
 
 /// Helper for converting between database structs and federated protocol structs.
 ///
@@ -51,6 +52,8 @@ pub mod either;
 ///     type DataType = DbConnection;
 ///     type Kind = Note;
 ///     type Error = anyhow::Error;
+///
+/// fn id(&self) -> &Url { self.ap_id.inner() }
 ///
 /// async fn read_from_id(object_id: Url, data: &Data<Self::DataType>) -> Result<Option<Self>, Self::Error> {
 ///         // Attempt to read object from local database. Return Ok(None) if not found.
@@ -106,6 +109,9 @@ pub trait Object: Sized + Debug {
     /// Error type returned by handler methods
     type Error;
 
+    /// `id` field of the object
+    fn id(&self) -> &Url;
+
     /// Returns the last time this object was updated.
     ///
     /// If this returns `Some` and the value is too long ago, the object is refetched from the
@@ -134,6 +140,11 @@ pub trait Object: Sized + Debug {
         Ok(())
     }
 
+    /// Returns true if the object was deleted
+    fn is_deleted(&self) -> bool {
+        false
+    }
+
     /// Convert database type to Activitypub type.
     ///
     /// Called when a local object gets fetched by another instance over HTTP, or when an object
@@ -159,6 +170,40 @@ pub trait Object: Sized + Debug {
     /// should write the received object to database. Note that there is no distinction between
     /// create and update, so an `upsert` operation should be used.
     async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error>;
+
+    /// Generates HTTP response to serve the object for fetching from other instances.
+    ///
+    /// - If the object has a remote domain, sends a redirect to the original instance.
+    /// - If [Object.is_deleted] returns true, returns a [crate::protocol::tombstone::Tombstone] instead.
+    /// - Otherwise serves the object JSON using [Object.into_json] and pretty-print
+    ///
+    /// `federation_context` is the value of `@context`.
+    #[cfg(feature = "actix-web")]
+    async fn http_response(
+        self,
+        federation_context: &serde_json::Value,
+        data: &Data<Self::DataType>,
+    ) -> Result<actix_web::HttpResponse, Self::Error>
+    where
+        Self::Error: From<serde_json::Error>,
+        Self::Kind: serde::Serialize + Send,
+    {
+        use crate::actix_web::response::{
+            create_http_response,
+            create_tombstone_response,
+            redirect_remote_object,
+        };
+        let id = self.id();
+        let res = if !data.config.is_local_url(id) {
+            redirect_remote_object(id)
+        } else if !self.is_deleted() {
+            let json = self.into_json(data).await?;
+            create_http_response(json, federation_context)?
+        } else {
+            create_tombstone_response(id.clone(), federation_context)?
+        };
+        Ok(res)
+    }
 }
 
 /// Handler for receiving incoming activities.
@@ -168,7 +213,7 @@ pub trait Object: Sized + Debug {
 /// # use url::Url;
 /// # use activitypub_federation::fetch::object_id::ObjectId;
 /// # use activitypub_federation::config::Data;
-/// # use activitypub_federation::traits::ActivityHandler;
+/// # use activitypub_federation::traits::Activity;
 /// # use activitypub_federation::traits::tests::{DbConnection, DbUser};
 /// #[derive(serde::Deserialize)]
 /// struct Follow {
@@ -180,7 +225,7 @@ pub trait Object: Sized + Debug {
 /// }
 ///
 /// #[async_trait::async_trait]
-/// impl ActivityHandler for Follow {
+/// impl Activity for Follow {
 ///     type DataType = DbConnection;
 ///     type Error = anyhow::Error;
 ///
@@ -206,7 +251,7 @@ pub trait Object: Sized + Debug {
 /// ```
 #[async_trait]
 #[enum_delegate::register]
-pub trait ActivityHandler {
+pub trait Activity {
     /// App data type passed to handlers. Must be identical to
     /// [crate::config::FederationConfigBuilder::app_data] type.
     type DataType: Clone + Send + Sync;
@@ -234,9 +279,6 @@ pub trait ActivityHandler {
 
 /// Trait to allow retrieving common Actor data.
 pub trait Actor: Object + Send + 'static {
-    /// `id` field of the actor
-    fn id(&self) -> Url;
-
     /// The actor's public key for verifying signatures of incoming activities.
     ///
     /// Use [generate_actor_keypair](crate::http_signatures::generate_actor_keypair) to create the
@@ -254,7 +296,7 @@ pub trait Actor: Object + Send + 'static {
 
     /// Generates a public key struct for use in the actor json representation
     fn public_key(&self) -> PublicKey {
-        PublicKey::new(self.id(), self.public_key_pem().to_string())
+        PublicKey::new(self.id().clone(), self.public_key_pem().to_string())
     }
 
     /// The actor's shared inbox, if any
@@ -270,9 +312,9 @@ pub trait Actor: Object + Send + 'static {
 
 /// Allow for boxing of enum variants
 #[async_trait]
-impl<T> ActivityHandler for Box<T>
+impl<T> Activity for Box<T>
 where
-    T: ActivityHandler + Send + Sync,
+    T: Activity + Send + Sync,
 {
     type DataType = T::DataType;
     type Error = T::Error;
@@ -333,209 +375,4 @@ pub trait Collection: Sized {
         owner: &Self::Owner,
         data: &Data<Self::DataType>,
     ) -> Result<Self, Self::Error>;
-}
-
-/// Some impls of these traits for use in tests. Dont use this from external crates.
-///
-/// TODO: Should be using `cfg[doctest]` but blocked by <https://github.com/rust-lang/rust/issues/67295>
-#[doc(hidden)]
-#[allow(clippy::unwrap_used)]
-pub mod tests {
-    use super::{async_trait, ActivityHandler, Actor, Data, Debug, Object, PublicKey, Url};
-    use crate::{
-        error::Error,
-        fetch::object_id::ObjectId,
-        http_signatures::{generate_actor_keypair, Keypair},
-        protocol::verification::verify_domains_match,
-    };
-    use activitystreams_kinds::{activity::FollowType, actor::PersonType};
-    use serde::{Deserialize, Serialize};
-    use std::sync::LazyLock;
-
-    #[derive(Clone)]
-    pub struct DbConnection;
-
-    impl DbConnection {
-        pub async fn read_post_from_json_id<T>(&self, _: Url) -> Result<Option<T>, Error> {
-            Ok(None)
-        }
-        pub async fn read_local_user(&self, _: &str) -> Result<DbUser, Error> {
-            todo!()
-        }
-        pub async fn upsert<T>(&self, _: &T) -> Result<(), Error> {
-            Ok(())
-        }
-        pub async fn add_follower(&self, _: DbUser, _: DbUser) -> Result<(), Error> {
-            Ok(())
-        }
-    }
-
-    #[derive(Clone, Debug, Deserialize, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Person {
-        #[serde(rename = "type")]
-        pub kind: PersonType,
-        pub preferred_username: String,
-        pub id: ObjectId<DbUser>,
-        pub inbox: Url,
-        pub public_key: PublicKey,
-    }
-    #[derive(Debug, Clone)]
-    pub struct DbUser {
-        pub name: String,
-        pub federation_id: Url,
-        pub inbox: Url,
-        pub public_key: String,
-        #[allow(dead_code)]
-        private_key: Option<String>,
-        pub followers: Vec<Url>,
-        pub local: bool,
-    }
-
-    pub static DB_USER_KEYPAIR: LazyLock<Keypair> =
-        LazyLock::new(|| generate_actor_keypair().unwrap());
-
-    pub static DB_USER: LazyLock<DbUser> = LazyLock::new(|| DbUser {
-        name: String::new(),
-        federation_id: "https://localhost/123".parse().unwrap(),
-        inbox: "https://localhost/123/inbox".parse().unwrap(),
-        public_key: DB_USER_KEYPAIR.public_key.clone(),
-        private_key: Some(DB_USER_KEYPAIR.private_key.clone()),
-        followers: vec![],
-        local: false,
-    });
-
-    #[async_trait]
-    impl Object for DbUser {
-        type DataType = DbConnection;
-        type Kind = Person;
-        type Error = Error;
-
-        async fn read_from_id(
-            _object_id: Url,
-            _data: &Data<Self::DataType>,
-        ) -> Result<Option<Self>, Self::Error> {
-            Ok(Some(DB_USER.clone()))
-        }
-
-        async fn into_json(self, _data: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
-            Ok(Person {
-                preferred_username: self.name.clone(),
-                kind: Default::default(),
-                id: self.federation_id.clone().into(),
-                inbox: self.inbox.clone(),
-                public_key: self.public_key(),
-            })
-        }
-
-        async fn verify(
-            json: &Self::Kind,
-            expected_domain: &Url,
-            _data: &Data<Self::DataType>,
-        ) -> Result<(), Self::Error> {
-            verify_domains_match(json.id.inner(), expected_domain)?;
-            Ok(())
-        }
-
-        async fn from_json(
-            json: Self::Kind,
-            _data: &Data<Self::DataType>,
-        ) -> Result<Self, Self::Error> {
-            Ok(DbUser {
-                name: json.preferred_username,
-                federation_id: json.id.into(),
-                inbox: json.inbox,
-                public_key: json.public_key.public_key_pem,
-                private_key: None,
-                followers: vec![],
-                local: false,
-            })
-        }
-    }
-
-    impl Actor for DbUser {
-        fn id(&self) -> Url {
-            self.federation_id.clone()
-        }
-
-        fn public_key_pem(&self) -> &str {
-            &self.public_key
-        }
-
-        fn private_key_pem(&self) -> Option<String> {
-            self.private_key.clone()
-        }
-
-        fn inbox(&self) -> Url {
-            self.inbox.clone()
-        }
-    }
-
-    #[derive(Deserialize, Serialize, Clone, Debug)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Follow {
-        pub actor: ObjectId<DbUser>,
-        pub object: ObjectId<DbUser>,
-        #[serde(rename = "type")]
-        pub kind: FollowType,
-        pub id: Url,
-    }
-
-    #[async_trait]
-    impl ActivityHandler for Follow {
-        type DataType = DbConnection;
-        type Error = Error;
-
-        fn id(&self) -> &Url {
-            &self.id
-        }
-
-        fn actor(&self) -> &Url {
-            self.actor.inner()
-        }
-
-        async fn verify(&self, _: &Data<Self::DataType>) -> Result<(), Self::Error> {
-            Ok(())
-        }
-
-        async fn receive(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
-            Ok(())
-        }
-    }
-
-    #[derive(Clone, Debug, Deserialize, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct Note {}
-    #[derive(Debug, Clone)]
-    pub struct DbPost {}
-
-    #[async_trait]
-    impl Object for DbPost {
-        type DataType = DbConnection;
-        type Kind = Note;
-        type Error = Error;
-
-        async fn read_from_id(
-            _: Url,
-            _: &Data<Self::DataType>,
-        ) -> Result<Option<Self>, Self::Error> {
-            todo!()
-        }
-
-        async fn into_json(self, _: &Data<Self::DataType>) -> Result<Self::Kind, Self::Error> {
-            todo!()
-        }
-
-        async fn verify(
-            _: &Self::Kind,
-            _: &Url,
-            _: &Data<Self::DataType>,
-        ) -> Result<(), Self::Error> {
-            todo!()
-        }
-
-        async fn from_json(_: Self::Kind, _: &Data<Self::DataType>) -> Result<Self, Self::Error> {
-            todo!()
-        }
-    }
 }

@@ -19,7 +19,7 @@ use crate::{
     error::Error,
     http_signatures::sign_request,
     protocol::verification::verify_domains_match,
-    traits::{ActivityHandler, Actor},
+    traits::{Activity, Actor},
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -125,12 +125,9 @@ impl<T: Clone> FederationConfig<T> {
         FederationConfigBuilder::default()
     }
 
-    pub(crate) async fn verify_url_and_domain<Activity, Datatype>(
-        &self,
-        activity: &Activity,
-    ) -> Result<(), Error>
+    pub(crate) async fn verify_url_and_domain<A, Datatype>(&self, activity: &A) -> Result<(), Error>
     where
-        Activity: ActivityHandler<DataType = Datatype> + DeserializeOwned + Send + 'static,
+        A: Activity<DataType = Datatype> + DeserializeOwned + Send + 'static,
     {
         verify_domains_match(activity.id(), activity.actor())?;
         self.verify_url_valid(activity.id()).await?;
@@ -258,7 +255,7 @@ impl<T: Clone> FederationConfigBuilder<T> {
 
         let private_key =
             RsaPrivateKey::from_pkcs8_pem(&private_key_pem).expect("Could not decode PEM data");
-        self.signed_fetch_actor = Some(Some(Arc::new((actor.id(), private_key))));
+        self.signed_fetch_actor = Some(Some(Arc::new((actor.id().clone(), private_key))));
         self
     }
 

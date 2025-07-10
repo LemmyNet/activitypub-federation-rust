@@ -19,7 +19,7 @@
 //! Ok::<(), serde_json::error::Error>(())
 //! ```
 
-use crate::{config::Data, traits::ActivityHandler};
+use crate::{config::Data, traits::Activity};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use url::Url;
@@ -55,12 +55,12 @@ impl<T> WithContext<T> {
 }
 
 #[async_trait::async_trait]
-impl<T> ActivityHandler for WithContext<T>
+impl<T> Activity for WithContext<T>
 where
-    T: ActivityHandler + Send + Sync,
+    T: Activity + Send + Sync,
 {
-    type DataType = <T as ActivityHandler>::DataType;
-    type Error = <T as ActivityHandler>::Error;
+    type DataType = <T as Activity>::DataType;
+    type Error = <T as Activity>::Error;
 
     fn id(&self) -> &Url {
         self.inner.id()

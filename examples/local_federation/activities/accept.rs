@@ -3,7 +3,7 @@ use activitypub_federation::{
     config::Data,
     fetch::object_id::ObjectId,
     kinds::activity::AcceptType,
-    traits::ActivityHandler,
+    traits::Activity,
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -30,7 +30,7 @@ impl Accept {
 }
 
 #[async_trait::async_trait]
-impl ActivityHandler for Accept {
+impl Activity for Accept {
     type DataType = DatabaseHandle;
     type Error = crate::error::Error;
 

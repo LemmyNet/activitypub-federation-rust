@@ -6,7 +6,7 @@ use crate::{
     activity_sending::{build_tasks, SendActivityTask},
     config::Data,
     error::Error,
-    traits::{ActivityHandler, Actor},
+    traits::{Activity, Actor},
 };
 
 use futures_core::Future;
@@ -37,14 +37,14 @@ use url::Url;
 /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
 ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
 ///              for each target actor.
-pub async fn queue_activity<Activity, Datatype, ActorType>(
-    activity: &Activity,
+pub async fn queue_activity<A, Datatype, ActorType>(
+    activity: &A,
     actor: &ActorType,
     inboxes: Vec<Url>,
     data: &Data<Datatype>,
 ) -> Result<(), Error>
 where
-    Activity: ActivityHandler + Serialize + Debug,
+    A: Activity + Serialize + Debug,
     Datatype: Clone,
     ActorType: Actor,
 {

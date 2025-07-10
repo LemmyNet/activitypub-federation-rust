@@ -5,7 +5,7 @@ use activitypub_federation::{
     http_signatures::generate_actor_keypair,
     kinds::actor::PersonType,
     protocol::{public_key::PublicKey, verification::verify_domains_match},
-    traits::{ActivityHandler, Actor, Object},
+    traits::{Activity, Actor, Object},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub struct DbUser {
 /// List of all activities which this actor can receive.
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(untagged)]
-#[enum_delegate::implement(ActivityHandler)]
+#[enum_delegate::implement(Activity)]
 pub enum PersonAcceptedActivities {
     CreateNote(CreatePost),
 }
@@ -68,6 +68,10 @@ impl Object for DbUser {
     type DataType = DatabaseHandle;
     type Kind = Person;
     type Error = Error;
+
+    fn id(&self) -> &Url {
+        self.ap_id.inner()
+    }
 
     fn last_refreshed_at(&self) -> Option<DateTime<Utc>> {
         Some(self.last_refreshed_at)
@@ -122,10 +126,6 @@ impl Object for DbUser {
 }
 
 impl Actor for DbUser {
-    fn id(&self) -> Url {
-        self.ap_id.inner().clone()
-    }
-
     fn public_key_pem(&self) -> &str {
         &self.public_key
     }
