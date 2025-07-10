@@ -12,6 +12,9 @@ use url::Url;
 
 /// Generates HTTP response to serve the object for fetching from other instances.
 ///
+/// If possible use [Object.http_response]
+/// which also handles redirects for remote objects and deletions.
+///
 /// `federation_context` is the value of `@context`.
 pub fn create_http_response<T: Serialize>(
     data: T,
