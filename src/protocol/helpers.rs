@@ -116,6 +116,26 @@ where
     Ok(inner)
 }
 
+/// Deserialize either single value or last item from an array into an optional field.
+pub fn deserialize_last<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum MaybeArray<T> {
+        Simple(T),
+        Array(Vec<T>),
+    }
+
+    let result: MaybeArray<T> = Deserialize::deserialize(deserializer)?;
+    Ok(match result {
+        MaybeArray::Simple(value) => Some(value),
+        MaybeArray::Array(value) => value.into_iter().last(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
