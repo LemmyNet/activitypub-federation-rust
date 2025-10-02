@@ -10,7 +10,7 @@ use url::Url;
 
 impl<T> FromStr for ObjectId<T>
 where
-    T: Object + Send + Debug + 'static,
+    T: Object + Send + Sync + Debug + 'static,
     for<'de2> <T as Object>::Kind: Deserialize<'de2>,
 {
     type Err = url::ParseError;
@@ -61,7 +61,7 @@ where
 
 impl<Kind> ObjectId<Kind>
 where
-    Kind: Object + Send + Debug + 'static,
+    Kind: Object + Send + Sync + Debug + 'static,
     for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     /// Construct a new objectid instance
@@ -164,6 +164,7 @@ where
         if let Err(Error::ObjectDeleted(url)) = res {
             if let Some(db_object) = db_object {
                 db_object.delete(data).await?;
+                return Ok(db_object);
             }
             return Err(Error::ObjectDeleted(url).into());
         }

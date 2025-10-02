@@ -149,7 +149,7 @@ pub(crate) async fn signing_actor<'a, A, H>(
     data: &Data<<A as Object>::DataType>,
 ) -> Result<A, <A as Object>::Error>
 where
-    A: Object + Actor,
+    A: Object + Actor + Send + Sync,
     <A as Object>::Error: From<Error>,
     for<'de2> <A as Object>::Kind: Deserialize<'de2>,
     H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,

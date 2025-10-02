@@ -18,8 +18,8 @@ pub enum UntaggedEither<L, R> {
 #[async_trait]
 impl<T, R, E, D> Object for Either<T, R>
 where
-    T: Object + Object<Error = E, DataType = D> + Send,
-    R: Object + Object<Error = E, DataType = D> + Send,
+    T: Object + Object<Error = E, DataType = D> + Send + Sync,
+    R: Object + Object<Error = E, DataType = D> + Send + Sync,
     <T as Object>::Kind: Send + Sync,
     <R as Object>::Kind: Send + Sync,
     D: Sync + Send + Clone,
@@ -59,7 +59,7 @@ where
         Ok(None)
     }
 
-    async fn delete(self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
+    async fn delete(&self, data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         match self {
             Either::Left(l) => l.delete(data).await,
             Either::Right(r) => r.delete(data).await,
@@ -103,8 +103,8 @@ where
 #[async_trait]
 impl<T, R, E, D> Actor for Either<T, R>
 where
-    T: Actor + Object + Object<Error = E, DataType = D> + Send + 'static,
-    R: Actor + Object + Object<Error = E, DataType = D> + Send + 'static,
+    T: Actor + Object + Object<Error = E, DataType = D> + Send + Sync + 'static,
+    R: Actor + Object + Object<Error = E, DataType = D> + Send + Sync + 'static,
     <T as Object>::Kind: Send + Sync,
     <R as Object>::Kind: Send + Sync,
     D: Sync + Send + Clone,

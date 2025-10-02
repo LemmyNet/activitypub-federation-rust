@@ -46,7 +46,7 @@ async fn parse_received_activity<A, ActorT, Datatype>(
 ) -> Result<(A, ActorT), <A as Activity>::Error>
 where
     A: Activity<DataType = Datatype> + DeserializeOwned + Send + 'static,
-    ActorT: Object<DataType = Datatype> + Actor + Send + 'static,
+    ActorT: Object<DataType = Datatype> + Actor + Send + Sync + 'static,
     for<'de2> <ActorT as Object>::Kind: serde::Deserialize<'de2>,
     <A as Activity>::Error: From<Error> + From<<ActorT as Object>::Error>,
     <ActorT as Object>::Error: From<Error>,

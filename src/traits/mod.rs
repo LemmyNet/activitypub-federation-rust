@@ -136,7 +136,7 @@ pub trait Object: Sized + Debug {
     /// Mark remote object as deleted in local database.
     ///
     /// Called when a `Delete` activity is received, or if fetch returns a `Tombstone` object.
-    async fn delete(self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
+    async fn delete(&self, _data: &Data<Self::DataType>) -> Result<(), Self::Error> {
         Ok(())
     }
 
