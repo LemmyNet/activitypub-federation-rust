@@ -45,7 +45,7 @@ pub async fn webfinger_resolve_actor<T: Clone, Kind>(
     data: &Data<T>,
 ) -> Result<Kind, <Kind as Object>::Error>
 where
-    Kind: Object + Actor + Send + 'static + Object<DataType = T>,
+    Kind: Object + Actor + Send + Sync + 'static + Object<DataType = T>,
     for<'de2> <Kind as Object>::Kind: serde::Deserialize<'de2>,
     <Kind as Object>::Error: From<crate::error::Error> + Send + Sync + Display,
 {

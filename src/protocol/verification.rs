@@ -63,7 +63,7 @@ pub fn verify_is_remote_object<Kind, R: Clone>(
     data: &Data<<Kind as Object>::DataType>,
 ) -> Result<(), Error>
 where
-    Kind: Object<DataType = R> + Send + 'static,
+    Kind: Object<DataType = R> + Send + Sync + 'static,
     for<'de2> <Kind as Object>::Kind: Deserialize<'de2>,
 {
     if id.is_local(data) {
