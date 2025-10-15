@@ -10,8 +10,8 @@ use std::{
     task::{Context, Poll},
 };
 
-/// 200KB
-const MAX_BODY_SIZE: usize = 204800;
+/// 1 MB
+const MAX_BODY_SIZE: usize = 1024 * 1024;
 
 pin_project! {
     pub struct BytesFuture {
@@ -66,7 +66,7 @@ impl Future for TextFuture {
 /// Reqwest doesn't limit the response body size by default nor does it offer an option to configure one.
 /// Since we have to fetch data from untrusted sources, not restricting the maximum size is a DoS hazard for us.
 ///
-/// This shim reimplements the `bytes`, `json`, and `text` functions and restricts the bodies to 100KB.
+/// This shim reimplements the `bytes`, `json`, and `text` functions and restricts the bodies length.
 ///
 /// TODO: Remove this shim as soon as reqwest gets support for size-limited bodies.
 pub trait ResponseExt {
