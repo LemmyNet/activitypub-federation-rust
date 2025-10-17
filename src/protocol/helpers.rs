@@ -127,12 +127,14 @@ where
     enum MaybeArray<T> {
         Simple(T),
         Array(Vec<T>),
+        None,
     }
 
-    let result: MaybeArray<T> = Deserialize::deserialize(deserializer)?;
+    let result = Deserialize::deserialize(deserializer)?;
     Ok(match result {
         MaybeArray::Simple(value) => Some(value),
         MaybeArray::Array(value) => value.into_iter().last(),
+        MaybeArray::None => None,
     })
 }
 
