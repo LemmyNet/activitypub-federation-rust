@@ -55,8 +55,8 @@ async fn main() -> Result<(), Error> {
     info!("Listen with HTTP server on {BIND_ADDRESS}");
     let config = config.clone();
     let app = Router::new()
-        .route("/:user", get(http_get_user))
-        .route("/:user/inbox", post(http_post_user_inbox))
+        .route("/{user}", get(http_get_user))
+        .route("/{user}/inbox", post(http_post_user_inbox))
         .route("/.well-known/webfinger", get(webfinger))
         .layer(FederationMiddleware::new(config));
 
