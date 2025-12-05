@@ -88,6 +88,7 @@ where
             }
         })
         .filter_map(|l| l.href.clone())
+        .rev()
         .collect();
 
     for l in links {
