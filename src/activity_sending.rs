@@ -52,8 +52,8 @@ impl SendActivityTask {
     ///
     /// - `activity`: The activity to be sent, gets converted to json
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
-    ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
-    ///              for each target actor.
+    ///   inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
+    ///   for each target actor.
     pub async fn prepare<A, Datatype, ActorType>(
         activity: &A,
         actor: &ActorType,
