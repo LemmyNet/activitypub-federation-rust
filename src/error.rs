@@ -28,6 +28,9 @@ pub enum Error {
     /// url verification error
     #[error("URL failed verification: {0}")]
     UrlVerificationError(&'static str),
+    /// Resolving domain points to local IP.
+    #[error("Resolving domain {0} points to local IP {1}. This may indicate an attacker attempting to access internal services. If intentional, you can ignore this error by setting DANGER_APUB_ALLOW_LOCAL_IP=1")]
+    DomainResolveError(String, String),
     /// Incoming activity has invalid digest for body
     #[error("Incoming activity has invalid digest for body")]
     ActivityBodyDigestInvalid,
