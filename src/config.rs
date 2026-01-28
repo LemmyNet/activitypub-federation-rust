@@ -188,7 +188,7 @@ impl<T: Clone> FederationConfig<T> {
             // TODO: Use is_global() once stabilized
             //       https://doc.rust-lang.org/std/net/enum.IpAddr.html#method.is_global
             let mut ips = lookup_host((domain.to_owned(), 80)).await?;
-            let allow_local = std::env::var("APUB_DANGER_ALLOW_LOCAL_IP").is_ok();
+            let allow_local = std::env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok();
             let invalid_ip = !allow_local
                 && ips.any(|addr| match addr.ip() {
                     IpAddr::V4(addr) => {
