@@ -40,7 +40,6 @@ serde_json = { version = "1.0.149", features = ["preserve_order"] }
 reqwest = { version = "0.13.1", default-features = false, features = [
   "json",
   "stream",
-  "rustls",
 ] }
 reqwest-middleware = "0.5.0"
 tracing = "0.1.44"
@@ -95,6 +94,9 @@ axum = { version = "0.8.8", features = ["macros"] }
 axum-extra = { version = "0.12.5", features = ["typed-header"] }
 env_logger = "0.11.8"
 tokio = { version = "1.49.0", features = ["full"] }
+reqwest = { version = "0.13.1",features = [
+  "rustls"
+] }
 
 [profile.dev]
 strip = "symbols"
