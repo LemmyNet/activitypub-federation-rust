@@ -187,10 +187,12 @@ impl<T: Clone> FederationConfig<T> {
             // Resolve domain and see if it points to private IP
             // TODO: Use is_global() once stabilized
             //       https://doc.rust-lang.org/std/net/enum.IpAddr.html#method.is_global
-            let mut ips = lookup_host((domain.to_owned(), 80)).await?;
+            let mut ips = lookup_host((domain.to_owned(), 80))
+                .await?
+                .map(|s| s.ip().to_canonical());
             let allow_local = std::env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok();
             let invalid_ip = !allow_local
-                && ips.any(|addr| match addr.ip() {
+                && ips.any(|ip| match ip {
                     IpAddr::V4(addr) => {
                         addr.is_private()
                             || addr.is_link_local()
