@@ -20,12 +20,12 @@ use crate::{
     http_signatures::sign_request,
     protocol::verification::verify_domains_match,
     traits::{Activity, Actor},
+    utils::is_invalid_ip,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
 use derive_builder::Builder;
 use dyn_clone::{clone_trait_object, DynClone};
-use itertools::Itertools;
 use moka::future::Cache;
 use regex::Regex;
 use reqwest::{redirect::Policy, Client, Request};
@@ -33,7 +33,6 @@ use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use rsa::{pkcs8::DecodePrivateKey, RsaPrivateKey};
 use serde::de::DeserializeOwned;
 use std::{
-    net::IpAddr,
     ops::Deref,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -42,7 +41,6 @@ use std::{
     },
     time::Duration,
 };
-use tokio::net::lookup_host;
 use url::Url;
 
 /// Configuration for this library, with various federation related settings
@@ -184,29 +182,9 @@ impl<T: Clone> FederationConfig<T> {
                 return Err(Error::UrlVerificationError("Explicit port is not allowed"));
             }
 
-            // Resolve domain and see if it points to private IP
-            // TODO: Use is_global() once stabilized
-            //       https://doc.rust-lang.org/std/net/enum.IpAddr.html#method.is_global
-            let mut ips = lookup_host((domain.to_owned(), 80)).await?;
             let allow_local = std::env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok();
-            let invalid_ip = !allow_local
-                && ips.any(|addr| match addr.ip() {
-                    IpAddr::V4(addr) => {
-                        addr.is_private()
-                            || addr.is_link_local()
-                            || addr.is_loopback()
-                            || addr.is_multicast()
-                    }
-                    IpAddr::V6(addr) => {
-                        addr.is_loopback()
-                        || addr.is_multicast()
-                        || ((addr.segments()[0] & 0xfe00) == 0xfc00) // is_unique_local
-                        || ((addr.segments()[0] & 0xffc0) == 0xfe80) // is_unicast_link_local
-                    }
-                });
-            if invalid_ip {
-                let ip_addrs = ips.join(", ");
-                return Err(Error::DomainResolveError(domain.to_string(), ip_addrs));
+            if !allow_local && is_invalid_ip(domain).await? {
+                return Err(Error::DomainResolveError(domain.to_string()));
             }
         }
 
