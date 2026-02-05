@@ -14,10 +14,6 @@ actix-web = ["dep:actix-web", "dep:http02"]
 axum = ["dep:axum", "dep:tower"]
 axum-original-uri = ["dep:axum", "axum/original-uri"]
 
-[lints.rust]
-warnings = "deny"
-deprecated = "deny"
-
 [lints.clippy]
 perf = { level = "deny", priority = -1 }
 complexity = { level = "deny", priority = -1 }

@@ -23,6 +23,7 @@ pub mod http_signatures;
 pub mod protocol;
 pub(crate) mod reqwest_shim;
 pub mod traits;
+mod utils;
 
 use crate::{
     config::Data,
