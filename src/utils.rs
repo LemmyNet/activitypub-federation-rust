@@ -20,6 +20,8 @@ fn v4_is_invalid(v4: Ipv4Addr) -> bool {
         || v4.is_link_local()
         || v4.is_multicast()
         || v4.is_documentation()
+        || v4.is_unspecified()
+        || v4.is_broadcast()
 }
 
 fn v6_is_invalid(v6: Ipv6Addr) -> bool {
