@@ -7,7 +7,6 @@ keywords = ["activitypub", "activitystreams", "federation", "fediverse"]
 license = "AGPL-3.0"
 repository = "https://github.com/LemmyNet/activitypub-federation-rust"
 documentation = "https://docs.rs/activitypub_federation/"
-rust-version = "1.81"
 
 [features]
 default = ["actix-web", "axum"]
