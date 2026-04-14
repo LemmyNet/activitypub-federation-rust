@@ -20,7 +20,7 @@ use crate::{
     http_signatures::sign_request,
     protocol::verification::verify_domains_match,
     traits::{Activity, Actor},
-    utils::is_invalid_ip,
+    utils::validate_ip,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -183,7 +183,7 @@ impl<T: Clone> FederationConfig<T> {
             }
 
             let allow_local = std::env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok();
-            if !allow_local && is_invalid_ip(domain).await? {
+            if !allow_local && self.is_valid_ip(&url).await.is_err() {
                 return Err(Error::DomainResolveError(domain.to_string()));
             }
         }
@@ -221,6 +221,15 @@ impl<T: Clone> FederationConfig<T> {
     /// Returns the local domain
     pub fn domain(&self) -> &str {
         &self.domain
+    }
+
+    /// Resolve domain of the url and throw error if it points to local/private IP.
+    pub async fn is_valid_ip(&self, url: &Url) -> Result<(), Error> {
+        if self.debug {
+            return Ok(());
+        }
+
+        validate_ip(url).await
     }
 }
 

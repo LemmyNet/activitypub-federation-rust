@@ -2,16 +2,33 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use crate::error::Error;
 use tokio::net::lookup_host;
+use url::{Host, Url};
 
-// Resolve domain and see if it points to private IP
 // TODO: Use is_global() once stabilized
 //       https://doc.rust-lang.org/std/net/enum.IpAddr.html#method.is_global
-pub(crate) async fn is_invalid_ip(domain: &str) -> Result<bool, Error> {
-    let mut ips = lookup_host((domain, 80)).await?;
-    Ok(ips.any(|addr| match addr.ip() {
+pub(crate) async fn validate_ip(url: &Url) -> Result<(), Error> {
+    let mut ip = vec![];
+    let host = url
+        .host()
+        .ok_or(Error::UrlVerificationError("Url must have a domain"))?;
+    match host {
+        Host::Domain(domain) => ip.extend(
+            lookup_host((domain.to_owned(), 80))
+                .await?
+                .map(|s| s.ip().to_canonical()),
+        ),
+        Host::Ipv4(ipv4) => ip.push(ipv4.into()),
+        Host::Ipv6(ipv6) => ip.push(ipv6.into()),
+    };
+
+    let invalid_ip = ip.into_iter().any(|addr| match addr {
         IpAddr::V4(addr) => v4_is_invalid(addr),
         IpAddr::V6(addr) => v6_is_invalid(addr),
-    }))
+    });
+    if invalid_ip {
+        return Err(Error::DomainResolveError(host.to_string()));
+    }
+    Ok(())
 }
 
 fn v4_is_invalid(v4: Ipv4Addr) -> bool {
@@ -48,8 +65,14 @@ mod test {
 
     #[tokio::test]
     async fn test_is_valid_ip() -> Result<(), Error> {
-        assert!(!is_invalid_ip("example.com").await?);
-        assert!(is_invalid_ip("localhost").await?);
+        assert!(validate_ip(&Url::parse("http://example.com")?)
+            .await
+            .is_ok());
+        assert!(validate_ip(&Url::parse("http://172.66.147.243")?)
+            .await
+            .is_ok());
+        assert!(validate_ip(&Url::parse("http://localhost")?).await.is_err());
+        assert!(validate_ip(&Url::parse("http://127.0.0.1")?).await.is_err());
         Ok(())
     }
 }
