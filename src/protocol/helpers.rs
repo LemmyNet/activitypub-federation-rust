@@ -1,6 +1,7 @@
 //! Serde deserialization functions which help to receive differently shaped data
 
 use activitystreams_kinds::public;
+use itertools::Itertools;
 use serde::{de::Error, Deserialize, Deserializer};
 use serde_json::Value;
 use url::Url;
@@ -35,7 +36,7 @@ use url::Url;
 /// assert_eq!(multiple.to.len(), 2);
 ///
 /// let note: Note = serde_json::from_str(r#"{"to": ["Public", "as:Public"]}"#)?;
-/// assert_eq!(note.to, vec![public(), public()]);
+/// assert_eq!(note.to, vec![public()]);
 /// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn deserialize_one_or_many<'de, D>(deserializer: D) -> Result<Vec<Url>, D::Error>
@@ -64,7 +65,8 @@ where
             Value::String(value) => Url::parse(&value).map_err(D::Error::custom),
             value => Url::deserialize(value).map_err(D::Error::custom),
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(|values| values.into_iter().unique().collect())
 }
 
 /// Deserialize JSON single value or single element array into single value.
@@ -224,12 +226,7 @@ mod tests {
 
         assert_eq!(
             note.to,
-            vec![
-                Url::parse("https://example.com/c/main")?,
-                public(),
-                public(),
-                public(),
-            ]
+            vec![Url::parse("https://example.com/c/main")?, public(),]
         );
 
         Ok(())
