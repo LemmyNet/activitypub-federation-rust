@@ -15,9 +15,7 @@ The next step is to allow other servers to fetch our actors and objects. For thi
 # use activitypub_federation::config::FederationMiddleware;
 # use axum::routing::get;
 # use crate::activitypub_federation::traits::Object;
-# use axum_extra::headers::ContentType;
 # use activitypub_federation::FEDERATION_CONTENT_TYPE;
-# use axum_extra::TypedHeader;
 # use axum::response::IntoResponse;
 # use http::HeaderMap;
 # async fn generate_user_html(_: String, _: Data<DbConnection>) -> axum::response::Response { todo!() }
