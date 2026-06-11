@@ -99,7 +99,13 @@ where
     let headers = http_compat::header_map(request.headers());
     let method = http_compat::method(request.method());
     let uri = http_compat::uri(request.uri());
-    verify_signature(&headers, &method, &uri, actor.public_key_pem())?;
+    verify_signature(
+        &headers,
+        &method,
+        &uri,
+        actor.public_key_pem(),
+        &data.config,
+    )?;
 
     Ok((activity, actor))
 }

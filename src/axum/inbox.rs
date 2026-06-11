@@ -40,6 +40,7 @@ where
         &activity_data.method,
         &activity_data.uri,
         actor.public_key_pem(),
+        &data.config,
     )?;
 
     debug!("Receiving activity {}", activity.id().to_string());

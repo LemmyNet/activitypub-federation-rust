@@ -6,7 +6,7 @@
 //! [receive_activity (axum)](crate::axum::inbox::receive_activity).
 
 use crate::{
-    config::Data,
+    config::{Data, FederationConfig},
     error::{Error, Error::ActivitySignatureInvalid},
     fetch::object_id::ObjectId,
     protocol::public_key::main_key_id,
@@ -119,11 +119,12 @@ pub(crate) async fn sign_request(
 ///
 /// Internally, this just converts the headers to a BTreeMap and passes to
 /// `verify_signature_inner` for actual signature verification.
-pub(crate) fn verify_signature<'a, H>(
+pub(crate) fn verify_signature<'a, H, T: Clone>(
     headers: H,
     method: &Method,
     uri: &Uri,
     public_key: &str,
+    config: &FederationConfig<T>,
 ) -> Result<(), Error>
 where
     H: IntoIterator<Item = (&'a HeaderName, &'a HeaderValue)>,
@@ -135,7 +136,7 @@ where
         }
     }
 
-    verify_signature_inner(header_map, method, uri, public_key)
+    verify_signature_inner(header_map, method, uri, public_key, config)
 }
 
 /// Checks whether the given federation request has a valid signature,
@@ -175,18 +176,19 @@ where
     let actor = actor_id.dereference(data).await?;
     let public_key = actor.public_key_pem();
 
-    verify_signature_inner(header_map, method, uri, public_key)?;
+    verify_signature_inner(header_map, method, uri, public_key, &data.config)?;
 
     Ok(actor)
 }
 
 /// Verifies that the signature present in the request is valid for
 /// the specified actor's public key.
-fn verify_signature_inner(
-    header_map: BTreeMap<String, String>,
+fn verify_signature_inner<T: Clone>(
+    mut header_map: BTreeMap<String, String>,
     method: &Method,
     uri: &Uri,
     public_key: &str,
+    config: &FederationConfig<T>,
 ) -> Result<(), Error> {
     static CONFIG: LazyLock<http_signature_normalization::Config> = LazyLock::new(|| {
         http_signature_normalization::Config::new()
@@ -195,6 +197,14 @@ fn verify_signature_inner(
     });
 
     let path_and_query = uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("");
+
+    // Host header is mandatory for signature verification, but may be missing in some cases:
+    // - Nginx proxy_pass doesn't pass Host to upstream
+    // - HTTP2 doesn't have this header
+    // To avoid invalid signature errors we add it manually.
+    if !header_map.contains_key("Host") {
+        header_map.insert("Host".to_string(), config.domain.clone());
+    }
 
     let verified = CONFIG
         .begin_verify(method.as_str(), path_and_query, header_map)
@@ -354,11 +364,17 @@ pub mod test {
         .await
         .unwrap();
 
+        let config = FederationConfig::builder()
+            .app_data(())
+            .domain("example.com")
+            .build()
+            .await;
         let valid = verify_signature(
             request.headers(),
             request.method(),
             &Uri::from_str(request.url().as_str()).unwrap(),
             &test_keypair().public_key,
+            &config.unwrap(),
         );
         println!("{:?}", &valid);
         assert!(valid.is_ok());
