@@ -85,7 +85,7 @@ impl Object for DbPost {
     async fn from_json(json: Self::Kind, data: &Data<Self::DataType>) -> Result<Self, Self::Error> {
         println!(
             "Received post with content {} and id {}",
-            &json.content, &json.id
+            json.content, json.id
         );
         let creator = json.attributed_to.dereference(data).await?;
         let post = DbPost {
