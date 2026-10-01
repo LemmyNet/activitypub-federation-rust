@@ -52,8 +52,8 @@ impl SendActivityTask {
     ///
     /// - `activity`: The activity to be sent, gets converted to json
     /// - `inboxes`: List of remote actor inboxes that should receive the activity. Ignores local actor
-    ///              inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
-    ///              for each target actor.
+    ///   inboxes. Should be built by calling [crate::traits::Actor::shared_inbox_or_inbox]
+    ///   for each target actor.
     pub async fn prepare<Activity, Datatype, ActorType>(
         activity: &Activity,
         actor: &ActorType,
@@ -151,7 +151,7 @@ where
     let actor_id = activity.actor();
     let activity_id = activity.id();
     let activity_serialized: Bytes = serde_json::to_vec(activity)
-        .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{:?}", activity)))?
+        .map_err(|e| Error::SerializeOutgoingActivity(e, format!("{activity:?}")))?
         .into();
     let private_key = get_pkey_cached(data, actor).await?;
 
@@ -214,7 +214,7 @@ where
 pub(crate) fn generate_request_headers(inbox_url: &Url) -> HeaderMap {
     let mut host = inbox_url.domain().expect("read inbox domain").to_string();
     if let Some(port) = inbox_url.port() {
-        host = format!("{}:{}", host, port);
+        host = format!("{host}:{port}");
     }
 
     let mut headers = HeaderMap::new();
