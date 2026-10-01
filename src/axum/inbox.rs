@@ -5,7 +5,7 @@
 use crate::{
     config::Data,
     error::Error,
-    http_signatures::verify_signature,
+    http_signatures::{verify_body_hash, verify_signature},
     parse_received_activity,
     traits::{Activity, Actor, Object},
 };
@@ -32,6 +32,9 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
+    let digest_header = activity_data.headers.get("Digest");
+    verify_body_hash(digest_header, &activity_data.body)?;
+
     let (activity, actor) =
         parse_received_activity::<A, ActorT, _>(&activity_data.body, data).await?;
 
