@@ -11,7 +11,7 @@ use std::{
 };
 
 /// 1 MB
-const MAX_BODY_SIZE: usize = 1024 * 1024;
+pub(crate) const MAX_BODY_SIZE: usize = 1024 * 1024;
 
 pin_project! {
     pub struct BytesFuture {

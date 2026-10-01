@@ -30,7 +30,7 @@ pub struct CreatePost {
 
 impl CreatePost {
     pub async fn send(note: Note, inbox: Url, data: &Data<DatabaseHandle>) -> Result<(), Error> {
-        print!("Sending reply to {}", &note.attributed_to);
+        print!("Sending reply to {}", note.attributed_to);
         let create = CreatePost {
             actor: note.attributed_to.clone(),
             to: note.to.clone(),

@@ -32,5 +32,5 @@ impl PublicKey {
 }
 
 pub(crate) fn main_key_id(owner: &Url) -> String {
-    format!("{}#main-key", &owner)
+    format!("{}#main-key", owner)
 }

@@ -5,8 +5,9 @@
 use crate::{
     config::Data,
     error::Error,
-    http_signatures::verify_signature,
+    http_signatures::{verify_body_hash, verify_signature},
     parse_received_activity,
+    reqwest_shim::MAX_BODY_SIZE,
     traits::{Activity, Actor, Object},
 };
 use axum::{
@@ -32,6 +33,9 @@ where
     <ActorT as Object>::Error: From<Error>,
     Datatype: Clone,
 {
+    let digest_header = activity_data.headers.get("Digest");
+    verify_body_hash(digest_header, &activity_data.body)?;
+
     let (activity, actor) =
         parse_received_activity::<A, ActorT, _>(&activity_data.body, data).await?;
 
@@ -82,7 +86,7 @@ where
         let uri = parts.uri;
 
         // this wont work if the body is an long running stream
-        let bytes = axum::body::to_bytes(body, usize::MAX)
+        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE)
             .await
             .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())?;
 

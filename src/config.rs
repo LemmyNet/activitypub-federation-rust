@@ -183,7 +183,7 @@ impl<T: Clone> FederationConfig<T> {
             }
 
             let allow_local = std::env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok();
-            if !allow_local && validate_ip(&url).await.is_err() {
+            if !allow_local && validate_ip(url).await.is_err() {
                 return Err(Error::DomainResolveError(domain.to_string()));
             }
         }

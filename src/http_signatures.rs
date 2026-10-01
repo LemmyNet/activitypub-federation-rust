@@ -376,7 +376,7 @@ pub mod test {
             &test_keypair().public_key,
             &config.unwrap(),
         );
-        println!("{:?}", &valid);
+        println!("{:?}", valid);
         assert!(valid.is_ok());
     }
 
@@ -386,7 +386,7 @@ pub mod test {
             HeaderValue::from_static("SHA-256=lzFT+G7C2hdI5j8M+FuJg1tC+O6AGMVJhooTCKGfbKM=");
         let body = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
         let valid = verify_body_hash(Some(&digest_header), body.as_bytes());
-        println!("{:?}", &valid);
+        println!("{:?}", valid);
         assert!(valid.is_ok());
     }
 
