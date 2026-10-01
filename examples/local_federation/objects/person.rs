@@ -46,8 +46,8 @@ pub enum PersonAcceptedActivities {
 
 impl DbUser {
     pub fn new(hostname: &str, name: String) -> Result<DbUser, Error> {
-        let ap_id = Url::parse(&format!("http://{}/{}", hostname, &name))?.into();
-        let inbox = Url::parse(&format!("http://{}/{}/inbox", hostname, &name))?;
+        let ap_id = Url::parse(&format!("http://{hostname}/{name}"))?.into();
+        let inbox = Url::parse(&format!("http://{hostname}/{name}/inbox"))?;
         let keypair = generate_actor_keypair()?;
         Ok(DbUser {
             name,

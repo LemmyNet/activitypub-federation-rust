@@ -231,7 +231,7 @@ impl<T: Clone> FederationConfig<T> {
         match url.host_str() {
             Some(domain) => {
                 let domain = if let Some(port) = url.port() {
-                    format!("{}:{}", domain, port)
+                    format!("{domain}:{port}")
                 } else {
                     domain.to_string()
                 };
