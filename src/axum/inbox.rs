@@ -7,6 +7,7 @@ use crate::{
     error::Error,
     http_signatures::{verify_body_hash, verify_signature},
     parse_received_activity,
+    reqwest_shim::MAX_BODY_SIZE,
     traits::{Activity, Actor, Object},
 };
 use axum::{
@@ -84,7 +85,7 @@ where
         let uri = parts.uri;
 
         // this wont work if the body is an long running stream
-        let bytes = axum::body::to_bytes(body, usize::MAX)
+        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE)
             .await
             .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())?;
 
