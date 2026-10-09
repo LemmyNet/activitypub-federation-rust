@@ -19,8 +19,8 @@ use crate::{
     error::Error,
     http_signatures::sign_request,
     protocol::verification::verify_domains_match,
+    resolver::{validate_url, ValidatingDnsResolver},
     traits::{Activity, Actor},
-    utils::validate_ip,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -57,14 +57,32 @@ pub struct FederationConfig<T: Clone> {
     /// [crate::fetch::object_id::ObjectId] for more details.
     #[builder(default = "20")]
     pub(crate) http_fetch_limit: u32,
-    #[builder(default = "default_client()")]
-    /// HTTP client used for all outgoing requests. When passing a custom client here you should
-    /// also disable redirects and set timeouts.
+    /// HTTP client used for all outgoing requests.
     ///
-    /// Middleware can be used to add functionality like log tracing or retry of failed requests.
-    /// Redirects are disabled by default, because automatic redirect URLs can't be validated.
-    /// Instead a single redirect is handled manually. The default client sets a timeout of 10s
-    ///  to avoid excessive resource usage when connecting to dead servers.
+    /// When passing a custom client here, be sure to add the following logic for security:
+    ///
+    /// ```
+    /// # use activitypub_federation::resolver::ValidatingDnsResolver;
+    /// # use std::time::Duration;
+    /// # use reqwest::{redirect::Policy, Client, Request};
+    /// # use url::Url;
+    /// let timeout = Duration::from_secs(10);
+    /// Client::builder()
+    ///    .redirect(Policy::none())
+    ///    .timeout(timeout)
+    ///    .connect_timeout(timeout)
+    ///    .dns_resolver(ValidatingDnsResolver::new(
+    ///        vec![Url::parse("http://localhost:8080").expect("parse pictrs url")],
+    ///        !cfg!(debug_assertions),
+    ///    ));
+    /// ```
+    ///
+    /// - Disable automatic redirects because they can't be validated, instead a single redirect
+    ///   is handled manually
+    /// - Timeouts to prevent connections from staying open indefinitely
+    /// - Custom DNS resolver which rejects any connection to localhost or internal services
+    ///   (only in release builds)
+    #[builder(default = "default_client()")]
     pub(crate) client: ClientWithMiddleware,
     /// Run library in debug mode. This allows usage of http and localhost urls. It also sends
     /// outgoing activities synchronously, not in background thread. This helps to make tests
@@ -182,8 +200,8 @@ impl<T: Clone> FederationConfig<T> {
                 return Err(Error::UrlVerificationError("Explicit port is not allowed"));
             }
 
-            let allow_local = std::env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok();
-            if !allow_local && validate_ip(url).await.is_err() {
+            // The DANGER_FEDERATION_ALLOW_LOCAL_IP env var is checked in validate_url
+            if validate_url(url, &[], true).await.is_err() {
                 return Err(Error::DomainResolveError(domain.to_string()));
             }
         }
@@ -379,13 +397,10 @@ impl<T: Clone> Data<T> {
         .await
     }
 
-    /// Resolve domain of the url and throw error if it points to local/private IP.
+    /// Resolve domain of the url and throw error if it points to local/private IP. Validation is
+    /// skipped in debug mode.
     pub async fn is_valid_ip(&self, url: &Url) -> Result<(), Error> {
-        if self.config.debug {
-            return Ok(());
-        }
-
-        validate_ip(url).await
+        validate_url(url, &[], self.config.debug).await
     }
 }
 
@@ -424,6 +439,10 @@ fn default_client() -> ClientWithMiddleware {
         .redirect(Policy::none())
         .timeout(timeout)
         .connect_timeout(timeout)
+        .dns_resolver(ValidatingDnsResolver::new(
+            vec![Url::parse("http://localhost:8080").expect("parse pictrs url")],
+            !cfg!(debug_assertions),
+        ))
         .build()
         .unwrap_or_else(|_| Client::default())
         .into()

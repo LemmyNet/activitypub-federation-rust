@@ -72,7 +72,7 @@ where
     )
     .await?;
     if res.url.as_str() != fetch_url {
-        data.config.verify_url_valid(&res.url).await?;
+        debug!("Webfinger url redirected to {}", res.url);
     }
 
     debug_assert_eq!(res.object.subject, format!("acct:{identifier}"));
