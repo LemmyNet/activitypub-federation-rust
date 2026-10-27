@@ -10,15 +10,8 @@ use tokio::net::lookup_host;
 use url::{Host, Url};
 
 /// Resolve the given hostname (or IP literal) and return the resolved addresses, so they can be
-/// used directly for connecting. If `validate` is true, throw an error if any address points to
-/// an internal IP. `validate` should be false in debug mode, so that local urls can be fetched
-/// for testing.
-async fn resolve_and_validate_host(
-    host: &str,
-    port: Option<u16>,
-    allow_hosts: &[(String, u16)],
-    validate: bool,
-) -> Result<Vec<SocketAddr>, Error> {
+/// used directly for connecting.
+async fn resolve_host(host: &str, port: Option<u16>) -> Result<Vec<SocketAddr>, Error> {
     let host = normalize_host(host);
     // Port is only used to construct the SocketAddr; it is overwritten when connecting.
     let default_port = port.unwrap_or(0);
@@ -27,11 +20,22 @@ async fn resolve_and_validate_host(
         Ok(ip) => vec![SocketAddr::new(ip.to_canonical(), default_port)],
         Err(_) => lookup_host((host.as_str(), default_port)).await?.collect(),
     };
+    Ok(addrs)
+}
+
+/// Resolve the given hostname and throw an error if it points to an internal IP.
+async fn resolve_and_validate_host(
+    host: &str,
+    port: Option<u16>,
+    allow_hosts: &[(String, u16)],
+) -> Result<Vec<SocketAddr>, Error> {
+    let addrs = resolve_host(host, port).await?;
+    let host = normalize_host(host);
 
     let is_allowed_host = allow_hosts.iter().any(|(allowed_host, allowed_port)| {
         allowed_host == &host && (port.is_none() || Some(allowed_port) == port.as_ref())
     });
-    if !validate || env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok() || is_allowed_host {
+    if env::var("DANGER_FEDERATION_ALLOW_LOCAL_IP").is_ok() || is_allowed_host {
         return Ok(addrs);
     }
 
@@ -50,9 +54,9 @@ async fn resolve_and_validate_host(
 
 /// Throw an error if the url points to an internal IP, either as literal IP or as domain which
 /// resolves to an internal IP. Also checks that allowlisted hosts are only accessed on their
-/// configured port, since the DNS resolver has no access to the port. Validation is skipped if
-/// `validate` is false (e.g. debug mode), see [`resolve_and_validate_host()`].
-pub async fn validate_url(url: &Url, allow_hosts: &[Url], validate: bool) -> Result<(), Error> {
+/// configured port, since the DNS resolver has no access to the port. Debug mode should skip
+/// calling this entirely.
+pub(crate) async fn validate_url(url: &Url, allow_hosts: &[Url]) -> Result<(), Error> {
     let host = match url
         .host()
         .ok_or(Error::UrlVerificationError("Url must have a domain"))?
@@ -65,7 +69,6 @@ pub async fn validate_url(url: &Url, allow_hosts: &[Url], validate: bool) -> Res
         &host,
         url.port_or_known_default(),
         &allow_host_pairs(allow_hosts),
-        validate,
     )
     .await?;
     Ok(())
@@ -122,8 +125,11 @@ impl Resolve for ValidatingDnsResolver {
         Box::pin(async move {
             // DNS resolver has no access to the port, so allowlisted hosts are matched by
             // name only. Port check is handled in `validate_url`.
-            let addrs: Vec<SocketAddr> =
-                resolve_and_validate_host(&host, None, &allow_hosts, validate).await?;
+            let addrs: Vec<SocketAddr> = if validate {
+                resolve_and_validate_host(&host, None, &allow_hosts).await?
+            } else {
+                resolve_host(&host, None).await?
+            };
             let addrs: Addrs = Box::new(addrs.into_iter());
             Ok(addrs)
         })
@@ -203,37 +209,29 @@ mod test {
 
     #[tokio::test]
     async fn test_validate_url() -> Result<(), Error> {
-        assert!(validate_url(&Url::parse("http://example.com")?, &[], true)
+        assert!(validate_url(&Url::parse("http://example.com")?, &[])
             .await
             .is_ok());
-        assert!(
-            validate_url(&Url::parse("http://172.66.147.243")?, &[], true)
-                .await
-                .is_ok()
-        );
-        assert!(validate_url(&Url::parse("http://localhost")?, &[], true)
+        assert!(validate_url(&Url::parse("http://172.66.147.243")?, &[])
+            .await
+            .is_ok());
+        assert!(validate_url(&Url::parse("http://localhost")?, &[])
             .await
             .is_err());
-        assert!(validate_url(&Url::parse("http://127.0.0.1")?, &[], true)
+        assert!(validate_url(&Url::parse("http://127.0.0.1")?, &[])
             .await
             .is_err());
 
         // allowlisted host is only allowed on the configured port
         let allow_hosts = vec![Url::parse("http://localhost:8080")?];
         let url = Url::parse("http://localhost:8080/")?;
-        assert!(validate_url(&url, &allow_hosts, true).await.is_ok());
+        assert!(validate_url(&url, &allow_hosts).await.is_ok());
         let url = Url::parse("http://localhost:9000/")?;
-        assert!(validate_url(&url, &allow_hosts, true).await.is_err());
+        assert!(validate_url(&url, &allow_hosts).await.is_err());
         let url = Url::parse("http://localhost/")?;
-        assert!(validate_url(&url, &allow_hosts, true).await.is_err());
+        assert!(validate_url(&url, &allow_hosts).await.is_err());
         let url = Url::parse("http://127.0.0.1:8080/")?;
-        assert!(validate_url(&url, &allow_hosts, true).await.is_err());
-
-        // debug mode skips validation
-        let url = Url::parse("http://localhost/")?;
-        assert!(validate_url(&url, &[], false).await.is_ok());
-        let url = Url::parse("http://localhost:9000/")?;
-        assert!(validate_url(&url, &allow_hosts, false).await.is_ok());
+        assert!(validate_url(&url, &allow_hosts).await.is_err());
         Ok(())
     }
 
@@ -337,7 +335,7 @@ mod test {
         assert!(resolver.allows("lemmy.example.com."));
         assert!(!resolver.allows("internal.attacker.com"));
         // `allows` only checks the host list; skipping validation is handled via the
-        // `validate` flag passed to `resolve_and_validate_host`
+        // `validate` flag in the `Resolve` impl
         let resolver = ValidatingDnsResolver::new(vec![], false);
         assert!(!resolver.allows("internal.attacker.com"));
     }

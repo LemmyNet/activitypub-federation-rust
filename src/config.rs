@@ -201,7 +201,7 @@ impl<T: Clone> FederationConfig<T> {
             }
 
             // The DANGER_FEDERATION_ALLOW_LOCAL_IP env var is checked in validate_url
-            if validate_url(url, &[], true).await.is_err() {
+            if validate_url(url, &[]).await.is_err() {
                 return Err(Error::DomainResolveError(domain.to_string()));
             }
         }
@@ -400,7 +400,10 @@ impl<T: Clone> Data<T> {
     /// Resolve domain of the url and throw error if it points to local/private IP. Validation is
     /// skipped in debug mode.
     pub async fn is_valid_ip(&self, url: &Url) -> Result<(), Error> {
-        validate_url(url, &[], self.config.debug).await
+        if self.config.debug {
+            return Ok(());
+        }
+        validate_url(url, &[]).await
     }
 }
 
