@@ -22,8 +22,8 @@ pub mod fetch;
 pub mod http_signatures;
 pub mod protocol;
 pub(crate) mod reqwest_shim;
+pub mod resolver;
 pub mod traits;
-mod utils;
 
 use crate::{
     config::Data,

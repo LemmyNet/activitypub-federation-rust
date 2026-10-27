@@ -6,7 +6,7 @@ use rsa::{
     errors::Error as RsaError,
     pkcs8::{spki::Error as SpkiError, Error as Pkcs8Error},
 };
-use std::string::FromUtf8Error;
+use std::{net::IpAddr, string::FromUtf8Error};
 use tokio::task::JoinError;
 use url::Url;
 
@@ -31,6 +31,9 @@ pub enum Error {
     /// Resolving domain points to local IP.
     #[error("Resolving domain {0} points to local IP address. This may indicate an attacker attempting to access internal services. If intentional, you can ignore this error by setting DANGER_FEDERATION_ALLOW_LOCAL_IP=1")]
     DomainResolveError(String),
+    /// Hostname resolves to internal IP
+    #[error("Hostname {0} resolves to internal IP {1}")]
+    ResolveInternalIpError(String, IpAddr),
     /// Incoming activity has invalid digest for body
     #[error("Incoming activity has invalid digest for body")]
     ActivityBodyDigestInvalid,
