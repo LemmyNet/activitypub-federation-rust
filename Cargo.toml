@@ -28,68 +28,68 @@ redundant_closure_for_method_calls = "deny"
 unwrap_used = "deny"
 
 [dependencies]
-chrono = { version = "0.4.42", features = ["clock"], default-features = false }
-serde = { version = "1.0.228", features = ["derive"] }
-async-trait = "0.1.89"
+chrono = { version = "0.4.45", features = ["clock"], default-features = false }
+serde = { version = "1.0.229", features = ["derive"] }
+async-trait = "0.1.92"
 url = { version = "2.5.8", features = ["serde"] }
-serde_json = { version = "1.0.149", features = ["preserve_order"] }
-reqwest = { version = "0.13.1", default-features = false, features = [
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+reqwest = { version = "0.13.5", default-features = false, features = [
   "json",
   "stream",
 ] }
-reqwest-middleware = "0.5.0"
+reqwest-middleware = "0.5.2"
 tracing = "0.1.44"
-base64 = "0.22.1"
+base64 = "0.23.1"
 rand = "0.8.5"
 rsa = "0.9.10"
-http = "1.4.0"
+http = "1.5.0"
 sha2 = { version = "0.10.9", features = ["oid"] }
-thiserror = "2.0.17"
+thiserror = "2.0.21"
 derive_builder = "0.20.2"
-itertools = "0.14.0"
+itertools = "0.15.0"
 dyn-clone = "1.0.20"
 enum_delegate = "0.2.0"
 httpdate = "1.0.3"
-http-signature-normalization-reqwest = { version = "0.14.0", default-features = false, features = [
+http-signature-normalization-reqwest = { version = "0.14.1", default-features = false, features = [
   "sha-2",
   "middleware",
   "default-spawner",
 ] }
-http-signature-normalization = "0.7.0"
-bytes = "1.11.0"
-futures-core = { version = "0.3.31", default-features = false }
-pin-project-lite = "0.2.16"
+http-signature-normalization = "0.7.1"
+bytes = "1.12.1"
+futures-core = { version = "0.3.34", default-features = false }
+pin-project-lite = "0.2.17"
 activitystreams-kinds = "0.3.0"
-regex = { version = "1.12.2", default-features = false, features = [
+regex = { version = "1.13.1", default-features = false, features = [
   "std",
   "unicode",
 ] }
-tokio = { version = "1.49.0", features = [
+tokio = { version = "1.54.1", features = [
   "sync",
   "rt",
   "rt-multi-thread",
   "time",
 ] }
-futures = "0.3.31"
-moka = { version = "0.12.12", features = ["future"] }
-either = "1.15.0"
+futures = "0.3.34"
+moka = { version = "0.12.16", features = ["future"] }
+either = "1.19.0"
 
 # Actix-web
-actix-web = { version = "4.12.1", default-features = false, optional = true }
+actix-web = { version = "4.18.1", default-features = false, optional = true }
 http02 = { package = "http", version = "0.2.12", optional = true }
 
 # Axum
-axum = { version = "0.8.8", features = [
+axum = { version = "0.8.9", features = [
   "json",
 ], default-features = false, optional = true }
-tower = { version = "0.5.2", optional = true }
+tower = { version = "0.5.3", optional = true }
 
 [dev-dependencies]
-anyhow = "1.0.100"
-axum = { version = "0.8.8", features = ["macros"] }
-env_logger = "0.11.8"
-tokio = { version = "1.49.0", features = ["full"] }
-reqwest = { version = "0.13.1", features = ["rustls"] }
+anyhow = "1.0.104"
+axum = { version = "0.8.9", features = ["macros"] }
+env_logger = "0.11.11"
+tokio = { version = "1.54.1", features = ["full"] }
+reqwest = { version = "0.13.5", features = ["rustls"] }
 
 [profile.dev]
 strip = "symbols"
