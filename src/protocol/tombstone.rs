@@ -1,6 +1,6 @@
 //! Tombstone is used to serve deleted objects
 
-use crate::kinds::object::TombstoneType;
+use crate::{kinds::object::TombstoneType, protocol::helpers::deserialize_first};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -12,7 +12,7 @@ use url::Url;
 pub struct Tombstone {
     /// Id of the deleted object
     pub id: Url,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", deserialize_with = "deserialize_first")]
     pub(crate) kind: TombstoneType,
 }
 

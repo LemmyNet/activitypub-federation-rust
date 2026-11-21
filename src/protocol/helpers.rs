@@ -140,6 +140,42 @@ where
     Ok(inner)
 }
 
+/// Deserialize either a single value or the first item from an array into a single value.
+///
+/// Useful for non-functional Activity Vocabulary fields, such as the `type` field, which allow multiple values.
+///
+/// ```
+/// # use activitypub_federation::protocol::helpers::deserialize_first;
+/// # use activitystreams_kinds::object::NoteType;
+/// #[derive(serde::Deserialize)]
+/// struct Note {
+///     #[serde(rename = "type", deserialize_with = "deserialize_first")]
+///     kind: NoteType,
+/// }
+///
+/// let single: Note = serde_json::from_str(r#"{"type": "Note"}"#)?;
+/// assert_eq!(single.kind, NoteType::Note);
+///
+/// let multiple: Note = serde_json::from_str(r#"{"type": ["Note", "Article"]}"#)?;
+/// assert_eq!(multiple.kind, NoteType::Note);
+/// # Ok::<(), anyhow::Error>(())
+/// ```
+pub fn deserialize_first<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    let value = match value {
+        Value::Array(values) => values
+            .into_iter()
+            .next()
+            .ok_or_else(|| D::Error::custom("array is empty"))?,
+        value => value,
+    };
+    T::deserialize(value).map_err(D::Error::custom)
+}
+
 /// Deserialize either single value or last item from an array into an optional field.
 pub fn deserialize_last<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -247,6 +283,29 @@ mod tests {
 
         assert_eq!(note.to, vec![public()]);
         assert_eq!(note.content, "Public");
+
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_first_string_and_array() -> Result<()> {
+        use crate::protocol::helpers::deserialize_first;
+        use activitystreams_kinds::activity::FollowType;
+
+        #[derive(Deserialize)]
+        struct Activity {
+            #[serde(rename = "type", deserialize_with = "deserialize_first")]
+            kind: FollowType,
+        }
+
+        let single: Activity = serde_json::from_str(r#"{"type": "Follow"}"#)?;
+        assert_eq!(single.kind, FollowType::Follow);
+
+        let multiple: Activity = serde_json::from_str(r#"{"type": ["Follow", "Undo"]}"#)?;
+        assert_eq!(multiple.kind, FollowType::Follow);
+
+        let empty = serde_json::from_str::<Activity>(r#"{"type": []}"#);
+        assert!(empty.is_err());
 
         Ok(())
     }
